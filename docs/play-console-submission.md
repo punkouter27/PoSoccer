@@ -14,7 +14,7 @@ last updated Jul 31 2026.
 | Content ratings | Everyone / ESRB E / PEGI 3 / USK 0 / IARC 3+ | Yes — 2D sports game, no violence, no user interaction |
 | Ads | App doesn't contain ads | Yes |
 | Sign in details | All functionality is available without special access | Yes — no login, no gated content |
-| Privacy policy | `https://app-popunkoutersoftware.azurewebsites.net//privacy` | **Broken — see below** |
+| Privacy policy | `https://app-popunkoutersoftware2.azurewebsites.net//privacy` | **Broken — see below** |
 | Health apps | Actioned | No health features |
 | Financial features | Actioned | No financial features |
 | Government apps | Actioned | Not a government app |

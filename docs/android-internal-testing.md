@@ -99,7 +99,7 @@ clone without `git lfs install` will see pointer stubs.
 code, not assumed). It needs a **public URL**.
 
 Cheapest option: enable GitHub Pages on the repo and link the rendered file. The
-existing PoSumo URL (`app-popunkoutersoftware.azurewebsites.net//privacy`) returns
+existing PoSumo URL (`app-popunkoutersoftware2.azurewebsites.net//privacy`) returns
 a 409 and has a double slash — do not reuse it.
 
 ### 4. Play Console listing
