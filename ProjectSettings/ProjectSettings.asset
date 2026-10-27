@@ -43,8 +43,8 @@ PlayerSettings:
   m_VirtualRealitySplashScreen: {fileID: 0}
   defaultScreenWidth: 1920
   defaultScreenHeight: 1080
-  defaultScreenWidthWeb: 960
-  defaultScreenHeightWeb: 600
+  defaultScreenWidthWeb: 540
+  defaultScreenHeightWeb: 960
   m_StereoRenderingPath: 0
   m_ActiveColorSpace: 1
   unsupportedMSAAFallback: 0
@@ -695,14 +695,14 @@ PlayerSettings:
   webGLDebugSymbols: 0
   webGLEmscriptenArgs: 
   webGLModulesDirectory: 
-  webGLTemplate: APPLICATION:Default
+  webGLTemplate: PROJECT:Po
   webGLAnalyzeBuildSize: 0
   webGLUseEmbeddedResources: 0
-  webGLCompressionFormat: 0
+  webGLCompressionFormat: 1
   webGLWasmArithmeticExceptions: 0
   webGLLinkerTarget: 1
   webGLThreadsSupport: 0
-  webGLDecompressionFallback: 0
+  webGLDecompressionFallback: 1
   webGLInitialMemorySize: 32
   webGLMaximumMemorySize: 2048
   webGLMemoryGrowthMode: 2
@@ -731,7 +731,7 @@ PlayerSettings:
     Server: UNITY_MCP_READY;UNITY_MCP_DEPS_8
     Standalone: SENTIS_ANALYTICS_ENABLED;APP_UI_EDITOR_ONLY;UNITY_MCP_READY;UNITY_MCP_DEPS_8
     VisionOS: UNITY_MCP_READY;UNITY_MCP_DEPS_8
-    WebGL: UNITY_MCP_READY;UNITY_MCP_DEPS_8
+    WebGL: UNITY_MCP_READY;UNITY_MCP_DEPS_8;SENTIS_ANALYTICS_ENABLED
     Windows Store Apps: UNITY_MCP_READY;UNITY_MCP_DEPS_8
     XboxOne: UNITY_MCP_READY;UNITY_MCP_DEPS_8
     iPhone: UNITY_MCP_READY;UNITY_MCP_DEPS_8
