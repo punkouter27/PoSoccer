@@ -31,3 +31,10 @@ exemptions live in `CLAUDE.md` and `docs/rules-exemptions.md`.
 
 ## Response Formatting
 * Add a 20-word TLDR summary at the end of any response exceeding 100 words.
+
+## CI/CD and Azure (same section in every Po repo)
+
+- A push to the default branch builds WebGL and deploys it to the game's Azure Static Web App (`.github/workflows/webgl.yml`). It runs on the self-hosted `unity` runner on the dev PC, one Unity build at a time across all games, so the PC must be on. `Tools/deploy_webgl.ps1` stays for a manual deploy, but CI is the normal path.
+- The workflow has no `pull_request` trigger, on purpose: the repo is public and the runner is a real PC. Never add one.
+- Tests pass on any machine: no drive-letter, temp-folder or working-directory assumptions, and no live config value hard-coded as an expected result (read it from the same config the app reads).
+- A red run on the default branch gets an ntfy push from the CI watcher in PoPunkouterSoftware. Fix it, or say why it is red.

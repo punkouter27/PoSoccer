@@ -1,5 +1,7 @@
 # CLAUDE.md
 
+@AGENTS.md
+
 Guidance for Claude Code in this repository. Slimmed 2026-10-10: the previous 100 KB file,
 with every dated correction chain and the full reasoning behind each landmine, is preserved
 verbatim in `docs/claude-md-archive-2026-10-10.md`. Read the matching section there before
