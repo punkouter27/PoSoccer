@@ -77,7 +77,19 @@ namespace PoSoccer
 
         VisualElement _root, _endPanel, _blueChips, _redChips;
         VisualElement _meter;
-        Button _broadcastButton, _soundButton;
+        Button _broadcastButton, _soundButton, _overlayButton;
+        Label _agentStream;
+        Agent_SpectatorInput _spectator;
+        readonly System.Text.StringBuilder _streamText = new(64);
+        float _nextSlowRefresh;
+        int _shownOverlaySignature = -1;
+        int _shownOverlayVersion = -1;
+        Agent_Soccer _streamSubject;
+        int _streamSpeedTenths = -1, _streamStaminaPct = -1;
+        bool _streamBoost;
+
+        /// <summary>Kept as a field so the settings sheet can compare it when this HUD unregisters.</summary>
+        System.Action _openSettingsAction;
         VisualElement _ballControlBlue, _ballControlRed;   // halves of the meter
         VisualElement _topBand, _bottomBand;
         int _blueScore, _redScore;
@@ -148,6 +160,9 @@ namespace PoSoccer
 
             if (_winProbBar != null) _winProbBar.style.display = probability;
             if (_winProbLabel != null) _winProbLabel.style.display = probability;
+            // The agent stream describes a player in a MATCH; the training scene's
+            // clock line already carries its own telemetry.
+            if (_agentStream != null) _agentStream.style.display = probability;
             if (_ticker != null) _ticker.style.display = broadcast;
             if (_broadcastTag != null) _broadcastTag.style.display = broadcast;
             if (_meter != null) _meter.style.display = meter;
@@ -252,6 +267,9 @@ namespace PoSoccer
         }
 
         const int END_TAB_COUNT = 3;
+
+        /// <summary>The result screen's second button: back to the lineup screen.</summary>
+        public const string LINEUP_TEXT = "CHANGE LINEUP";
         static readonly string[] EndTabNames = { "SUMMARY", "STATS", "PLAYERS" };
 
         /// <summary>
@@ -405,6 +423,8 @@ namespace PoSoccer
             // Optional, unlike the rest: the meter is hidden with the broadcast
             // readouts, and a template without it just has nothing to hide.
             _meter = _root.Q<VisualElement>("meter");
+            // Optional too (2026-11-07): an older template simply has no stream.
+            _agentStream = _root.Q<Label>("agent-stream");
             var controls = _root.Q<VisualElement>("controls");
 
             if (safe == null || _topBand == null || _bottomBand == null ||
@@ -489,9 +509,13 @@ namespace PoSoccer
                 // the menu and in a match. Two MENU buttons on one screen is worse
                 // than either position on its own. Agent_Chrome.ReturnToMenu keeps
                 // the Agent_TimeFreeze.ReleaseAll() that used to happen here.
-                _soundButton = Agent_UIStyle.SoundToggleButton();
-                _soundButton.AddToClassList("hud__control");
-                controls.Add(_soundButton);
+                //
+                // SND used to be the first control here. Cut 2026-11-07: the
+                // settings sheet is now one tap away in the upper-right corner on
+                // every screen, with SOUND at the top of its AUDIO tab, and the
+                // menu keeps its own mute button for the reach-without-looking
+                // case. A second mute switch in the match row bought nothing for
+                // the width it took next to DEBUG.
 
                 var pause = SmallButton("II", TogglePause);
                 pause.name = "pause";
@@ -505,13 +529,88 @@ namespace PoSoccer
                 _broadcastButton.name = "broadcast-toggle";
                 _broadcastButton.AddToClassList("hud__control");
                 controls.Add(_broadcastButton);
+
+                // THE ONE OVERLAY SWITCH (2026-11-07). Each tap shows the next
+                // overlay on its own - intent, vision, tracer, brain cam, xG field,
+                // skids, then none (Agent_Overlays.CycleSolo). The O key does the
+                // same; the letter keys and the panel's grid still switch any of
+                // them individually. The label is the overlay showing, or VIEW.
+                _overlayButton = Agent_UIStyle.ToggleButton(Agent_Overlays.SoloText(), false, CycleOverlay);
+                _overlayButton.name = "overlay-cycle";
+                _overlayButton.AddToClassList("hud__control");
+                controls.Add(_overlayButton);
             }
             else
             {
                 controls.style.display = DisplayStyle.None;
             }
 
+            // The upper-right SETTINGS button (Agent_Chrome) opens the sheet over
+            // this panel, so OnSettingsChanged runs after a change made mid-match.
+            _openSettingsAction = OpenSettings;
+            Agent_SettingsSheet.SetHost(_openSettingsAction);
+
             return true;
+        }
+
+        void CycleOverlay()
+        {
+            Agent_Overlays.CycleSolo();
+            RefreshOverlayButton();
+        }
+
+        /// <summary>
+        /// Re-labels the VIEW button when an overlay was switched by any route - the
+        /// button, the O key, a letter key, the panel. Polled on the slow refresh
+        /// with a bitmask compare, so the common case is one int comparison.
+        /// </summary>
+        void RefreshOverlayButton()
+        {
+            if (_overlayButton == null) return;
+            int signature = Agent_Overlays.Signature();
+            if (signature == _shownOverlaySignature && Agent_Overlays.Version == _shownOverlayVersion) return;
+            _shownOverlaySignature = signature;
+            _shownOverlayVersion = Agent_Overlays.Version;
+            _overlayButton.text = Agent_Overlays.SoloText();
+            _overlayButton.EnableInClassList(Agent_UIStyle.ON, signature != 0);
+        }
+
+        /// <summary>
+        /// The lower-left agent line: the focused player, else whoever last touched
+        /// the ball, else the first player. Rebuilt only when a shown value changes
+        /// at the precision it is printed at, and only on the slow refresh, so it
+        /// allocates at most a few strings a second and only with STATS on.
+        /// </summary>
+        void RefreshAgentStream()
+        {
+            if (_agentStream == null || !_showBroadcastStrip || !enableMatchFlow || env == null) return;
+
+            if (_spectator == null) _spectator = env.GetComponent<Agent_SpectatorInput>();
+            Agent_Soccer subject = _spectator != null ? _spectator.FocusedAgent : null;
+            if (subject == null) subject = env.LastToucher;
+            if (subject == null && env.agents.Count > 0) subject = env.agents[0];
+            if (subject == null || subject.Body == null) return;
+
+            int speedTenths = Mathf.RoundToInt(subject.Body.linearVelocity.magnitude * 10f);
+            int stamina = subject.Stamina != null && subject.Stamina.maxStamina > 0f
+                ? Mathf.RoundToInt(subject.Stamina.Current / subject.Stamina.maxStamina * 100f)
+                : -1;
+            bool boost = subject.IsBoosting;
+            if (subject == _streamSubject && speedTenths == _streamSpeedTenths
+                && stamina == _streamStaminaPct && boost == _streamBoost) return;
+
+            _streamSubject = subject;
+            _streamSpeedTenths = speedTenths;
+            _streamStaminaPct = stamina;
+            _streamBoost = boost;
+
+            _streamText.Clear();
+            _streamText.Append(subject.rewards != null ? subject.rewards.playerName : subject.name);
+            _streamText.Append("  ·  ");
+            _streamText.Append(speedTenths / 10).Append('.').Append(speedTenths % 10).Append(" m/s");
+            if (stamina >= 0) _streamText.Append("  ·  stamina ").Append(stamina).Append('%');
+            if (boost) _streamText.Append("  ·  BOOST");
+            _agentStream.text = _streamText.ToString();
         }
 
         void Start()
@@ -549,6 +648,7 @@ namespace PoSoccer
             // The settings sheet lives on this HUD's panel when it was opened from
             // the pause screen. Its state is static, so drop it with the panel.
             if (_settingsOpenedHere) Agent_SettingsSheet.Close();
+            if (_openSettingsAction != null) Agent_SettingsSheet.ClearHost(_openSettingsAction);
         }
 
         /// <summary>
@@ -834,6 +934,19 @@ namespace PoSoccer
             if (_blueChips == null) return;
             _blueChips.Clear();
             _redChips.Clear();
+
+            // DRIVER TAGS ONLY WHEN THEY DISTINGUISH SOMETHING (2026-11-07). Since
+            // 2026-10-11 the menu offers only RL-trained brains, so in an ordinary
+            // match every chip said "AI" - the same word under every badge, read
+            // by nobody. The tag returns the moment any body on the pitch is driven
+            // by the rule-based bot (a brain that failed to load falls back to it),
+            // because then "which of these is the bot" is a real question again.
+            bool anyBot = false;
+            foreach (var agent in env.agents)
+            {
+                if (agent != null && agent.rewards != null && agent.RuleBased) { anyBot = true; break; }
+            }
+
             foreach (var agent in env.agents)
             {
                 if (agent == null || agent.rewards == null) continue;
@@ -849,14 +962,16 @@ namespace PoSoccer
                     ? Agent_UIStyle.BlueTeam : Agent_UIStyle.RedTeam;
                 chip.Add(square);
 
-                // Who is driving this body? The point of the BOT roster entry is
-                // watching a trained brain play the rule-based benchmark, so the
-                // scoreboard has to say which is which without guessing.
-                var driver = new Label(agent.RuleBased ? "BOT" : "AI");
-                driver.AddToClassList("chip__driver");
-                driver.style.color = agent.RuleBased
-                    ? Agent_UIStyle.TextMuted : Agent_UIStyle.Accent;
-                chip.Add(driver);
+                // Who is driving this body? Only said when the pitch mixes bot and
+                // trained brain - see anyBot above.
+                if (anyBot)
+                {
+                    var driver = new Label(agent.RuleBased ? "BOT" : "AI");
+                    driver.AddToClassList("chip__driver");
+                    driver.style.color = agent.RuleBased
+                        ? Agent_UIStyle.TextMuted : Agent_UIStyle.Accent;
+                    chip.Add(driver);
+                }
 
                 (agent.team == Agent_Soccer.Team.Blue ? _blueChips : _redChips).Add(chip);
             }
@@ -988,8 +1103,14 @@ namespace PoSoccer
                 () => { Agent_TimeFreeze.ReleaseAll(); SceneManager.LoadScene(SceneManager.GetActiveScene().name); });
             rematch.AddToClassList("btn--dock");
             actions.Add(rematch);
-            var menu = EndButton("MENU", false,
+            // CHANGE LINEUP, not MENU (2026-11-07). It goes to the same place - the
+            // menu IS the lineup screen, and it reopens on the lineup just played
+            // (Agent_MainMenu.RestoreLineup) - but the label now says what the
+            // player is going there to do. The full flow is
+            // menu -> match -> result -> REMATCH (same lineup) or CHANGE LINEUP.
+            var menu = EndButton(LINEUP_TEXT, false,
                 () => { Agent_TimeFreeze.ReleaseAll(); SceneManager.LoadScene(menuScene); });
+            menu.name = "end-lineup";
             menu.AddToClassList("btn--dock");
             actions.Add(menu);
             _endPanel.Add(actions);
@@ -1202,6 +1323,14 @@ namespace PoSoccer
             if (Time.unscaledTime > _commentaryUntil) Agent_UIStyle.SetShown(_commentary, false);
 
             UpdateBallControlMeter();
+
+            // Four times a second, unscaled so a frozen clock still re-labels.
+            if (Time.unscaledTime >= _nextSlowRefresh)
+            {
+                _nextSlowRefresh = Time.unscaledTime + 0.25f;
+                RefreshOverlayButton();
+                RefreshAgentStream();
+            }
         }
 
         /// <summary>

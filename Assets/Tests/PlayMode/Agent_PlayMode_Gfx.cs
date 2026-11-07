@@ -307,7 +307,11 @@ namespace PoSoccer.Tests
                 "The old accessibility shelf should be empty; its controls live in the settings sheet.");
             Assert.AreEqual(DisplayStyle.None, settings.resolvedStyle.display,
                 "The emptied shelf still takes a row of a portrait column that has none to spare.");
-            Assert.IsNotNull(root.Q<Button>("open-settings"),
+            // The way in moved to Agent_Chrome's upper-right corner on 2026-11-07
+            // (same element name): the same place on every screen.
+            var chrome = Object.FindAnyObjectByType<Agent_Chrome>();
+            Assert.IsNotNull(chrome, "No Agent_Chrome on the menu");
+            Assert.IsNotNull(chrome.GetComponent<UIDocument>().rootVisualElement.Q<Button>("open-settings"),
                 "The menu has no SETTINGS button, so no setting is reachable from it.");
 
             // And the stylesheet is attached, or every class above is inert.

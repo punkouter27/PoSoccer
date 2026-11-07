@@ -103,9 +103,15 @@ namespace PoSoccer.Tests
                 Assert.Greater(panel.width, 1f, $"[{sceneName}] chrome panel never resolved");
 
                 float third = panel.width / 3f;
+                // 2026-11-07 grid: title + screen name upper-left, SETTINGS and
+                // MENU upper-right, DEBUG lower-left, version + build stamp
+                // lower-right. The FPS readout is upper-centre and only exists
+                // while the health panel is open (see the test below).
                 var checks = new (string Name, bool Left, bool Top)[]
                 {
                     ("chrome-title", true, true),
+                    ("chrome-scene", true, true),
+                    ("open-settings", false, true),
                     ("chrome-menu", false, true),
                     ("chrome-debug", true, false),
                     ("chrome-version", false, false),
@@ -158,14 +164,68 @@ namespace PoSoccer.Tests
         // The one that has been wrong before
         // ------------------------------------------------------------------
 
+        /// <summary>
+        /// Opens the health panel, which is the only time the readout is shown
+        /// (2026-11-07), and forces the counter preference on for the test.
+        /// </summary>
+        static IEnumerator OpenHealthPanel()
+        {
+            Agent_Chrome.ShowFps = true;
+            var telemetry = Object.FindAnyObjectByType<Agent_Telemetry>();
+            Assert.IsNotNull(telemetry, "No Agent_Telemetry in the scene; the readout has nothing to follow");
+            telemetry.SetVisible(true);
+            yield return Frames(3);
+            yield return Settle(0.6f);
+        }
+
+        static void CloseHealthPanel()
+        {
+            var telemetry = Object.FindAnyObjectByType<Agent_Telemetry>();
+            if (telemetry != null) telemetry.SetVisible(false);
+        }
+
+        [UnityTest]
+        public IEnumerator TheFpsReadout_IsHiddenUntilTheHealthPanelOpens()
+        {
+            bool previous = Agent_Chrome.ShowFps;
+            try
+            {
+                Agent_Chrome.ShowFps = true;
+                SceneManager.LoadScene("SCN_Exhibition");
+                yield return Frames(3);
+                yield return Settle();
+
+                var telemetry = Object.FindAnyObjectByType<Agent_Telemetry>();
+                Assert.IsNotNull(telemetry);
+                telemetry.SetVisible(false);
+                yield return Frames(3);
+
+                var fps = Corner(ChromeDocument(), "chrome-fps");
+                Assert.AreEqual(DisplayStyle.None, fps.resolvedStyle.display,
+                    "The FPS readout is on the default screen. It belongs to the health panel.");
+
+                yield return OpenHealthPanel();
+                Assert.AreNotEqual(DisplayStyle.None, fps.resolvedStyle.display,
+                    "Opening the health panel did not bring the FPS readout up.");
+                CloseHealthPanel();
+            }
+            finally
+            {
+                Agent_Chrome.ShowFps = previous;
+                CloseHealthPanel();
+            }
+        }
+
         [UnityTest]
         public IEnumerator TheFpsReadout_IsTopCentreAndClearsEverythingElseInTheCentre()
         {
+            bool previousFps = Agent_Chrome.ShowFps;
             foreach (string sceneName in new[] { "SCN_Menu", "SCN_Exhibition" })
             {
                 SceneManager.LoadScene(sceneName);
                 yield return Frames(3);
                 yield return Settle();
+                yield return OpenHealthPanel();
 
                 UIDocument document = ChromeDocument();
                 Rect panel = document.rootVisualElement.worldBound;
@@ -206,7 +266,24 @@ namespace PoSoccer.Tests
                 Assert.IsEmpty(collisions,
                     $"[{sceneName}] the FPS readout at y={bounds.yMin:0}..{bounds.yMax:0} " +
                     "overprints: " + string.Join(", ", collisions));
+                CloseHealthPanel();
             }
+            Agent_Chrome.ShowFps = previousFps;
+        }
+
+        /// <summary>The lower-right label carries the YYMMDD build stamp next to the version.</summary>
+        [UnityTest]
+        public IEnumerator TheVersionLabel_CarriesTheBuildStamp()
+        {
+            SceneManager.LoadScene("SCN_Menu");
+            yield return Frames(3);
+            yield return Settle(0.5f);
+
+            var version = (Label)Corner(ChromeDocument(), "chrome-version");
+            StringAssert.EndsWith(Agent_BuildStamp.Stamp, version.text,
+                "The version label does not end with the build stamp.");
+            Assert.IsTrue(Agent_BuildStamp.IsValid(Agent_BuildStamp.Stamp),
+                $"'{Agent_BuildStamp.Stamp}' is not a YYMMDD stamp.");
         }
 
         /// <summary>
@@ -269,9 +346,12 @@ namespace PoSoccer.Tests
         [UnityTest]
         public IEnumerator EveryChromeElement_StaysInsideTheSafeArea()
         {
+            bool previousFps = Agent_Chrome.ShowFps;
             SceneManager.LoadScene("SCN_Exhibition");
             yield return Frames(3);
             yield return Settle();
+            // The readout only lays out while the health panel is open.
+            yield return OpenHealthPanel();
 
             UIDocument document = ChromeDocument();
             Rect panel = document.rootVisualElement.worldBound;
@@ -284,7 +364,10 @@ namespace PoSoccer.Tests
             float insetBottom = Screen.safeArea.yMin * scale;
 
             foreach (string name in new[]
-                     { "chrome-title", "chrome-fps", "chrome-menu", "chrome-debug", "chrome-version" })
+                     {
+                         "chrome-title", "chrome-scene", "chrome-fps", "open-settings",
+                         "chrome-menu", "chrome-debug", "chrome-version",
+                     })
             {
                 Rect bounds = Corner(document, name).worldBound;
                 Assert.GreaterOrEqual(bounds.yMin, panel.yMin + insetTop - 1f,
@@ -294,6 +377,37 @@ namespace PoSoccer.Tests
                 Assert.GreaterOrEqual(bounds.xMin, panel.xMin - 1f, $"{name} is clipped off the left");
                 Assert.LessOrEqual(bounds.xMax, panel.xMax + 1f, $"{name} is clipped off the right");
             }
+            CloseHealthPanel();
+            Agent_Chrome.ShowFps = previousFps;
+        }
+
+        /// <summary>
+        /// The upper-left screen name sits inside the chrome's reserved bar, so it
+        /// can never reach the scoreboard - the condition the user put on adding it.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator TheSceneTitle_StaysInsideTheChromeBar_AboveTheScoreboard()
+        {
+            SceneManager.LoadScene("SCN_Exhibition");
+            yield return Frames(3);
+            yield return Settle();
+
+            UIDocument chrome = ChromeDocument();
+            Rect sceneTitle = Corner(chrome, "chrome-scene").worldBound;
+            Rect menu = Corner(chrome, "chrome-menu").worldBound;
+
+            var hud = Object.FindAnyObjectByType<Agent_HUD>();
+            Assert.IsNotNull(hud);
+            var score = hud.GetComponent<UIDocument>().rootVisualElement.Q<Label>("score");
+            Assert.IsNotNull(score);
+            Rect scoreBounds = score.worldBound;
+
+            // Inside the top bar: no lower than the bar's own buttons.
+            Assert.LessOrEqual(sceneTitle.yMax, menu.yMax + 2f,
+                $"The screen name (y {sceneTitle.yMin:0}..{sceneTitle.yMax:0}) has dropped out " +
+                $"of the chrome bar (MENU ends at y {menu.yMax:0}).");
+            Assert.IsFalse(Overlaps(sceneTitle, scoreBounds),
+                "The screen name overlaps the scoreboard.");
         }
     }
 }

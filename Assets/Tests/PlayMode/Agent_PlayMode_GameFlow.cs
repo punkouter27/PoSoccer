@@ -207,8 +207,8 @@ namespace PoSoccer.Tests
             var root = hud.GetComponent<UIDocument>().rootVisualElement;
             var rematch = FindButton(root, "REMATCH");
             Assert.IsNotNull(rematch, "End panel has no REMATCH button - the loop is a dead end");
-            Assert.IsNotNull(FindButton(root, "MENU"),
-                "End panel has no MENU button - the only other way out of a finished match");
+            Assert.IsNotNull(FindButton(root, Agent_HUD.LINEUP_TEXT),
+                "End panel has no CHANGE LINEUP button - the only other way out of a finished match");
 
             // Clicked, not simulated. REMATCH owns two things the test used to do
             // on its behalf - releasing every freeze holder and reloading the

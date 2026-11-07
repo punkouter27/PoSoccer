@@ -157,7 +157,8 @@ namespace PoSoccer
             "tier 3 of 3 · everything sheddable shed",
         };
 
-        static readonly string[] VisionText = { "VISION OFF", "VISION LAST", "VISION ALL" };
+        // Ultra (2026-11-07) only ever runs at tier 0; shown in place of tier 0's line.
+        const string QUALITY_ULTRA_TEXT = "tier 0 of 3 · ULTRA (desktop extras on)";
 
         sealed class Row
         {
@@ -183,20 +184,21 @@ namespace PoSoccer
         Row _frameRow, _qualityRow, _drawRow, _errorRow, _clockRow, _physicsRow, _ballRow;
         readonly Row[] _playerRows = new Row[MAX_PLAYER_ROWS];
         Row _morePlayersRow;
-        Button _intentButton, _visionButton, _tracerButton, _brainButton;
-        Button _threatButton, _skidsButton;
+        // One button per Agent_Overlays entry, rebuilt when the registry changes.
+        VisualElement _overlayGrid;
+        readonly List<Button> _overlayButtons = new();
+        readonly List<string> _overlayShownText = new();
+        int _overlayVersion = -1;
         readonly Button[] _speedButtons = new Button[Speeds.Length];
 
         int _drawIndex = -1, _batchIndex = -1;
         int _playerSignature;
         int _shownProblems = -1;
         int _shownErrors = -1, _shownDistinct = -1;
-        int _shownVision = -1;
         float _shownTimeScale = -1f, _shownSpeed = -1f, _shownStepMs = -1f;
         int _shownQuality = -1;
 
         Agent_EnvController _env;
-        Agent_BrainCam _brainCam;
         int _threeFingerLatch;
 
         System.Text.StringBuilder _csv;
@@ -347,7 +349,6 @@ namespace PoSoccer
             }
 
             if (_env == null) _env = FindAnyObjectByType<Agent_EnvController>();
-            if (_brainCam == null) _brainCam = FindAnyObjectByType<Agent_BrainCam>();
 
             _sampleCount = 0;
             _sampleHead = 0;
@@ -452,26 +453,13 @@ namespace PoSoccer
             for (int i = 0; i < _playerRows.Length; i++) _playerRows[i] = AddRow(string.Empty);
             _morePlayersRow = AddRow(string.Empty);
 
+            // The overlay switches come from Agent_Overlays (2026-11-07): every
+            // overlay registered there gets a button here, in the settings sheet's
+            // OVERLAYS tab and in the HUD's VIEW cycler, without editing this file.
             _panel.Add(Section("OVERLAYS"));
-            var overlays = ButtonRow();
-            _intentButton = PanelButton("INTENT", ToggleIntent);
-            _visionButton = PanelButton(VisionText[0], CycleVision);
-            _tracerButton = PanelButton("TRACER", ToggleTracer);
-            _brainButton = PanelButton("BRAIN", ToggleBrainCam);
-            overlays.Add(_intentButton);
-            overlays.Add(_visionButton);
-            overlays.Add(_tracerButton);
-            overlays.Add(_brainButton);
-            _panel.Add(overlays);
-
-            // A second row rather than six buttons on one: at --touch-min a portrait
-            // panel fits four across.
-            var groundOverlays = ButtonRow();
-            _threatButton = PanelButton("XG FIELD", ToggleThreatField);
-            _skidsButton = PanelButton("SKIDS", ToggleSkids);
-            groundOverlays.Add(_threatButton);
-            groundOverlays.Add(_skidsButton);
-            _panel.Add(groundOverlays);
+            _overlayGrid = new VisualElement { name = "health-overlays" };
+            _panel.Add(_overlayGrid);
+            RebuildOverlayButtons();
 
             _panel.Add(Section("PLAYBACK SPEED"));
             var speeds = ButtonRow();
@@ -548,57 +536,69 @@ namespace PoSoccer
 
         // -- Overlay switches --------------------------------------------------
         //
-        // Each of these writes the SAME public member the overlay's own key
-        // handler writes (I / V / T / B), so the keys keep working and the two
-        // routes cannot disagree about the state: there is one flag per overlay
-        // and the buttons re-read it on every refresh.
+        // Each button calls Agent_Overlays.Entry.Advance, which writes the SAME
+        // public member the overlay's own key handler writes (I / V / T / B / X /
+        // G), so the keys keep working and the routes cannot disagree about the
+        // state: there is one flag per overlay and the buttons re-read it on
+        // every refresh.
 
-        static void ToggleIntent() => Agent_Intent.Visible = !Agent_Intent.Visible;
+        /// <summary>
+        /// Buttons per row. Five, not four: the registry grows (other components
+        /// add their overlays), and a third row would push the panel past a 16:9
+        /// screen at the LARGER type scale. Labels are --font-xs, which fits
+        /// "XG FIELD" in a fifth of the 1000-unit row.
+        /// </summary>
+        const int OVERLAYS_PER_ROW = 5;
 
-        static void ToggleTracer() => Agent_ShotTracer.Visible = !Agent_ShotTracer.Visible;
-
-        static void ToggleThreatField() =>
-            Agent_ExpectedGoals.FieldVisible = !Agent_ExpectedGoals.FieldVisible;
-
-        static void ToggleSkids() => Agent_Skids.Visible = !Agent_Skids.Visible;
-
-        static void CycleVision()
+        void RebuildOverlayButtons()
         {
-            Agent_VisionView.CurrentMode = Agent_VisionView.CurrentMode == Agent_VisionView.Mode.All
-                ? Agent_VisionView.Mode.Off
-                : Agent_VisionView.CurrentMode + 1;
-        }
+            if (_overlayGrid == null) return;
+            _overlayGrid.Clear();
+            _overlayButtons.Clear();
+            _overlayShownText.Clear();
+            _overlayVersion = Agent_Overlays.Version;
 
-        void ToggleBrainCam()
-        {
-            if (_brainCam == null) _brainCam = FindAnyObjectByType<Agent_BrainCam>();
-            if (_brainCam == null || !_brainCam.enabled) return;
-            _brainCam.SetVisible(!_brainCam.IsVisible);
+            VisualElement row = null;
+            for (int overlayIndex = 0; overlayIndex < Agent_Overlays.Count; overlayIndex++)
+            {
+                if (overlayIndex % OVERLAYS_PER_ROW == 0)
+                {
+                    row = ButtonRow();
+                    _overlayGrid.Add(row);
+                }
+                var entry = Agent_Overlays.Get(overlayIndex);
+                var button = PanelButton(entry.Text, entry.Advance);
+                button.name = "health-overlay-" + entry.Id;
+                row.Add(button);
+                _overlayButtons.Add(button);
+                _overlayShownText.Add(button.text);
+            }
         }
 
         static void SetSpeed(float speed) => Agent_TimeFreeze.SpectatorSpeed = speed;
 
         void SyncSwitches()
         {
-            _intentButton.EnableInClassList(Agent_UIStyle.ON, Agent_Intent.Visible);
-            _tracerButton.EnableInClassList(Agent_UIStyle.ON, Agent_ShotTracer.Visible);
-            _threatButton.EnableInClassList(Agent_UIStyle.ON, Agent_ExpectedGoals.FieldVisible);
-            _skidsButton.EnableInClassList(Agent_UIStyle.ON, Agent_Skids.Visible);
-
-            int vision = Mathf.Clamp((int)Agent_VisionView.CurrentMode, 0, VisionText.Length - 1);
-            if (vision != _shownVision)
+            if (_overlayVersion != Agent_Overlays.Version) RebuildOverlayButtons();
+            for (int overlayIndex = 0; overlayIndex < _overlayButtons.Count; overlayIndex++)
             {
-                _shownVision = vision;
-                _visionButton.text = VisionText[vision];
-            }
-            _visionButton.EnableInClassList(Agent_UIStyle.ON, vision != 0);
+                var entry = Agent_Overlays.Get(overlayIndex);
+                var button = _overlayButtons[overlayIndex];
 
-            // The brain cam is a match-only component: absent in training and
-            // the gallery, where the switch is shown disabled rather than hidden
-            // so the row keeps its shape.
-            bool brainAvailable = _brainCam != null && _brainCam.enabled;
-            _brainButton.SetEnabled(brainAvailable);
-            _brainButton.EnableInClassList(Agent_UIStyle.ON, brainAvailable && _brainCam.IsVisible);
+                // Re-label only on change: the vision entry's text names its mode.
+                string text = entry.Text;
+                if (!string.Equals(text, _overlayShownText[overlayIndex]))
+                {
+                    _overlayShownText[overlayIndex] = text;
+                    button.text = text;
+                }
+
+                // An overlay that cannot run here (the brain cam outside a match)
+                // is shown disabled rather than hidden, so the rows keep their shape.
+                bool available = entry.Available;
+                button.SetEnabled(available);
+                button.EnableInClassList(Agent_UIStyle.ON, available && entry.IsOn);
+            }
 
             float current = Agent_TimeFreeze.SpectatorSpeed;
             for (int i = 0; i < Speeds.Length; i++)
@@ -662,10 +662,12 @@ namespace PoSoccer
             // one - "inside budget" and "inside budget because the pitch wear is
             // switched off" are different facts.
             int tier = Mathf.Clamp(Agent_Quality.Tier, 0, QualityText.Length - 1);
-            if (tier != _shownQuality)
+            bool ultra = Agent_Quality.UltraActive && tier == 0;
+            int qualityKey = ultra ? QualityText.Length : tier;   // cache key: tier, or one past for Ultra
+            if (qualityKey != _shownQuality)
             {
-                _shownQuality = tier;
-                Set(_qualityRow, QualityText[tier],
+                _shownQuality = qualityKey;
+                Set(_qualityRow, ultra ? QUALITY_ULTRA_TEXT : QualityText[tier],
                     tier == 0 ? STATE_OK : tier < 3 ? STATE_WARN : STATE_BAD);
             }
             if (tier >= 3) problems++;

@@ -238,7 +238,7 @@ namespace PoSoccer.Tests
 
                 // ---------- Full time -> Menu ----------
                 var hudRoot = hud.GetComponent<UIDocument>().rootVisualElement;
-                Click(FindButton(hudRoot, "MENU"), where + " end-panel MENU");
+                Click(FindButton(hudRoot, Agent_HUD.LINEUP_TEXT), where + " end-panel CHANGE LINEUP");
                 yield return Frames(4);
 
                 AssertCleanMenu(where);

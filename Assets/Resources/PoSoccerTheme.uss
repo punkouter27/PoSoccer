@@ -451,6 +451,23 @@
     margin-top: var(--space-3);
 }
 
+/* Lower-left agent telemetry line (Agent_HUD). Left-aligned in the bottom band so
+   it reads as the band's corner, small and muted like the ticker. Shown only with
+   the STATS switch; C# toggles display, so the band shrinks when it is off. */
+.agent-stream {
+    align-self: stretch;
+    margin-left: var(--space-5);
+    margin-right: var(--space-5);
+    margin-bottom: var(--space-2);
+    font-size: var(--font-xs);
+    color: var(--color-text-muted);
+    -unity-text-align: middle-left;
+    -unity-font-style: bold;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 /* The two letterbox bars differ only in which edge they pin to; that is
    structure, so it belongs here rather than in two style assignments in C#. */
 .letterbox--top {
@@ -1527,6 +1544,26 @@
 
 .sheet__value {
     min-width: 360px;
+    -unity-font-style: bold;
+}
+
+/* A row of equal-width named toggles: the OVERLAYS tab's grid and the AUDIO
+   tab's Sound row when other audio switches are registered. One row is one
+   --touch-min, so the fixed body still holds five. */
+.sheet__toggles {
+    flex-direction: row;
+    height: var(--touch-min);
+    align-items: center;
+}
+
+.sheet__toggle {
+    flex-grow: 1;
+    flex-basis: 0;
+    margin-left: var(--space-1);
+    margin-right: var(--space-1);
+    padding-left: var(--space-1);
+    padding-right: var(--space-1);
+    font-size: var(--font-xs);
     -unity-font-style: bold;
 }
 

@@ -10,11 +10,17 @@ namespace PoSoccer
     /// Agent_HUD in a match and to the menu's own title in SCN_Menu, and a
     /// sortingOrder-90 overlay that strays into it wins over both.
     ///
-    ///   upper-left    product name
-    ///   upper-centre  FPS readout, parked clear of whatever owns the centre
-    ///   upper-right   MENU  (back to the start menu; hidden while already there)
+    ///   upper-left    product name, and under it the screen's name
+    ///   upper-centre  FPS / step readout - ONLY while the health panel is open
+    ///   upper-right   SETTINGS (the settings sheet), MENU (hidden at the menu)
     ///   lower-left    DEBUG (toggles Agent_Telemetry)
-    ///   lower-right   version
+    ///   lower-right   version and YYMMDD build stamp
+    ///
+    /// The grid was fixed on 2026-11-07. The default screen carries no
+    /// diagnostics: the FPS readout used to be on whenever the counter preference
+    /// was (default ON), so every match opened with a number in the middle of the
+    /// top bar that only a developer reads. It now rides with the health panel,
+    /// which is where every other diagnostic already lives.
     ///
     /// DEBUG exists because Agent_Telemetry - a complete frame/GC/draw-call
     /// overlay - was only reachable by F3 or an undocumented three-finger tap.
@@ -97,6 +103,10 @@ namespace PoSoccer
         bool _fpsShown;
         Button _menuButton;
         Agent_Telemetry _telemetry;
+        float _nextTelemetrySearch;
+        Agent_EnvController _env;
+        bool _envSearched;
+        readonly System.Text.StringBuilder _readout = new(32);
 
         float _fpsAccum;
         int _fpsFrames;
@@ -237,6 +247,29 @@ namespace PoSoccer
             productLabel.style.flexBasis = StyleKeyword.Auto;
             leftCorner.Add(productLabel);
 
+            // The screen's own name, small, under the product name. It lives in
+            // this corner's column, which is inside the chrome's reserved bar -
+            // Agent_HUD pads its top band by BAR_HEIGHT - so it cannot reach the
+            // scoreboard however long it gets. Two lines (FontM + FontXS, about
+            // 95 px) fit the 120 px row; the sizes are inline, so the type-scale
+            // setting cannot grow the column out of the bar.
+            var sceneLabel = CornerLabel(SceneTitle(), Agent_UIStyle.TextMuted, Agent_UIStyle.FontXS);
+            sceneLabel.name = "chrome-scene";
+            sceneLabel.style.flexGrow = 0;
+            sceneLabel.style.flexBasis = StyleKeyword.Auto;
+            sceneLabel.style.unityFontStyleAndWeight = FontStyle.Normal;
+            leftCorner.Add(sceneLabel);
+
+            // SETTINGS lives in the upper-right on EVERY screen (2026-11-07), so the
+            // way to the settings sheet is in the same place in the menu, a match
+            // and the gallery. The menu's own SETTINGS button went with it, and
+            // keeps its element name ("open-settings") so nothing that looked for
+            // the way in loses it.
+            var settingsButton = ChromeButton("SETTINGS", OpenSettings);
+            settingsButton.name = "open-settings";
+            settingsButton.style.marginRight = Agent_UIStyle.Space2;
+            top.Add(settingsButton);
+
             _menuButton = ChromeButton("MENU", ReturnToMenu);
             _menuButton.name = "chrome-menu";
             // Already at the menu: keep the slot so the row keeps its shape, but
@@ -276,8 +309,9 @@ namespace PoSoccer
             _fpsLabel.style.unityTextAlign = TextAnchor.MiddleCenter;
             _fpsLabel.style.flexGrow = 0;
             _fpsLabel.style.flexBasis = StyleKeyword.Auto;
-            _fpsShown = _showFps && ShowFps;
-            _fpsLabel.style.display = _fpsShown ? DisplayStyle.Flex : DisplayStyle.None;
+            // Hidden until the health panel opens; Update follows the panel.
+            _fpsShown = false;
+            _fpsLabel.style.display = DisplayStyle.None;
             // Behind the two buttons in the same row, and never picking, so a tap
             // meant for MENU is never swallowed by a full-width diagnostic label.
             _fpsLabel.pickingMode = PickingMode.Ignore;
@@ -299,7 +333,13 @@ namespace PoSoccer
 
             // Small, low-contrast and never tappable: it is there to be read off a
             // screenshot in a bug report, not to compete with anything on screen.
-            var version = CornerLabel("v" + Application.version, Agent_UIStyle.TextMuted, Agent_UIStyle.FontXS);
+            // Version and build date in one label, "v1.4 · 261107". The date is
+            // the day the binary was built (Agent_BuildStamp), so a screenshot in a
+            // bug report says which build it came from even when nobody bumped the
+            // version number.
+            var version = CornerLabel(
+                "v" + Application.version + " · " + Agent_BuildStamp.Stamp,
+                Agent_UIStyle.TextMuted, Agent_UIStyle.FontXS);
             version.name = "chrome-version";
             version.style.unityTextAlign = TextAnchor.MiddleRight;
             version.style.unityFontStyleAndWeight = FontStyle.Normal;
@@ -369,6 +409,46 @@ namespace PoSoccer
             SceneManager.LoadScene(_menuScene);
         }
 
+        /// <summary>The screen's name for the upper-left corner, read once at build.</summary>
+        static string SceneTitle()
+        {
+            string scene = SceneManager.GetActiveScene().name;
+            if (scene == "SCN_Menu") return "LINEUP";
+            if (scene == "SCN_Training") return "TRAINING";
+            if (Agent_MatchSetup.GalleryMode) return "GALLERY";
+            if (scene == "SCN_Exhibition") return "EXHIBITION";
+            return string.Empty;
+        }
+
+        /// <summary>
+        /// Opens the settings sheet over whichever screen owns this scene (the HUD
+        /// and the menu register themselves with the sheet), so that screen's own
+        /// refresh runs after a change. Falls back to this panel when nothing
+        /// registered - the gallery has no match HUD. A second tap closes it.
+        /// </summary>
+        void OpenSettings()
+        {
+            VisualElement fallback = _doc != null ? _doc.rootVisualElement : null;
+            Agent_SettingsSheet.RequestOpen(fallback);
+        }
+
+        /// <summary>
+        /// True while the health panel is on screen. The panel is found lazily and
+        /// searched for at most once a second while missing (the menu creates it in
+        /// its own OnEnable), so on almost every frame this is a field read.
+        /// </summary>
+        bool HealthPanelOpen()
+        {
+            if (_telemetry == null)
+            {
+                if (Time.unscaledTime < _nextTelemetrySearch) return false;
+                _nextTelemetrySearch = Time.unscaledTime + 1f;
+                _telemetry = FindAnyObjectByType<Agent_Telemetry>();
+                if (_telemetry == null) return false;
+            }
+            return _telemetry.IsVisible;
+        }
+
         void ToggleTelemetry()
         {
             if (_telemetry == null) _telemetry = FindAnyObjectByType<Agent_Telemetry>();
@@ -384,8 +464,8 @@ namespace PoSoccer
         {
             if (!_showFps || _fpsLabel == null) return;
 
-            // The settings sheet can switch the readout while this scene is up.
-            bool wanted = ShowFps;
+            // Follows the health panel; the settings sheet can also switch it off.
+            bool wanted = ShowFps && HealthPanelOpen();
             if (wanted != _fpsShown)
             {
                 _fpsShown = wanted;
@@ -409,9 +489,30 @@ namespace PoSoccer
             _fpsAccum = 0f;
             _fpsFrames = 0;
 
-            if (fps == _shownFps) return;
+            // A pitch scene adds the environment's step counter. It changes every
+            // physics tick, so that text is rebuilt on each refresh - four short
+            // strings a second, and only while the health panel is open, which is
+            // already a diagnostic screen. Without a pitch the readout is the
+            // cached FPS string and allocates nothing.
+            if (!_envSearched)
+            {
+                _envSearched = true;
+                _env = FindAnyObjectByType<Agent_EnvController>();
+            }
+            if (_env == null)
+            {
+                if (fps == _shownFps) return;
+                _shownFps = fps;
+                _fpsLabel.text = FpsText[Mathf.Clamp(fps, 0, FPS_CACHE_MAX)];
+                return;
+            }
+
             _shownFps = fps;
-            _fpsLabel.text = FpsText[Mathf.Clamp(fps, 0, FPS_CACHE_MAX)];
+            _readout.Clear();
+            _readout.Append(FpsText[Mathf.Clamp(fps, 0, FPS_CACHE_MAX)]);
+            _readout.Append("  ·  step ");
+            _readout.Append(_env.StepCount);
+            _fpsLabel.text = _readout.ToString();
         }
     }
 }

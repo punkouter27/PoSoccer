@@ -48,6 +48,12 @@
 
         <VisualElement name="bottom-band" class="band">
 
+            <!-- Agent telemetry stream (lower-left, 2026-11-07): one line about the
+                 focused player - or whoever last touched the ball - speed, stamina,
+                 boost. Part of the STATS switch, so it is display:none by default
+                 and gives its height back to the band (and the camera) when off. -->
+            <Label name="agent-stream" class="agent-stream" />
+
             <!-- Live stat ticker. Agent_MatchStats rotates one measured line at a
                  time - top speed, distance, possession, touches, grip - because a
                  table of twelve numbers on a phone in portrait is a table nobody

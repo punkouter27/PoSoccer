@@ -142,3 +142,7 @@ Assets/Demonstrations/*.demo.meta
 # Unity crash-recovery scenes (never commit)
 /[Aa]ssets/_Recovery/
 /[Aa]ssets/_Recovery.meta
+
+# Build date stamp, written by Assets/Editor/Editor_BuildStamp.cs before every build
+/[Aa]ssets/Resources/BuildStamp.txt
+/[Aa]ssets/Resources/BuildStamp.txt.meta

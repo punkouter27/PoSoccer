@@ -30,8 +30,10 @@ namespace PoSoccer
     ///    MENU / DEBUG buttons, the brain-cam sheet).
     ///
     /// KEYS. <c>[</c> slower, <c>]</c> faster, through 0.25 / 0.5 / 1 / 2 / 4. Chosen
-    /// against the keys already taken in a match: I V T B F3 Tab Esc Space, and
-    /// W A S D Q E K Shift for the heuristic driver.
+    /// against the keys already taken in a match: I V T B X G F3 Tab Esc Space, and
+    /// W A S D Q E K Shift for the heuristic driver. <c>O</c> (2026-11-07) cycles the
+    /// overlays one at a time (Agent_Overlays.CycleSolo) - the single switch the
+    /// letter keys fold into, and the same thing the HUD's VIEW button does.
     ///
     /// Presentation only, and it reaches the clock and the camera, so it gates on
     /// <see cref="Agent_Presentation.IsMatchScene"/>: never in SCN_Training, never
@@ -113,6 +115,8 @@ namespace PoSoccer
             {
                 if (keyboard.leftBracketKey.wasPressedThisFrame) StepSpeed(-1);
                 if (keyboard.rightBracketKey.wasPressedThisFrame) StepSpeed(1);
+                // The one overlay switch, same as the HUD's VIEW button.
+                if (keyboard.oKey.wasPressedThisFrame) Agent_Overlays.CycleSolo();
             }
 
             int touchesDown = UpdatePinch();

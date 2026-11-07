@@ -407,7 +407,12 @@ namespace PoSoccer
             options.Add(BrainsButton());
             _soundButton = Agent_UIStyle.SoundToggleButton();
             options.Add(_soundButton);
-            options.Add(SettingsButton());
+            // SETTINGS moved to Agent_Chrome's upper-right corner (2026-11-07), the
+            // same spot on every screen; that button is named "open-settings" as
+            // this one was. The menu registers itself as the sheet's host so the
+            // sheet opens over this panel and OnSettingsChanged still runs.
+            _openSettingsAction = OpenSettings;
+            Agent_SettingsSheet.SetHost(_openSettingsAction);
             settings.style.display = DisplayStyle.None;
 
             RefreshBrainNote();
@@ -427,11 +432,11 @@ namespace PoSoccer
             if (button != null) button.clicked += onClick;
         }
 
-        Button SettingsButton()
+        System.Action _openSettingsAction;
+
+        void OnDisable()
         {
-            var button = new Button(OpenSettings) { text = "SETTINGS", name = "open-settings" };
-            button.AddToClassList("btn");
-            return button;
+            if (_openSettingsAction != null) Agent_SettingsSheet.ClearHost(_openSettingsAction);
         }
 
         void OpenSettings()

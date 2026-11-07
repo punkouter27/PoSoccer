@@ -681,8 +681,11 @@ namespace PoSoccer.Tests
                 AssertInsideSafeRect("menu", topInset, bottomInset);
                 AssertNoScrollViews("menu");
 
-                var menuRoot = RootOfMenu();
-                var openSettings = menuRoot.Q<Button>("open-settings");
+                // SETTINGS is the chrome's upper-right button since 2026-11-07.
+                var chromeForSettings = Object.FindAnyObjectByType<Agent_Chrome>();
+                Assert.IsNotNull(chromeForSettings, "No Agent_Chrome on the menu");
+                var openSettings = chromeForSettings.GetComponent<UIDocument>()
+                    .rootVisualElement.Q<Button>("open-settings");
                 Assert.IsNotNull(openSettings,
                     "The menu has no SETTINGS button - the palette, text size and haptics " +
                     "that used to sit on this screen are now unreachable from it.");
