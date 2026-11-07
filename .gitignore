@@ -138,3 +138,7 @@ Tools/publish-venv/
 # Keep the folder (and its .meta) so Unity does not drop the directory.
 Assets/Demonstrations/*.demo
 Assets/Demonstrations/*.demo.meta
+
+# Unity crash-recovery scenes (never commit)
+/[Aa]ssets/_Recovery/
+/[Aa]ssets/_Recovery.meta
