@@ -131,16 +131,5 @@ namespace PoSoccer.Tests
             Assert.LessOrEqual(point.x, WallHalf.x + 1e-3f);
             Assert.Less(point.x, 17f, "after the bounce the ball is travelling back infield");
         }
-
-        [Test]
-        public void LeagueSeating_PutsTheBotOnBothColours()
-        {
-            Assert.IsNull(Agent_EnvController.LeagueSeatFor(0));
-            Assert.AreEqual(Agent_Soccer.Team.Red, Agent_EnvController.LeagueSeatFor(1));
-            Assert.IsNull(Agent_EnvController.LeagueSeatFor(2));
-            Assert.AreEqual(Agent_Soccer.Team.Blue, Agent_EnvController.LeagueSeatFor(3));
-            Assert.IsNull(Agent_EnvController.LeagueSeatFor(4));
-            Assert.AreEqual(Agent_Soccer.Team.Red, Agent_EnvController.LeagueSeatFor(5));
-        }
     }
 }

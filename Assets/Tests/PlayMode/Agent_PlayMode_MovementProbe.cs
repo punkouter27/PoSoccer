@@ -197,6 +197,19 @@ namespace PoSoccer.Tests
             float prevMove = 0f, prevTurn = 0f, peakMove = 0f;
             int flipsMove = 0, flipsTurn = 0;
 
+            // SMOOTHNESS (2026-11-07, AGENTS.md "fluid motion, no jitter"). Two numbers:
+            //  - action rate: mean |a_t - a_(t-1)| over the four raw channels, per DECISION
+            //    (ticks where the output changed; ML-Agents repeats it in between). This is
+            //    the quantity the `jitter` reward term charges (actionJitterScale).
+            //  - RMS jerk of the body (m/s^3), from finite differences of velocity. Jerk is
+            //    what the eye reads as twitch; the force slew limit (_forceSlewRate) bounds it.
+            Vector4 prevAction = red.LastRawActions;
+            float sumActionDelta = 0f;
+            int decisions = 0;
+            Vector2 prevVelocity = red.Body.linearVelocity, prevAccel = Vector2.zero;
+            float sumJerkSq = 0f, peakAccel = 0f;
+            int jerkSamples = 0;
+
             for (int i = 0; i < 400; i++)      // 4 s
             {
                 yield return new WaitForFixedUpdate();
@@ -226,6 +239,27 @@ namespace PoSoccer.Tests
                 prevMove = a.x; prevTurn = a.z;
                 if (Mathf.Abs(a.x) > peakMove) peakMove = Mathf.Abs(a.x);
 
+                Vector4 delta = a - prevAction;
+                if (delta.sqrMagnitude > 0f)
+                {
+                    sumActionDelta += (Mathf.Abs(delta.x) + Mathf.Abs(delta.y)
+                                       + Mathf.Abs(delta.z) + Mathf.Abs(delta.w)) / 4f;
+                    decisions++;
+                }
+                prevAction = a;
+
+                Vector2 velocity = red.Body.linearVelocity;
+                Vector2 accel = (velocity - prevVelocity) / Time.fixedDeltaTime;
+                if (i > 0)
+                {
+                    Vector2 jerk = (accel - prevAccel) / Time.fixedDeltaTime;
+                    sumJerkSq += jerk.sqrMagnitude;
+                    jerkSamples++;
+                }
+                if (accel.magnitude > peakAccel) peakAccel = accel.magnitude;
+                prevVelocity = velocity;
+                prevAccel = accel;
+
                 if (arrival < 0f && Vector2.Distance(p, ball.position) < 1.0f) arrival = t;
             }
 
@@ -252,6 +286,10 @@ namespace PoSoccer.Tests
             sb.AppendLine($"  peak|move|={peakMove:0.000}  " +
                           $"signFlips move={flipsMove} turn={flipsTurn} of {samples} steps " +
                           $"=> {(sumAbsMove / samples < 0.15f ? "COLLAPSED (near-zero output)" : flipsMove > samples / 8 ? "THRASHING (large, sign-flipping)" : "healthy magnitudes")}");
+            float actionRate = decisions > 0 ? sumActionDelta / decisions : 0f;
+            float rmsJerk = jerkSamples > 0 ? Mathf.Sqrt(sumJerkSq / jerkSamples) : 0f;
+            sb.AppendLine($"  [SMOOTH] actionRate={actionRate:0.000} (mean |da| per decision, 4 channels, " +
+                          $"{decisions} decisions)  rmsJerk={rmsJerk:0} m/s^3  peakAccel={peakAccel:0.0} m/s^2");
             Debug.Log(sb.ToString());
         }
     }

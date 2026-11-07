@@ -13,6 +13,9 @@ MonoBehaviour:
   m_Name: Reward_MATT
   m_EditorClassIdentifier: 
   playerName: MATT
+  trainingConfigHash: 6dfb7210638c
+  trainedPhysicsVersion: phys-2026-10-10
+  trainedInterfaceVersion: iface-2026-10-10
   personalityNotes: 'THE STRIKER. Glory hunter: biggest scoring reward and shoot gradient on the roster, lowest fear of conceding, hates draws, presses with urgency (loose jitter rein, high step cost). Same total incentive budget as everyone (2.2 terminal / 0.0016 dense) - just spent on attack. Weakness by design: last home when defending.'
   playerColor: {r: 1, g: 0.5, b: 0.12, a: 1}
   kitPattern: 0

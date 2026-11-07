@@ -88,10 +88,11 @@ that page is a real defect.
 .\scripts\evaluate.ps1 -RunId <run> -Episodes 350 [-Squad 2]   # exit 0 pass / 1 fail / 2-3 setup
 .\scripts\evaluate.ps1 -Baseline -Episodes 350                 # bot vs bot sanity
 .\scripts\evaluate.ps1 -Baseline -BlueBotVersion 2 -Episodes 350   # bot v2 against the benchmark bot
-.\scripts\train-phase1.ps1 -RunId <run> -Config TRAIN_STANDARD_p34league.yaml -League `
-    -InitFrom <run> -EnvPath Builds\PoSoccer\PoSoccer.exe -NumEnvs 4   # self-play + bot pitches
+.\scripts\train-parallel.ps1 ...               # MATT/KIM/NICK side by side; see docs/staging.md
+.\scripts\preflight.ps1 -EnvPath Builds\PoSoccer\PoSoccer.exe   # stale build, scene order, parity, LFS, orphans
 .\scripts\update-model.ps1 -RunId <run> [-Profile STANDARD|MATT|KIM|NICK]
 .\scripts\cleanup-training.ps1                 # kill orphaned trainers and env players
+.\scripts\purge-artifacts.ps1 [-Apply|-Report] # dry-run purge of failed/short runs + disk report
 ```
 
 **Builds**: MCP `manage_build(action="build", target="windows64",
@@ -183,9 +184,17 @@ everywhere. Version 2 (lead pursuit, bank shots) is opt-in through `POSOCCER_BOT
 against version 1 only; an eval JSON stamps `botVersion` and a v2 grade never stamps a
 profile.
 
-**League training**: `POSOCCER_OPPONENT=league` (`train-phase1.ps1 -League`) cycles the
-pitch grid through self-play, bot as red, self-play, bot as blue
-(`Agent_EnvController.LeagueSeatFor`). Check `PoSoccer/league_bot_pitch` reads about 0.5.
+**League training** was removed on 2026-11-07 (p34control: it added nothing). It is in git
+history before that date.
+
+**Realism options (2026-11-07)** are opt-in and default to the shipped behaviour bit for
+bit, so every deployed `.onnx` reads the same world: `POSOCCER_STAMINA_MODEL=human`
+(`Reward_Settings.staminaModel`) and `POSOCCER_REACTION_MS` (`reactionLatencyMs`). Turning
+either on is a meaning change: a full retrain, never compared across. Checkpoints carry
+`trainedInterfaceVersion` / `trainedPhysicsVersion` / `trainingConfigHash`
+(`Agent_Realism`, `Agent_EditMode_CheckpointTags`); bump the version constants with any
+contract or dynamics change. Articulated legs are a design only
+(`docs/plans/2026-11-07-articulated-legs-design.md`).
 
 **Run configuration**: every `POSOCCER_*` variable is named and read in `Agent_RunConfig`
 (live reads, no caching). Eval mode is env-var driven and aggregated by `Agent_EvalStats`.
@@ -222,11 +231,20 @@ A null or incompatible brain fields `Agent_HeuristicBot`. See `docs/players.md`.
 **UI**: default HUD is scoreboard, clock, chips and controls. Ticker, win-probability and
 the ball-control meter sit behind one STATS switch (off by default). TAB (or F3, or the
 DEBUG button) opens the health panel in `Agent_Telemetry`, which also holds the overlay
-switches and speed buttons. Settings live in one bottom sheet (`Agent_SettingsSheet`).
+switches and speed buttons. Settings live in one bottom sheet (`Agent_SettingsSheet`) with
+MATCH / VIEW / OVERLAYS / AUDIO tabs, opened from the SETTINGS button in the chrome's top
+right on every screen. FPS shows only while the health panel is open. The bottom-right
+label carries the `YYMMDD` build stamp (`Editor_BuildStamp` writes it at build time).
 Touch targets use `--touch-min` (124 declared, 120 asserted; do not lower the assertion).
 
-Keys in a match: **Tab** health panel, **I** intent, **V** vision, **T** shot tracer,
-**B** brain cam, **X** xG field, **G** skid marks, **[ ]** speed, tap a player to focus, pinch or scroll to zoom.
+Overlays register once in `Agent_Overlays` and appear in the health panel, the OVERLAYS
+tab, the HUD's VIEW cycler and **O**. A new overlay is one `Agent_Overlays.Register` line;
+a new setting is one `Agent_SettingsSheet.RegisterSwitch` line.
+
+Keys in a match: **Tab** health panel, **O** cycle overlays, **I** intent, **V** vision,
+**T** shot tracer, **B** brain cam, **J** brain-cam saliency, **P** passing lanes,
+**H** stamina rings, **X** xG field, **G** skid marks, **[ ]** speed, tap a player to focus,
+pinch or scroll to zoom.
 
 **Match overlays (2026-10-11)**: `Agent_ExpectedGoals` (xG per shot, per-side totals, the
 threat field on **X**) is a hand-set model and says MODEL wherever it shows; it scores
@@ -282,6 +300,8 @@ ignore list to it.
   serialized values on 2026-10-11 (236 N x 2.2 over 1.2 x 75 x 9.81), not yet measured in
   a match and not fixed.
   Use `LateralSlipSpeed` or `GroundForce` for anything that should react to a hard cut.
+  The skid voice and the ImpactFX scuffs were gated on it (0.85 / 0.9) and so never
+  played; both moved to `LateralSlipSpeed` on 2026-11-07.
 - The scripted side skips its ray battery (`Agent_Soccer.IsSensorlessScriptedSide`); the
   three exclusions in that predicate are the whole contract.
 - Headless players still play audio unless `Agent_Audio` bails out under batchmode.

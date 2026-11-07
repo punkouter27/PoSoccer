@@ -13,6 +13,9 @@ MonoBehaviour:
   m_Name: Reward_KIM
   m_EditorClassIdentifier: 
   playerName: KIM
+  trainingConfigHash: 4e9cd9730b67
+  trainedPhysicsVersion: phys-2026-10-10
+  trainedInterfaceVersion: iface-2026-10-10
   personalityNotes: 'THE WALL. Deepest conceding fear on the roster; screening the
     lane between ball and own goal pays continuously (defensivePositionScale, her
     signature trait). Patient - a draw barely stings, does not swarm, comfortable

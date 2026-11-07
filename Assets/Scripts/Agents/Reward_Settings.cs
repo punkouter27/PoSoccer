@@ -102,13 +102,47 @@ namespace PoSoccer
                  "means the brain under- or over-drives relative to what it learned.")]
         public float trainedActionGain = -1f;
 
+        /// <summary>
+        /// Checkpoint tags (2026-11-07, AGENTS.md: "Tag each checkpoint with its interface
+        /// and physics versions"). Empty = unstamped. Stamped by scripts/update-model.ps1
+        /// from the run's provenance.json; compared against
+        /// <see cref="Agent_Realism.InterfaceVersionFor"/> and
+        /// <see cref="Agent_Realism.PhysicsVersionFor"/> by Agent_EditMode_CheckpointTags.
+        /// </summary>
+        [Tooltip("Agent_Realism interface version this brain was trained against (observation and " +
+                 "action layout and meaning). Empty = unstamped.")]
+        public string trainedInterfaceVersion = "";
+        [Tooltip("Agent_Realism physics version this brain was trained against (body, traction, " +
+                 "stamina, timestep). Empty = unstamped.")]
+        public string trainedPhysicsVersion = "";
+        [Tooltip("First 12 hex of the SHA-256 of the trainer config (LF-normalised). Empty = unknown.")]
+        public string trainingConfigHash = "";
+
         [Header("Physique")]
         [Tooltip("Body size multiplier on the scene's base scale. Big bodies block and shield more of the pitch.")]
         public float bodyScale = 1f;
-        [Tooltip("Body mass (kg). Drive force is shared, so heavier = slower but harder to shove; " +
-                 "top-speed momentum (mass x max speed) is identical for every mass - big-slow and " +
-                 "small-fast are equally strong, just different.")]
+        [Tooltip("Body mass (kg), 75 x bodyScale^2 on every shipped profile. Drive force scales with " +
+                 "mass (Agent_Soccer.CacheDriveForce), so every physique reaches the same top speed " +
+                 "and acceleration while heavier bodies carry more momentum into contact.")]
         public float bodyMass = 75f;
+
+        /// <summary>Stamina model a brain trains and plays under. See <see cref="Agent_Realism"/>.</summary>
+        public enum StaminaModel
+        {
+            /// <summary>The model every deployed brain trained under. Leaves Agent_Stamina's serialized values untouched.</summary>
+            Shipped = 0,
+            /// <summary>Repeated-sprint model: about 6 s of maximal sprint, slow recovery, sprint decrement.</summary>
+            Human = 1,
+        }
+
+        [Header("Realism options (opt-in; the defaults reproduce the shipped dynamics)")]
+        [Tooltip("Shipped = the stamina every deployed brain trained under. Human = repeated-sprint " +
+                 "model. Changing this on a trained profile puts its brain out of distribution.")]
+        public StaminaModel staminaModel = StaminaModel.Shipped;
+        [Tooltip("Sensorimotor delay (ms) between a learner's decision and its feet. 0 = none, " +
+                 "which is what every deployed brain trained under. Never applied to the scripted bot.")]
+        [Range(0f, 400f)]
+        public float reactionLatencyMs = 0f;
 
         [Header("Terminal rewards")]
         // v4 (2026-08-04): goalScorer 0.7 -> 1.2 and stalemateTimeout -0.1 -> -0.6.

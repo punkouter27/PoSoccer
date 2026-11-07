@@ -36,9 +36,8 @@ namespace PoSoccer
 
         // ── Training (scripts/train-phase1.ps1, train-all.ps1) ──────────────
         /// <summary>
-        /// "bot" = RED is the scripted opponent. "league" = the pitch grid mixes self-play
-        /// pitches with pitches where one side is the scripted bot
-        /// (Agent_EnvController.LeagueSeatFor). Unset = self-play on every pitch.
+        /// "bot" = RED is the scripted opponent. Unset = self-play on every pitch.
+        /// ("league" was retired 2026-11-07; the value is now ignored, i.e. self-play.)
         /// </summary>
         public const string OPPONENT = "POSOCCER_OPPONENT";
         /// <summary>Players per side, cycled over the pitch grid ("2", "1,2").</summary>
@@ -53,6 +52,16 @@ namespace PoSoccer
         public const string BOT_VERSION = "POSOCCER_BOT_VERSION";
         /// <summary>Scripted-bot version on BLUE, for bot-vs-bot runs. Default 1.</summary>
         public const string BOT_VERSION_BLUE = "POSOCCER_BOT_VERSION_BLUE";
+
+        // ── Realism options (opt-in, 2026-11-07; see Agent_Realism) ─────────
+        // Both change the dynamics a brain learns against, so both are OFF unless set,
+        // and an unset variable falls back to the profile's own field (whose default
+        // is also off). A brain trained with either on must be deployed with the same
+        // value stamped on its profile - scripts/update-model.ps1 does that.
+        /// <summary>"human" = repeated-sprint stamina model; "shipped" or unset = the profile's value.</summary>
+        public const string STAMINA_MODEL = "POSOCCER_STAMINA_MODEL";
+        /// <summary>Sensorimotor delay in milliseconds applied to a learner's actions. Unset = the profile's value.</summary>
+        public const string REACTION_MS = "POSOCCER_REACTION_MS";
 
         // ── Demonstration recording ─────────────────────────────────────────
         /// <summary>Anything but empty / "0" = record the scripted bot to a .demo.</summary>

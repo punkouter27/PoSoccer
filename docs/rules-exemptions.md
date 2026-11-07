@@ -66,6 +66,44 @@ retrain from scratch, and a re-baselined evaluation gate.
 active-ragdoll brief and should be scheduled as its own project phase, not
 folded into a compliance pass.
 
+**2026-11-07:** the phase now has a design:
+`docs/plans/2026-11-07-articulated-legs-design.md` (five-body 2D leg rig with
+hinge limits and mass-scaled motors, an appended-only interface change with
+zero-initialised weights, distillation of each deployed brain, then per-character
+fine-tuning and a re-baselined bot). Still not started; still an open deviation.
+Note on the brain-contract numbers above: they date from 2026-08; the contract is
+now 34 x 2 vector + 105 ray inputs and 4 actions (CLAUDE.md).
+
+---
+
+## 2a. Opt-in realism options default OFF (UU_AGENT 2026-11-07) — DELIBERATE
+
+**Rules:** UU_AGENT section 2 ("realistic joint, torque and speed limits") and
+the 50-option list items 43 (human stamina calibration) and 47 (human reaction
+latency).
+
+**What the project does:** both exist (`Agent_Realism`, `Agent_Stamina.ApplyModel`,
+the action delay in `Agent_Soccer.OnActionReceived`) and both are **off** unless a
+run sets `POSOCCER_STAMINA_MODEL=human` / `POSOCCER_REACTION_MS=<ms>`
+(`train-phase1.ps1 -StaminaModel human -ReactionMs 200`) or a profile sets
+`staminaModel` / `reactionLatencyMs`. Off is the shipped code path, bit for bit.
+
+**Why off:** each changes what a brain learns against without changing a tensor
+shape - the dangerous kind of change in CLAUDE.md. Every deployed `.onnx` was
+trained with both off; turning either on by default would make every one of them
+read a different world without a warning. A brain trained with an option on gets it
+stamped onto its profile by `update-model.ps1` (from the run's `provenance.json`),
+and `Agent_EditMode_Realism` / `Agent_EditMode_CheckpointTags` fail if a profile
+turns an option on that its brain was not trained under.
+
+**What is already realistic, measured or derived:** sprint 9.54 m/s (entry 5),
+mass 75 x bodyScale^2 on every profile with drive force scaled to mass (pinned by
+`Agent_EditMode_Realism.EveryProfile_MassScalesWithBodyArea`). What the shipped
+stamina is not: 1.7 s of boost from full against about 6 s for a person.
+
+**Status:** opt-in until a run trained with them is graded. Never applied to the
+scripted bot: it is the benchmark opponent.
+
 ---
 
 ## 3. Default branch (UPDATES) — RESOLVED, no longer a deviation

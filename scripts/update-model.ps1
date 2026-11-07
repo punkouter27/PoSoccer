@@ -107,6 +107,30 @@ if ($gain) {
 
 Write-Host "  provenance: $steps steps from $RunId, ActionGain $gain (eval rating cleared)"
 
+# Checkpoint tags (2026-11-07): interface + physics version and config hash, from the
+# provenance.json the training script wrote when the run started. The realism options
+# the run trained under are stamped too, because the profile is what makes the runtime
+# apply them (Agent_Realism): a latency-trained brain deployed without its latency
+# reads a different world. No provenance = a run launched by an older script; the tags
+# are cleared rather than guessed, and Agent_EditMode_CheckpointTags reports them.
+$provenance = Join-Path $root "results\$RunId\provenance.json"
+if (-not (Test-Path $provenance)) { $provenance = Join-Path $root "results\$RunId.provenance.json" }
+if (Test-Path $provenance) {
+    $prov = Get-Content $provenance -Raw | ConvertFrom-Json
+    Set-ProfileField $profileAsset 'trainedInterfaceVersion' $prov.interfaceVersion
+    Set-ProfileField $profileAsset 'trainedPhysicsVersion' $prov.physicsVersion
+    Set-ProfileField $profileAsset 'trainingConfigHash' $prov.configHash
+    $staminaValue = if ($prov.staminaModel -eq "human") { "1" } else { "0" }
+    Set-ProfileField $profileAsset 'staminaModel' $staminaValue
+    Set-ProfileField $profileAsset 'reactionLatencyMs' ("{0}" -f [double]$prov.reactionMs)
+    Write-Host "  tags: $($prov.interfaceVersion) / $($prov.physicsVersion) / config $($prov.configHash)"
+} else {
+    Set-ProfileField $profileAsset 'trainedInterfaceVersion' ''
+    Set-ProfileField $profileAsset 'trainedPhysicsVersion' ''
+    Set-ProfileField $profileAsset 'trainingConfigHash' ''
+    Write-Warning "No provenance.json for $RunId - checkpoint tags cleared (unknown provenance)."
+}
+
 # Re-link a profile whose brainModel was CLEARED (not missing) - the state an
 # observation-contract change leaves it in (2026-09-28: 178 -> 188 inputs cleared
 # STANDARD and MATT). The .onnx is overwritten in place, so its GUID is the one the

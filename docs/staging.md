@@ -10,19 +10,55 @@ before that date loads against it.
 ## Status
 
 STANDARD passed the benchmark on 2026-10-14 (`soccer_p37bot_standard`: 91.0% wins, 6.0%
-stalemates over 2,000 episodes against bot v1). **Nothing is staged.**
+stalemates over 2,000 episodes against bot v1).
 
-Candidates, none started:
+**Staged 2026-11-07: MATT, KIM and NICK from scratch, in parallel** (not started; the
+editor had no licence on this machine, so there is no player build yet).
 
-- **MATT, KIM, NICK on the STANDARD line.** Their deployed brains are the p31 runs (10M
-  steps). STANDARD reached the bar with about 40M more steps of 1v1 PPO against the bot
-  (the last 20M bot-only). The p31 recipe is already 1v1, bot-only, no team terms, so the
-  natural step is continuing each from its p31 checkpoint with a copy of its p31 config.
-  Untested plumbing: `train-phase1.ps1` has no profile switch (`train-parallel.ps1` sets
-  `POSOCCER_PROFILE`; neither takes a warm start), and the p31 runs sit in
-  `results/_archive/`, where `--initialize-from` will not look; move them back first.
-- **A 2v2 grade of p37bot** (`evaluate.ps1 -Squad 2`). There is no 2v2 bar; compare it
-  with the bot-vs-bot 2v2 baseline, never with the 1v1 figure.
+- Why from scratch: the p31 checkpoints are not on this machine (there is no `results/`),
+  and AGENTS.md now requires every character to train its own brain from scratch.
+- Recipe: `config/TRAIN_<NAME>_p38.yaml` - p31's PPO block, 30M steps, and a
+  `bot_strength` ladder that advances on training PROGRESS (0.0 drill -> 1.0 by the
+  halfway mark) instead of on reward, which stalled in p31 and never promoted at all in
+  p17/p18/p20. Then `config/TRAIN_<NAME>_p39bot.yaml`: 10M bot-only at full strength,
+  continuing each profile's OWN p38, which is STANDARD's p34control..p37bot recipe.
+- Launch (after a fresh build of SCN_Training):
+
+```powershell
+.\scripts\train-parallel.ps1 -Tag p38 -Profiles MATT,KIM,NICK          # ~7 h for the three
+.\scripts\train-parallel.ps1 -Tag p39bot -Profiles MATT,KIM,NICK -InitFromTag p38
+```
+
+  Each launch runs `scripts/preflight.ps1` first, starts TensorBoard if it is not up,
+  prints a wall-clock estimate, and writes `results/<run>.provenance.json` (interface and
+  physics versions, config hash, git commit). `update-model.ps1` stamps those tags onto
+  the profile when the run ends.
+
+**Regrade the old MATT/KIM/NICK numbers before comparing against them.** Until
+2026-11-07 `evaluate.ps1 -Profile <NAME>` did not set `POSOCCER_PROFILE` and nothing
+swapped the eval model, so as the code stood it graded the brain serialized in
+SCN_Training (STANDARD.onnx). How the p31 per-profile grades in
+`docs/training-history.md` were produced is not recorded. `evaluate.ps1` now sets
+`POSOCCER_PROFILE` and `Agent_EnvController.ApplyProfileOverride` puts the profile's
+`brainModel` on the blue seat in eval mode; the eval JSON records `profile`.
+
+Other candidates, none started: a 2v2 grade of p37bot (`evaluate.ps1 -Squad 2`; there is
+no 2v2 bar, compare with the bot-vs-bot 2v2 baseline, never with the 1v1 figure).
+
+## Training levers added 2026-11-07 (all off unless named)
+
+| Lever | Where | Default | Notes |
+|---|---|---|---|
+| `action_rate` env parameter | trainer config `environment_parameters` | unset = profile's `actionJitterScale` (0.0004) | The AGENTS.md action-rate penalty. It already existed as the `jitter` term; a config can now set it like `turn_churn`. |
+| `-StaminaModel human` | `train-phase1.ps1`, `train-parallel.ps1` (`POSOCCER_STAMINA_MODEL`) | `shipped` | ~6 s sprint, slow recovery, 20% repeated-sprint decrement. Physics tag gets `+stamina-human`. |
+| `-ReactionMs <ms>` | same (`POSOCCER_REACTION_MS`) | 0 | Delays the learner's actions by whole physics ticks. Never applied to the bot. Interface tag gets `+lat<ms>`. |
+| `-Profile <NAME>` | `train-phase1.ps1` | not set | Sets `POSOCCER_PROFILE` and deploys to that profile. |
+
+A brain trained with a realism option must be played with it: `update-model.ps1` stamps
+`staminaModel` and `reactionLatencyMs` onto the profile from the run's provenance, and
+`Agent_EditMode_CheckpointTags` fails if a deployed brain's tags disagree with what the
+runtime would apply. Movement probe now prints a `[SMOOTH]` line (action rate per
+decision, RMS jerk) for the smoothness side of that question.
 
 ## The current recipe
 
@@ -42,8 +78,8 @@ at about 540 s per million steps at `-NumEnvs 4`.
 
 - `PoSoccer/blue_squad` reads 1.0 on a 1v1 run and about 1.5 for `-Squad "1,2"`. On a
   squad run, 1.0 means the setting never reached the player: stop the run.
-- On a `-League` run, `PoSoccer/league_bot_pitch` reads about 0.5; a flat 0 means plain
-  self-play. (League training is archived: p34control showed it added nothing.)
+- League training (`-League`) was removed on 2026-11-07; p34control showed it added
+  nothing. The code is in git history before that date.
 - `Reward/turn_churn` is exactly 0 unless the config names the term.
 - Mean reward is not a decision variable on this task. Judge on the eval and the probe.
 
@@ -57,8 +93,9 @@ at about 540 s per million steps at `-NumEnvs 4`.
 
 ## Configs
 
-- `config/` holds only the recipes behind deployed brains: `TRAIN_STANDARD_p37bot.yaml`
-  and `TRAIN_<MATT|KIM|NICK>_p31.yaml`.
+- `config/` holds the recipes behind deployed brains (`TRAIN_STANDARD_p37bot.yaml`,
+  `TRAIN_<MATT|KIM|NICK>_p31.yaml`) and the staged ones (`TRAIN_<MATT|KIM|NICK>_p38.yaml`,
+  `_p39bot.yaml`).
 - `config/archive/` holds everything superseded, including the league, control and team
   recipes. The training scripts look in `config/` first and then in `config/archive/`, so
   an archived recipe still runs by name.

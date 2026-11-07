@@ -3,6 +3,18 @@
 #   .\scripts\tensorboard.ps1
 #   .\scripts\train-parallel.ps1 -Tag p31                       # all four, config TRAIN_<NAME>_p31.yaml
 #   .\scripts\train-parallel.ps1 -Tag p31 -Profiles MATT,KIM
+#   .\scripts\train-parallel.ps1 -Tag p38 -Profiles MATT,KIM,NICK     # from scratch, config TRAIN_<NAME>_p38.yaml
+#   .\scripts\train-parallel.ps1 -Tag p39bot -Profiles MATT,KIM,NICK -InitFromTag p38   # continue each from its own p38
+#
+# FROM SCRATCH IS THE DEFAULT (2026-11-07). AGENTS.md: every character trains its own
+# brain from scratch; no character reuses another's. -InitFromTag only continues a
+# profile from ITS OWN earlier run (soccer_<tag>_<name>), never from another profile.
+#
+# Before any worker starts: preflight.ps1 (stale build, scene order, toolchain parity,
+# LFS stubs, orphaned trainers), TensorBoard (started if :6006 is not answering, per the
+# project rule), and a wall-clock estimate. Each worker writes its provenance.json
+# (interface/physics versions, config hash) and copies it next to the checkpoints when
+# the trainer exits; update-model.ps1 stamps it onto the profile.
 #
 # WHY THIS EXISTS BESIDE train-all.ps1. train-all runs the profiles one after another,
 # and one run uses about 2 of this machine's 12 logical cores (the trainer is a single
@@ -23,6 +35,14 @@ param(
     [string]$EnvPath = "Builds\PoSoccer\PoSoccer.exe",
     [int]$NumEnvs = 4,
     [string]$Squad = "",
+    # Continue each profile from its own soccer_<InitFromTag>_<name> run. Empty = from scratch.
+    [string]$InitFromTag = "",
+    # Opt-in realism options (Agent_Realism), applied to every profile in this launch.
+    [ValidateSet("shipped", "human")]
+    [string]$StaminaModel = "shipped",
+    [ValidateRange(0, 400)]
+    [double]$ReactionMs = 0,
+    [switch]$AllowStale,
     [switch]$Force,
     # Internal: set when this script re-invokes itself as one profile's worker.
     [string]$WorkerProfile = "",
@@ -31,7 +51,14 @@ param(
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path $PSScriptRoot -Parent
+. "$PSScriptRoot\lib-profile.ps1"
 if (-not $ConfigTag) { $ConfigTag = $Tag }
+
+function Resolve-ProfileConfig([string]$name) {
+    $path = Join-Path $root "config\TRAIN_${name}_${ConfigTag}.yaml"
+    if (-not (Test-Path $path)) { $path = Join-Path $root "config\archive\TRAIN_${name}_${ConfigTag}.yaml" }
+    return $path
+}
 
 if ($WorkerProfile) {
     # ---- one profile's worker -------------------------------------------------
@@ -45,17 +72,29 @@ if ($WorkerProfile) {
     $env:POSOCCER_OPPONENT = "bot"
     $env:POSOCCER_SQUAD = $Squad
     $env:POSOCCER_PROFILE = $name
+    $env:POSOCCER_STAMINA_MODEL = $StaminaModel
+    $env:POSOCCER_REACTION_MS = "$ReactionMs"
 
-    $config = Join-Path $root "config\TRAIN_${name}_${ConfigTag}.yaml"
-    if (-not (Test-Path $config)) { $config = Join-Path $root "config\archive\TRAIN_${name}_${ConfigTag}.yaml" }
+    $config = Resolve-ProfileConfig $name
     $mlArgs = @($config,
                 "--run-id=$runId", "--base-port=$WorkerPort", "--results-dir=$root\results",
                 "--env=$root\$EnvPath", "--no-graphics", "--num-envs=$NumEnvs")
+    $initFrom = ""
+    if ($InitFromTag) {
+        $initFrom = "soccer_${InitFromTag}_$($name.ToLower())"
+        $mlArgs += "--initialize-from=$initFrom"
+    }
     if ($Force) { $mlArgs += "--force" }
+
+    $prov = Write-RunProvenance -Root $root -RunId $runId -ConfigPath $config -Profile $name `
+        -InitFrom $initFrom -StaminaModel $StaminaModel -ReactionMs $ReactionMs `
+        -Extra @{ squad = $Squad; opponent = "bot"; numEnvs = $NumEnvs; parallelTag = $Tag }
+    Write-Host "[$name] provenance $prov"
 
     mlagents-learn @mlArgs
     $code = $LASTEXITCODE
     Write-Host "[$name] mlagents-learn exited with code $code"
+    Copy-RunProvenance -Root $root -RunId $runId
     if ($code -eq 0) {
         & "$root\scripts\update-model.ps1" -RunId $runId -Profile $name
     }
@@ -63,18 +102,46 @@ if ($WorkerProfile) {
 }
 
 # ---- launcher ---------------------------------------------------------------
-if (-not (Test-Path (Join-Path $root $EnvPath))) { throw "No player at $EnvPath - build it first." }
+$preflightArgs = @("-EnvPath", $EnvPath)
+if ($AllowStale) { $preflightArgs += "-AllowStale" }
+& "$PSScriptRoot\preflight.ps1" @preflightArgs
+if ($LASTEXITCODE -ne 0) { throw "Preflight failed - see above. Nothing was started." }
+
 foreach ($name in $Profiles) {
-    $config = Join-Path $root "config\TRAIN_${name}_${ConfigTag}.yaml"
-    if (-not (Test-Path $config)) { $config = Join-Path $root "config\archive\TRAIN_${name}_${ConfigTag}.yaml" }
+    $config = Resolve-ProfileConfig $name
     if (-not (Test-Path $config)) { throw "Config not found: $config" }
-}
-try {
-    $null = Invoke-WebRequest -Uri "http://localhost:6006/" -UseBasicParsing -TimeoutSec 2
-} catch {
-    Write-Warning "TensorBoard is not reachable on :6006. Run .\scripts\tensorboard.ps1 first."
+    # The behavior name in the config is what the trainer listens for; the player names
+    # its brain after the profile (POSOCCER_PROFILE). A mismatch trains nothing.
+    if (-not (Select-String -Path $config -Pattern "^\s{2}${name}:\s*$" -Quiet)) {
+        throw "Config $config has no 'behaviors: ${name}:' block - the $name worker would train nothing."
+    }
+    if ($InitFromTag) {
+        $source = Join-Path $root "results\soccer_${InitFromTag}_$($name.ToLower())"
+        if (-not (Test-Path $source)) {
+            throw "-InitFromTag ${InitFromTag}: $source does not exist (archived runs in results\_archive are not searched)."
+        }
+    }
 }
 New-Item -ItemType Directory -Force (Join-Path $root "results") | Out-Null
+
+# TensorBoard with every run (project rule). Start it if nothing answers on :6006.
+$tbUp = $true
+try { $null = Invoke-WebRequest -Uri "http://localhost:6006/" -UseBasicParsing -TimeoutSec 2 } catch { $tbUp = $false }
+if (-not $tbUp) {
+    Write-Host "TensorBoard is not running - starting it (scripts\tensorboard.ps1)."
+    & "$PSScriptRoot\tensorboard.ps1"
+}
+
+# Wall-clock estimate (AGENTS.md). Profiles run concurrently, so the slowest sets it.
+$longest = $null
+foreach ($name in $Profiles) {
+    $estimate = Get-TrainingEstimate -ConfigPath (Resolve-ProfileConfig $name) -Concurrent $Profiles.Count
+    if ($estimate -and (-not $longest -or $estimate.Seconds -gt $longest.Seconds)) { $longest = $estimate }
+}
+if ($longest) {
+    Write-Host ("Estimate ({0} profiles in parallel): {1}; done around {2:yyyy-MM-dd HH:mm} local." -f `
+        $Profiles.Count, $longest.Text, $longest.FinishUtc.ToLocalTime())
+}
 
 # Port ranges are 10 apart and skip 5037, which adb listens on (see train-all.ps1).
 $ports = @{ STANDARD = 5005; MATT = 5015; KIM = 5025; NICK = 5045 }
@@ -89,6 +156,8 @@ foreach ($name in $Profiles) {
                     '-Tag', $Tag, '-ConfigTag', $ConfigTag, '-EnvPath', $EnvPath,
                     '-NumEnvs', "$NumEnvs", '-WorkerProfile', $name, '-WorkerPort', "$($ports[$name])")
     if ($Squad) { $workerArgs += @('-Squad', $Squad) }
+    if ($InitFromTag) { $workerArgs += @('-InitFromTag', $InitFromTag) }
+    $workerArgs += @('-StaminaModel', $StaminaModel, '-ReactionMs', "$ReactionMs")
     if ($Force) { $workerArgs += '-Force' }
     $p = Start-Process pwsh -ArgumentList $workerArgs -WorkingDirectory $root -WindowStyle Hidden -PassThru `
                        -RedirectStandardOutput $log -RedirectStandardError "$log.err"

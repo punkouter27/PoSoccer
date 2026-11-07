@@ -13,6 +13,9 @@ MonoBehaviour:
   m_Name: Reward_STANDARD
   m_EditorClassIdentifier: 
   playerName: STANDARD
+  trainingConfigHash: 79333c61e4e9
+  trainedPhysicsVersion: phys-2026-10-10
+  trainedInterfaceVersion: iface-2026-10-10
   personalityNotes: THE BASELINE. Balanced all-rounder - the reference brain every
     personality is measured against.
   playerColor: {r: 0.25, g: 0.75, b: 0.35, a: 1}

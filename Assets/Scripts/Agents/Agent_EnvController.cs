@@ -135,6 +135,16 @@ namespace PoSoccer
         /// </summary>
         public float TurnChurnOverride { get; private set; } = -1f;
 
+        /// <summary>
+        /// Action-rate (jitter) penalty scale from the `action_rate` environment parameter,
+        /// or -1 when no trainer config names it - each agent then uses its profile's
+        /// <see cref="Reward_Settings.actionJitterScale"/> (0.0004 on every shipped profile).
+        /// 2026-11-07: AGENTS.md asks for an action-rate penalty on every brain; the term
+        /// already existed ("jitter", Agent_Soccer.ApplyDenseRewards) but only a profile
+        /// edit could change it. This makes it a config lever like `turn_churn`.
+        /// </summary>
+        public float ActionRateOverride { get; private set; } = -1f;
+
         /// <summary>Teammates closer than this (metres) pay the spacing penalty.</summary>
         internal const float TEAM_SPACING_RADIUS = 4f;
 
@@ -207,7 +217,6 @@ namespace PoSoccer
             // Squad first, so the players it clones are on the pitch when the profile
             // override below walks the children.
             ApplyTrainingSquad();
-            ApplyLeagueSeat();
             ApplyProfileOverride();
             // Ball and pitch colliders onto their physics layers before any sensor
             // casts. Players stamp their own (team-dependent) layer in their Awake.
@@ -240,65 +249,12 @@ namespace PoSoccer
         static void ResetPitchOrdinal()
         {
             s_pitchOrdinal = 0;
-            s_leagueOrdinal = 0;
         }
 
-        // ── League training (2026-10-11) ────────────────────────────────────
-        //
-        // POSOCCER_OPPONENT=league mixes two kinds of pitch in one run: self-play, where
-        // both sides are on the trainer and the opponent is a past snapshot of the
-        // learner, and bot pitches, where one side is Agent_HeuristicBot. The bot stays in
-        // the pool because it is what evaluate.ps1 grades against, and the symmetric
-        // self-play runs on record (v2, v3, p3) scored 15-19% against it.
-        //
-        // The bot takes RED on one bot pitch and BLUE on the next. The ghost trainer
-        // swaps which team is learning; with the bot on one colour only, the other
-        // colour's learning phase would never meet it.
-
-        static int s_leagueOrdinal;
-
-        /// <summary>Value of POSOCCER_OPPONENT that turns league seating on.</summary>
-        public const string OPPONENT_LEAGUE = "league";
-
-        /// <summary>
-        /// The side the scripted bot plays on THIS pitch in a league run, or null when
-        /// both sides are on the trainer. Always null outside a league run.
-        /// </summary>
-        public Agent_Soccer.Team? LeagueScriptedSide { get; private set; }
-
-        /// <summary>True when this process was launched as a league run.</summary>
-        public static bool LeagueRun =>
-            !Agent_EvalStats.EvalMode
-            && Agent_RunConfig.Is(Agent_RunConfig.OPPONENT, OPPONENT_LEAGUE);
-
-        void ApplyLeagueSeat()
-        {
-            if (!LeagueRun) return;
-            // A match scene's lineup belongs to the menu, as for the squad variable.
-            if (GetComponent<Agent_MatchLoader>() != null) return;
-
-            int ordinal = s_leagueOrdinal++;
-            LeagueScriptedSide = LeagueSeatFor(ordinal);
-            if (ordinal == 0)
-            {
-                Debug.Log("[Env] POSOCCER_OPPONENT=league -> pitches cycle self-play, bot as red, " +
-                          "self-play, bot as blue.");
-            }
-        }
-
-        /// <summary>
-        /// League seating for the pitch at <paramref name="ordinal"/>, period four:
-        /// self-play, bot as red, self-play, bot as blue.
-        /// </summary>
-        internal static Agent_Soccer.Team? LeagueSeatFor(int ordinal)
-        {
-            switch (Mathf.Abs(ordinal) % 4)
-            {
-                case 1: return Agent_Soccer.Team.Red;
-                case 3: return Agent_Soccer.Team.Blue;
-                default: return null;
-            }
-        }
+        // League training (POSOCCER_OPPONENT=league: self-play pitches mixed with bot
+        // pitches, 2026-10-11) was RETIRED 2026-11-07: the p34control run measured it
+        // adding nothing over bot-only training (docs/training-history.md). The code is in
+        // git history before that date if anyone wants to re-run the comparison.
 
         void ApplyTrainingSquad()
         {
@@ -714,6 +670,20 @@ namespace PoSoccer
                 {
                     children[a].rewards = profile;
                     children[a].brainName = profile.playerName;
+
+                    // GRADING A PROFILE GRADES ITS BRAIN (2026-11-07). SCN_Training
+                    // serializes STANDARD.onnx on both agents, and nothing else swapped the
+                    // model in an eval run, so `evaluate.ps1 -Profile MATT` graded whatever
+                    // brain the scene carried under MATT's reward table and body. The eval
+                    // seat is BLUE (ApplyEvalMode); red is the scripted bot and keeps no
+                    // model. Set before Agent_Soccer.Awake, so DropIncompatibleModel still
+                    // vets the swapped brain against the contract.
+                    if (Agent_EvalStats.EvalMode && !Agent_EvalStats.BaselineMode
+                        && children[a].team == Agent_Soccer.Team.Blue && profile.brainModel != null)
+                    {
+                        var behavior = children[a].GetComponent<Unity.MLAgents.Policies.BehaviorParameters>();
+                        if (behavior != null) behavior.Model = profile.brainModel;
+                    }
                 }
                 Debug.Log($"[Env] POSOCCER_PROFILE={wanted} -> training brain '{profile.playerName}'");
                 return;
@@ -1148,13 +1118,6 @@ namespace PoSoccer
             // A "1,2" pattern should read ~1.5 here.
             stats.Add("PoSoccer/blue_squad", TeamSize(Agent_Soccer.Team.Blue));
 
-            // Same check for a league run: half the pitches seat a scripted bot, so this
-            // reads about 0.5. A flat 0 means the run is plain self-play.
-            if (LeagueRun)
-            {
-                stats.Add("PoSoccer/league_bot_pitch", LeagueScriptedSide.HasValue ? 1f : 0f);
-            }
-
             // Team play, 2v2 pitches only (a lone player has nobody to pass to, and
             // mixing its zeros in would halve every figure on a "1,2" run).
             if (TeamSize(Agent_Soccer.Team.Blue) > 1)
@@ -1270,6 +1233,10 @@ namespace PoSoccer
             // turnChurnScale in charge (0 on every shipped profile, i.e. off).
             TurnChurnOverride = Academy.Instance.EnvironmentParameters
                 .GetWithDefault("turn_churn", -1f);
+            // Action rate. -1 = "no config named it", which leaves each profile's
+            // actionJitterScale in charge.
+            ActionRateOverride = Academy.Instance.EnvironmentParameters
+                .GetWithDefault("action_rate", -1f);
             // Pass reward (2026-10-11). Off unless a config names it, like the rest.
             CurrentPassReward = Mathf.Max(0f, Academy.Instance.EnvironmentParameters
                 .GetWithDefault("pass_reward", 0f));

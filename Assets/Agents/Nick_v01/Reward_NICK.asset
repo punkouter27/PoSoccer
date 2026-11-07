@@ -13,6 +13,9 @@ MonoBehaviour:
   m_Name: Reward_NICK
   m_EditorClassIdentifier: 
   playerName: NICK
+  trainingConfigHash: 25e6e074f203
+  trainedPhysicsVersion: phys-2026-10-10
+  trainedInterfaceVersion: iface-2026-10-10
   personalityNotes: 'THE MIDFIELDER. Possession is the point: continuous reward for
     keeping the ball within 1.2m (possessionScale, his signature trait), loves the
     assist as much as the goal. Stays central (high wall penalty), tidy on the controls.

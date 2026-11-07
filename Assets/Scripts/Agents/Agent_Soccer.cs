@@ -466,20 +466,6 @@ namespace PoSoccer
             // Eval owns policy assignment; it forces the opponent to heuristic itself.
             if (Agent_EvalStats.EvalMode) return;
 
-            // League run: the pitch decides, and the scripted side can be either colour.
-            // Agent_EnvController.Awake (-50) has already seated this pitch.
-            if (Agent_EnvController.LeagueRun)
-            {
-                var pitch = GetComponentInParent<Agent_EnvController>();
-                if (pitch == null || pitch.LeagueScriptedSide != team) return;
-
-                _behavior.BehaviorType = BehaviorType.HeuristicOnly;
-                var leagueBot = GetComponent<Agent_HeuristicBot>();
-                if (leagueBot != null) leagueBot.enabled = true;
-                Debug.Log($"[Agent_Soccer] {name}: scripted {team} side (POSOCCER_OPPONENT=league).");
-                return;
-            }
-
             if (team != Team.Red) return;
 
             if (!Agent_RunConfig.Is(Agent_RunConfig.OPPONENT, OPPONENT_BOT)) return;
@@ -551,6 +537,11 @@ namespace PoSoccer
             if (Body != null) Body.linearDamping = _linearDamping;
             CacheDriveForce();
 
+            // Opt-in realism (Agent_Realism). Both resolve to "off" unless an env var or
+            // the profile turns them on, and off leaves the shipped path untouched.
+            if (Stamina != null) Stamina.ApplyModel(Agent_Realism.EffectiveStaminaModel(rewards));
+            ConfigureReactionDelay();
+
             // Cosmetics (body colour, team eye, frame outline, identity letter)
             // live in Agent_SoccerView so this file stays observations, actions,
             // locomotion and rewards.
@@ -565,6 +556,44 @@ namespace PoSoccer
                     transform, rewards, team, _frameInset, _frameThickness, _frameZ,
                     _showPlayerLabel);
             }
+        }
+
+        // Reaction latency (Agent_Realism, opt-in). Null and 0 on the default path, where
+        // OnActionReceived reads the policy's action exactly as before.
+        Vector4[] _actionQueue;
+        int _actionQueueHead;
+        int _reactionDelayTicks;
+
+        /// <summary>Physics ticks between a decision and the feet acting on it. 0 = no latency.</summary>
+        public int ReactionDelayTicks => _reactionDelayTicks;
+
+        void ConfigureReactionDelay()
+        {
+            // Never on the scripted side: the bot is the benchmark opponent. HeuristicOnly
+            // is the scripted bot (or keyboard play); Default is a learner on the trainer,
+            // InferenceOnly a deployed brain.
+            bool learner = _behavior != null && _behavior.BehaviorType != BehaviorType.HeuristicOnly;
+            _reactionDelayTicks = learner
+                ? Agent_Realism.ReactionDelayTicks(
+                    Agent_Realism.EffectiveReactionMs(rewards), Time.fixedDeltaTime)
+                : 0;
+            // Allocated once here, never in the physics loop (performance.md).
+            _actionQueue = _reactionDelayTicks > 0 ? new Vector4[_reactionDelayTicks + 1] : null;
+            _actionQueueHead = 0;
+        }
+
+        /// <summary>
+        /// Pushes this tick's action and returns the one decided <see cref="_reactionDelayTicks"/>
+        /// ticks ago. The queue holds delay + 1 entries, so the slot after the head is the
+        /// oldest. It starts zeroed each episode: the body stands still for the first
+        /// latency window, as a person would before reacting to the kickoff.
+        /// </summary>
+        Vector4 DelayAction(Vector4 fresh)
+        {
+            int size = _actionQueue.Length;
+            _actionQueueHead = (_actionQueueHead + 1) % size;
+            _actionQueue[_actionQueueHead] = fresh;
+            return _actionQueue[(_actionQueueHead + 1) % size];
         }
 
         void Update()
@@ -590,6 +619,11 @@ namespace PoSoccer
             _prevBallDist = float.PositiveInfinity;
             _prevBallGoalDist = float.PositiveInfinity;
             _prevApproachKey = -1;
+            if (_actionQueue != null)
+            {
+                System.Array.Clear(_actionQueue, 0, _actionQueue.Length);
+                _actionQueueHead = 0;
+            }
             Stamina.ResetForEpisode();
             if (_contact == null) _contact = GetComponent<Agent_Contact>();
             if (_contact != null) _contact.ResetForEpisode();
@@ -926,6 +960,12 @@ namespace PoSoccer
                 actions.ContinuousActions[0], actions.ContinuousActions[1],
                 actions.ContinuousActions[2], actions.ContinuousActions[3]);
 
+            // What the feet act on this tick. Identical to the policy output unless reaction
+            // latency is on (Agent_Realism), in which case it is the output from that many
+            // ticks ago. LastRawActions stays the policy's own output: the turn-churn term
+            // and every spectator tap describe what the brain decided, not what landed.
+            Vector4 acted = _actionQueue != null ? DelayAction(LastRawActions) : LastRawActions;
+
             // Action gain. WAS 1.6 from 2026-08 until 2026-09-07, added when trained
             // brains crept at ~0.1-0.5 and raw driveForce * intentMag died to drag
             // before the body built visible speed. That premise expired: p21 measures
@@ -950,10 +990,10 @@ namespace PoSoccer
             // Agent_EditMode_ActionGain. Kept as a const local before; a private
             // constant meant the one number that silently invalidates a checkpoint
             // was unreadable by the guard that should have been watching it.
-            float move = Mathf.Clamp(actions.ContinuousActions[0] * ActionGain, -1f, 1f);
-            float lateral = Mathf.Clamp(actions.ContinuousActions[1] * ActionGain, -1f, 1f);
-            float turn = Mathf.Clamp(actions.ContinuousActions[2] * ActionGain, -1f, 1f);
-            float boost = Mathf.Clamp01(actions.ContinuousActions[3]);
+            float move = Mathf.Clamp(acted.x * ActionGain, -1f, 1f);
+            float lateral = Mathf.Clamp(acted.y * ActionGain, -1f, 1f);
+            float turn = Mathf.Clamp(acted.z * ActionGain, -1f, 1f);
+            float boost = Mathf.Clamp01(acted.w);
 
             float dt = Time.fixedDeltaTime;
             Vector2 forwardAxis = transform.up;
@@ -1242,7 +1282,13 @@ namespace PoSoccer
                           + Mathf.Abs(lateral - _prevActions[1])
                           + Mathf.Abs(turn - _prevActions[2])
                           + Mathf.Abs(boost - _prevActions[3])) / 4f;
-            Account(5, -rewards.actionJitterScale * jitter);
+            // Scale: the trainer's `action_rate` parameter when a config names it, else the
+            // profile's (Agent_EnvController.ActionRateOverride). This is the AGENTS.md
+            // action-rate penalty; it already existed, it is just reachable from a config now.
+            float jitterScale = env.ActionRateOverride >= 0f
+                ? env.ActionRateOverride
+                : rewards.actionJitterScale;
+            Account(5, -jitterScale * jitter);
             _prevActions[0] = move; _prevActions[1] = lateral;
             _prevActions[2] = turn; _prevActions[3] = boost;
 

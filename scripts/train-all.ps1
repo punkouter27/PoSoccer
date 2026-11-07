@@ -94,6 +94,15 @@ if (-not (Test-Path $py)) { throw "No trainer at $py - run scripts/setup-trainin
 $envExe = Join-Path $root $EnvPath
 if (-not (Test-Path $envExe)) { throw "No player build at $envExe - build SCN_Training first." }
 
+# Shared pre-flight (2026-11-07): scene order, toolchain parity, LFS stubs, orphaned
+# trainers, and a stale-build check over all of Assets. The narrower stale check below
+# stays as it was.
+. "$PSScriptRoot\lib-profile.ps1"
+$preflightArgs = @("-EnvPath", $EnvPath)
+if ($AllowStale) { $preflightArgs += "-AllowStale" }
+& "$PSScriptRoot\preflight.ps1" @preflightArgs
+if ($LASTEXITCODE -ne 0) { throw "Preflight failed - see above. Nothing was started." }
+
 # Stale-build guard. Phases 9 and 10 were all trained and graded against a player
 # three weeks older than the code under test, and nothing caught it. Judge the
 # build by PoSoccer_Data - Unity leaves the .exe mtime untouched on a successful
@@ -162,7 +171,13 @@ try {
                     "--no-graphics", "--num-envs=$NumEnvs")
         if ($Force) { $mlArgs += "--force" }
 
+        # Checkpoint provenance (interface/physics versions, config hash), stamped onto
+        # the profile by update-model.ps1 below.
+        $null = Write-RunProvenance -Root $root -RunId $runId -ConfigPath $config -Profile $name `
+            -Extra @{ opponent = $env:POSOCCER_OPPONENT; numEnvs = $NumEnvs; sequentialTag = $Tag }
+
         & $py @mlArgs
+        Copy-RunProvenance -Root $root -RunId $runId
         if ($LASTEXITCODE -ne 0) {
             Write-Warning "$name exited with code $LASTEXITCODE - continuing to the next profile."
         }

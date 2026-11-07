@@ -112,6 +112,14 @@ $env:POSOCCER_OUT = $out
 $env:POSOCCER_SQUAD = $Squad
 $env:POSOCCER_BOT_VERSION = "$BotVersion"
 $env:POSOCCER_BOT_VERSION_BLUE = "$BlueBotVersion"
+# Grade the PROFILE's brain, not the one serialized in SCN_Training (STANDARD's).
+# Agent_EnvController.ApplyProfileOverride swaps blue's model to the profile's
+# brainModel in eval mode. Before 2026-11-07 nothing did, so -Profile chose only which
+# .onnx the staleness gate looked at and which asset got stamped.
+$env:POSOCCER_PROFILE = if ($Baseline) { "" } else { $Profile }
+# Realism options come from the profile (stamped at deploy). Clear any value a
+# training shell left behind so it cannot override what the brain trained under.
+$env:POSOCCER_STAMINA_MODEL = ""; $env:POSOCCER_REACTION_MS = ""
 
 try {
     $p = Start-Process -FilePath $exe -ArgumentList "-batchmode", "-nographics", `
@@ -179,6 +187,7 @@ finally {
     $env:POSOCCER_EPISODES = ""; $env:POSOCCER_RUNID = ""; $env:POSOCCER_OUT = ""
     $env:POSOCCER_SQUAD = ""
     $env:POSOCCER_BOT_VERSION = ""; $env:POSOCCER_BOT_VERSION_BLUE = ""
+    $env:POSOCCER_PROFILE = ""
 }
 
 if (-not (Test-Path $out)) {
@@ -226,6 +235,9 @@ print(';'.join('%s=%s' % (i.name, 'x'.join((d.dim_param or str(d.dim_value)) if 
     } catch {
         # onnx not importable in this venv - the stamp is a nicety, not a gate.
     }
+}
+if (-not $Baseline) {
+    $r | Add-Member -NotePropertyName profile -NotePropertyValue $Profile -Force
 }
 $r | Add-Member -NotePropertyName modelPath -NotePropertyValue ($model.Replace($root + "\", "")) -Force
 $r | Add-Member -NotePropertyName modelWrittenUtc -NotePropertyValue ((Get-Item $model).LastWriteTimeUtc.ToString("o")) -Force

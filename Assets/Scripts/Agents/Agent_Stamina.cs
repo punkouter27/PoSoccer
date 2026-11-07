@@ -86,6 +86,35 @@ namespace PoSoccer
             Current = Mathf.Min(EffectiveMax, Current + rate * active);
         }
 
+        /// <summary>
+        /// Opt-in repeated-sprint model (2026-11-07, item 43). <see cref="Reward_Settings.StaminaModel.Shipped"/>
+        /// returns without touching a field, so every deployed brain keeps the stamina it
+        /// trained under. See Agent_Realism for how the model is chosen.
+        ///
+        /// What the shipped model is, measured against people: 100 units drained at 60/s is
+        /// 1.7 s of boost, refilled at 25/s in about 4 s. Top speed is NOT the problem - the
+        /// measured sprint is 9.54 m/s (docs/rules-exemptions.md, fixed-timestep entry), a
+        /// real sprint. The tank is: a footballer holds a
+        /// maximal sprint for about 6 s (the phosphocreatine window), needs a work:rest of
+        /// roughly 1:3 or more to repeat it, and loses some 10-20% of repeat-sprint output
+        /// over a match. The values below are those three facts, approximately; they are a
+        /// published-literature calibration, not a fit to tracking data.
+        /// </summary>
+        public void ApplyModel(Reward_Settings.StaminaModel model)
+        {
+            if (model != Reward_Settings.StaminaModel.Human) return;
+
+            maxStamina = 100f;
+            drainPerSecond = 100f / 6f;        // ~6 s of maximal sprint from full
+            rechargePerSecond = 6f;            // ~17 s to refill at the full-tank rate
+            recoveryDelaySeconds = 1.0f;
+            depletedRecoveryFactor = 0.35f;    // slower still out of full depletion
+            wearPerBoostSecond = 0.01f;        // ~10% of the ceiling per 10 s of cumulative sprint
+            wearFloor = 0.8f;                  // repeated-sprint decrement caps at 20%
+            // Called once from Agent_Soccer.Start, before the first episode: start full.
+            Current = EffectiveMax;
+        }
+
         public void ResetForEpisode()
         {
             // Wear FIRST: EffectiveMax is derived from it, so filling the tank

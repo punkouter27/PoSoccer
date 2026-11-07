@@ -44,5 +44,120 @@ function Set-ProfileField {
         $lines.Insert($anchor + 1, "  ${Field}: $Value")
     }
 
-    Set-Content -Path $AssetPath -Value $lines -Encoding UTF8
+    # LF, no BOM, trailing newline: the bytes Unity writes. Set-Content on Windows wrote
+    # CRLF, so every stamp turned the whole asset into a line-ending diff until Unity
+    # re-serialized it.
+    [System.IO.File]::WriteAllText((Resolve-Path $AssetPath).Path,(($lines -join "`n") + "`n"),
+                                   (New-Object System.Text.UTF8Encoding($false)))
+}
+
+# ---- Checkpoint provenance (2026-11-07) --------------------------------------
+# AGENTS.md: "Tag each checkpoint with its interface and physics versions." The
+# training scripts write results\<runId>.provenance.json when a run starts (a FILE,
+# not a folder: tensorboard.ps1 prunes result folders that hold no events) and copy
+# it into results\<runId>\ when the trainer exits. update-model.ps1 stamps it onto
+# the profile; Agent_EditMode_CheckpointTags compares the stamp with the runtime.
+
+# First 12 hex of the SHA-256 of a text file with line endings normalised to LF, so a
+# CRLF checkout and an LF checkout of the same config hash the same.
+function Get-ConfigHash {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    $text = (Get-Content $Path -Raw) -replace "`r`n", "`n"
+    $bytes = [System.Text.Encoding]::UTF8.GetBytes($text)
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try { $hash = $sha.ComputeHash($bytes) } finally { $sha.Dispose() }
+    return (($hash | ForEach-Object { $_.ToString("x2") }) -join "").Substring(0, 12)
+}
+
+# Reads a `public const string NAME = "value";` from Agent_Realism.cs. Read from the
+# SOURCE, like ActionGain in update-model.ps1: a copy in a script is how a stamp drifts.
+function Get-RealismConstant {
+    param([Parameter(Mandatory = $true)][string]$Root, [Parameter(Mandatory = $true)][string]$Name)
+    $source = Join-Path $Root "Assets\Scripts\Agents\Agent_Realism.cs"
+    $m = Select-String -Path $source -Pattern ("public\s+const\s+string\s+" + [regex]::Escape($Name) + "\s*=\s*""([^""]+)""") |
+         Select-Object -First 1
+    if (-not $m) { throw "Agent_Realism.$Name not found in $source" }
+    return $m.Matches[0].Groups[1].Value
+}
+
+# Same formulas as Agent_Realism.InterfaceVersionFor / PhysicsVersionFor.
+function Get-InterfaceVersion {
+    param([string]$Root, [double]$ReactionMs = 0)
+    $base = Get-RealismConstant $Root "INTERFACE_VERSION"
+    $ms = [int][Math]::Round([Math]::Min([Math]::Max($ReactionMs, 0), 400), [MidpointRounding]::ToEven)
+    if ($ms -le 0) { return $base }
+    return "$base+lat$ms"
+}
+function Get-PhysicsVersion {
+    param([string]$Root, [string]$StaminaModel = "shipped")
+    $base = Get-RealismConstant $Root "PHYSICS_VERSION"
+    if ($StaminaModel -eq "human") { return "$base+stamina-human" }
+    return $base
+}
+
+# Writes results\<runId>.provenance.json and returns its path.
+function Write-RunProvenance {
+    param(
+        [Parameter(Mandatory = $true)][string]$Root,
+        [Parameter(Mandatory = $true)][string]$RunId,
+        [Parameter(Mandatory = $true)][string]$ConfigPath,
+        [string]$Profile = "",
+        [string]$InitFrom = "",
+        [string]$StaminaModel = "shipped",
+        [double]$ReactionMs = 0,
+        [hashtable]$Extra = @{}
+    )
+    $commit = (git -C $Root rev-parse --short HEAD 2>$null)
+    $dirty = [bool](git -C $Root status --porcelain 2>$null)
+    $record = [ordered]@{
+        runId            = $RunId
+        profile          = $Profile
+        config           = $ConfigPath.Replace($Root + "\", "")
+        configHash       = Get-ConfigHash $ConfigPath
+        interfaceVersion = Get-InterfaceVersion $Root $ReactionMs
+        physicsVersion   = Get-PhysicsVersion $Root $StaminaModel
+        staminaModel     = $StaminaModel
+        reactionMs       = $ReactionMs
+        initFrom         = $InitFrom
+        gitCommit        = "$commit"
+        gitDirty         = $dirty
+        startedUtc       = (Get-Date).ToUniversalTime().ToString("o")
+    }
+    foreach ($key in $Extra.Keys) { $record[$key] = $Extra[$key] }
+    $dir = Join-Path $Root "results"
+    New-Item -ItemType Directory -Force $dir | Out-Null
+    $path = Join-Path $dir "$RunId.provenance.json"
+    $record | ConvertTo-Json | Set-Content -Path $path -Encoding UTF8
+    return $path
+}
+
+# After the trainer exits: put the provenance next to the checkpoints it describes.
+function Copy-RunProvenance {
+    param([Parameter(Mandatory = $true)][string]$Root, [Parameter(Mandatory = $true)][string]$RunId)
+    $src = Join-Path $Root "results\$RunId.provenance.json"
+    $runDir = Join-Path $Root "results\$RunId"
+    if ((Test-Path $src) -and (Test-Path $runDir)) {
+        Copy-Item $src (Join-Path $runDir "provenance.json") -Force
+    }
+}
+
+# Rough wall-clock estimate for a run, printed at startup (AGENTS.md: "Estimate training
+# time at startup"). Measured rates (docs/training-history.md): ~540 s per million steps
+# for one run at -NumEnvs 4 (p37bot), ~1,000 s per million each when four run in
+# parallel (p31). Linear in between; an estimate, not a promise.
+function Get-TrainingEstimate {
+    param([Parameter(Mandatory = $true)][string]$ConfigPath, [int]$Concurrent = 1)
+    $maxSteps = 0
+    foreach ($line in (Get-Content $ConfigPath)) {
+        if ($line -match '^\s*max_steps:\s*([0-9.eE+]+)') { $maxSteps = [Math]::Max($maxSteps, [double]$Matches[1]) }
+    }
+    if ($maxSteps -le 0) { return $null }
+    $perMillion = 540 + (1000 - 540) * ([Math]::Min([Math]::Max($Concurrent, 1), 4) - 1) / 3.0
+    $seconds = $maxSteps / 1e6 * $perMillion
+    return [pscustomobject]@{
+        Steps     = [long]$maxSteps
+        Seconds   = [long]$seconds
+        Text      = ("{0:N0} steps at ~{1:N0} s per million = ~{2:N1} h" -f $maxSteps, $perMillion, ($seconds / 3600))
+        FinishUtc = (Get-Date).ToUniversalTime().AddSeconds($seconds)
+    }
 }
