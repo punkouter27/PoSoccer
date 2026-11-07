@@ -107,6 +107,41 @@ half3 PoSoccerApplyFX(half3 albedo, float2 uv)
         albedo *= 1.0h + _StripeStrength * (band * 2.0h - 1.0h);
     }
 
+    // -- Turf micro-detail (Ultra, 2026-11-07) ------------------------------
+    // Two things a real pitch shows up close and a flat sprite cannot:
+    //  - BLADE GRAIN: value noise stretched along the mow axis, so the grass
+    //    reads as blades laid one way rather than as a printed texture;
+    //  - ANISOTROPIC SHEEN: blades mown AWAY from the floodlight catch it and
+    //    blades mown toward it do not, so each lane's brightness depends on its
+    //    mow direction as well as its band. That is the effect behind real
+    //    stadium stripes; the stripe term above only fakes its result.
+    // Sprite-local uv (luv) like every other term - the pitch is atlased.
+    // At _TurfDetail 0 the block is skipped and the pitch is bit-identical.
+    if (_TurfDetail > 0.0h)
+    {
+        float2 axis = float2(cos(_StripeAngle), sin(_StripeAngle));
+        float2 across = float2(-axis.y, axis.x);
+        // Anisotropic cell: blades are ~6x longer than wide, laid along the lane.
+        float2 grid = float2(dot(luv, across) * _TurfScale, dot(luv, axis) * _TurfScale / 6.0);
+        float2 cell = floor(grid);
+        float2 f = frac(grid);
+        f = f * f * (3.0 - 2.0 * f);
+        float h00 = frac(sin(dot(cell, float2(127.1, 311.7))) * 43758.5453);
+        float h10 = frac(sin(dot(cell + float2(1, 0), float2(127.1, 311.7))) * 43758.5453);
+        float h01 = frac(sin(dot(cell + float2(0, 1), float2(127.1, 311.7))) * 43758.5453);
+        float h11 = frac(sin(dot(cell + float2(1, 1), float2(127.1, 311.7))) * 43758.5453);
+        float grain = lerp(lerp(h00, h10, f.x), lerp(h01, h11, f.x), f.y);
+
+        // Mow direction alternates lane by lane; the sign picks which way the
+        // blades lean. Same lane maths as the stripe term so the two agree.
+        float lane = frac(dot(luv - 0.5, axis) * max(_StripeCount, 1.0));
+        float leanAway = lane < 0.5 ? 1.0 : -1.0;
+        // Fixed key light from the top of the screen, as the floodlight towers sit.
+        float facing = 0.5 + 0.5 * leanAway * (0.6 + 0.4 * (grain * 2.0 - 1.0));
+
+        albedo *= 1.0h + (half)((grain - 0.5) * 0.16 + (facing - 0.5) * 0.10) * _TurfDetail;
+    }
+
     // -- Travelling sheen --------------------------------------------------
     // A highlight band sweeping across the surface: wet grass under floodlights,
     // and the scrolling gloss on the advertising boards.

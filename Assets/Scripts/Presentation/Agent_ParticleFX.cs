@@ -16,7 +16,11 @@ namespace PoSoccer
     ///  - impact debris, scaled by Collision2D.relativeVelocity;
     ///  - a shockwave ring on the corner-escape wall kick, a real mechanic that
     ///    until now rendered as nothing at all;
-    ///  - goal confetti.
+    ///  - goal confetti;
+    ///  - divots (2026-11-07): a torn-turf mark left where a player PLANTS a hard
+    ///    cut or brake, read from Agent_Soccer.GroundForce, the force the feet
+    ///    actually put into the ground. Shed with the pitch wear at tier 1.
+    ///    Desktop Ultra adds a clod burst to every divot and doubles the spray.
     ///
     /// Deliberately a small number of SHARED systems emitted into with
     /// EmitParams, not one system per agent: the emit call carries position and
@@ -36,12 +40,33 @@ namespace PoSoccer
         [SerializeField] private float _impactThreshold = 5f;
         [SerializeField] private bool _enableParticles = true;
 
+        [Header("Divots")]
+        [Tooltip("Ground force, in g (GroundForce / body weight), a planted foot must " +
+                 "put into the turf to tear a divot. The shipped bodies peak near 0.7 g " +
+                 "boosted, so 0.5 is a committed cut or brake, not ordinary running.")]
+        [SerializeField] private float _divotG = 0.5f;
+        [Tooltip("The force must point this much AGAINST the current velocity " +
+                 "(cosine) to count: a cut or a brake, not straight-line acceleration.")]
+        [Range(-1f, 1f)] [SerializeField] private float _divotAgainst = -0.25f;
+        [Tooltip("Minimum seconds between two divots from the same player.")]
+        [SerializeField] private float _divotCooldown = 0.35f;
+        [Tooltip("Seconds a divot mark stays on the turf.")]
+        [SerializeField] private float _divotLife = 7f;
+
         Agent_EnvController _env;
         ParticleSystem _turf, _debris, _confetti;
         Transform _ringPool;
         readonly System.Collections.Generic.List<SpriteRenderer> _rings = new();
         int _nextRing;
         float _turfCredit;
+        ParticleSystem _divots;
+        float[] _divotReadyAt = System.Array.Empty<float>();
+
+        /// <summary>Divot marks allowed. Cleared by Agent_Quality with the pitch wear.</summary>
+        public bool DivotsAllowed { get; set; } = true;
+
+        /// <summary>Desktop Ultra: clods on every divot, double turf spray.</summary>
+        public bool UltraBursts { get; set; }
 
         void Start()
         {
@@ -56,6 +81,7 @@ namespace PoSoccer
             _turf = BuildSystem("TurfSpray", new Color(0.35f, 0.62f, 0.28f), 0.10f, 0.55f, 260);
             _debris = BuildSystem("ImpactDebris", new Color(0.85f, 0.88f, 0.8f), 0.08f, 0.4f, 200);
             _confetti = BuildConfetti();
+            _divots = BuildDivots();
             BuildRingPool();
 
             _env.EpisodeEnded += OnEpisodeEnded;
@@ -166,6 +192,44 @@ namespace PoSoccer
             return ps;
         }
 
+        /// <summary>
+        /// Divot marks: stationary, long-lived, drawn just above the pitch and
+        /// below the contact shadows (-2), so a body runs OVER its own scar. One
+        /// shared system for the whole pitch, like every other effect here.
+        /// </summary>
+        ParticleSystem BuildDivots()
+        {
+            var go = new GameObject("Divots");
+            go.transform.SetParent(transform, false);
+
+            var ps = go.AddComponent<ParticleSystem>();
+            var main = ps.main;
+            main.startLifetime = _divotLife;
+            main.startSize = 0.16f;
+            main.startSpeed = 0f;
+            main.startColor = new Color(0.24f, 0.18f, 0.11f, 0.55f);
+            main.maxParticles = 160;
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+            main.gravityModifier = 0f;
+
+            var emission = ps.emission;
+            emission.enabled = false;
+            var shape = ps.shape;
+            shape.enabled = false;
+
+            var colorOverLife = ps.colorOverLifetime;
+            colorOverLife.enabled = true;
+            var gradient = new Gradient();
+            gradient.SetKeys(
+                new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
+                new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(1f, 0.6f),
+                        new GradientAlphaKey(0f, 1f) });
+            colorOverLife.color = gradient;
+
+            SetupRenderer(ps, -3);
+            return ps;
+        }
+
         static void SetupRenderer(ParticleSystem ps, int sortingOrder)
         {
             var renderer = ps.GetComponent<ParticleSystemRenderer>();
@@ -221,7 +285,7 @@ namespace PoSoccer
                 if (slip < _slipThreshold) continue;
 
                 float strength = Mathf.Clamp01((slip - _slipThreshold) / 4f);
-                _turfCredit += strength * _turfRate * Time.deltaTime;
+                _turfCredit += strength * _turfRate * (UltraBursts ? 2f : 1f) * Time.deltaTime;
                 int count = Mathf.FloorToInt(_turfCredit);
                 if (count <= 0) continue;
                 _turfCredit -= count;
@@ -238,6 +302,77 @@ namespace PoSoccer
                         startLifetime = Random.Range(0.3f, 0.7f),
                     };
                     _turf.Emit(emit, 1);
+                }
+            }
+
+            UpdateDivots(agents);
+        }
+
+        /// <summary>
+        /// A divot where a foot was PLANTED: the ground force is large AND points
+        /// against the way the body is going (a cut or a brake). Straight-line
+        /// acceleration pushes on the turf too, but along the motion, and a
+        /// sprinter does not leave a crater every stride. Zero allocation:
+        /// EmitParams is a struct and the cooldowns are a pre-sized array.
+        /// </summary>
+        void UpdateDivots(System.Collections.Generic.List<Agent_Soccer> agents)
+        {
+            if (_divots == null || !DivotsAllowed || Agent_TimeFreeze.IsFrozen) return;
+
+            // The env fills its agent list in its own Start, which may run after
+            // this component's - so the cooldown array is sized here, once, the
+            // first time the list is longer than it.
+            if (_divotReadyAt.Length < agents.Count) _divotReadyAt = new float[agents.Count];
+
+            float now = Time.time;
+            for (int i = 0; i < agents.Count && i < _divotReadyAt.Length; i++)
+            {
+                var agent = agents[i];
+                if (agent == null || agent.Body == null) continue;
+                if (now < _divotReadyAt[i]) continue;
+
+                float weight = agent.Body.mass * 9.81f;
+                if (weight <= 0f) continue;
+                Vector2 force = agent.GroundForce;
+                float g = force.magnitude / weight;
+                if (g < _divotG) continue;
+
+                Vector2 velocity = agent.Body.linearVelocity;
+                if (velocity.sqrMagnitude < 1f) continue;
+                float against = Vector2.Dot(force.normalized, velocity.normalized);
+                if (against > _divotAgainst) continue;
+
+                _divotReadyAt[i] = now + _divotCooldown;
+                Vector2 at = agent.Body.position + velocity.normalized * 0.12f;
+                float severity = Mathf.Clamp01((g - _divotG) / 0.3f);
+
+                var mark = new ParticleSystem.EmitParams
+                {
+                    position = new Vector3(at.x, at.y, 0f),
+                    startSize = Mathf.Lerp(0.12f, 0.22f, severity),
+                    rotation = Mathf.Atan2(velocity.y, velocity.x) * Mathf.Rad2Deg,
+                };
+                _divots.Emit(mark, 1);
+
+                if (!UltraBursts || _debris == null) continue;
+
+                // Clods thrown forward and out of the plant, on the debris system the
+                // ball impacts already use, in turf colours.
+                int clods = Mathf.RoundToInt(Mathf.Lerp(4f, 10f, severity));
+                for (int c = 0; c < clods; c++)
+                {
+                    var clod = new ParticleSystem.EmitParams
+                    {
+                        position = new Vector3(at.x, at.y, 0f),
+                        velocity = (velocity.normalized + Random.insideUnitCircle * 0.8f)
+                                   * Random.Range(1.2f, 3.2f),
+                        startLifetime = Random.Range(0.25f, 0.5f),
+                        startSize = Random.Range(0.05f, 0.09f),
+                        startColor = c % 2 == 0
+                            ? new Color(0.30f, 0.22f, 0.13f)
+                            : new Color(0.33f, 0.56f, 0.24f),
+                    };
+                    _debris.Emit(clod, 1);
                 }
             }
         }

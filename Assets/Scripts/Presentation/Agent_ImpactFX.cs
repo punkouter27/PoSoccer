@@ -49,9 +49,14 @@ namespace PoSoccer
         [SerializeField] private float _contactSaturation = 45f;
 
         [Header("Traction scuff")]
-        [Tooltip("Fraction of the friction circle above which the feet start laying scuffs. " +
-                 "0.9 keeps it to genuine limit-of-grip moments rather than every stride.")]
-        [Range(0.5f, 1f)] [SerializeField] private float _scuffSaturation = 0.9f;
+        // 2026-11-07: was `_scuffSaturation = 0.9` against TractionSaturation, which
+        // cannot pass 0.59 on the shipped bodies (CLAUDE.md landmines) - so no scuff
+        // was ever laid. Keyed on the measured sideways slip instead, the same
+        // signal as Agent_Skids, Agent_ParticleFX's turf spray and the skid voice.
+        [Tooltip("Sideways slip (m/s across the facing) above which the feet lay scuffs.")]
+        [SerializeField] private float _scuffSlipSpeed = 2f;
+        [Tooltip("Sideways slip (m/s) at which the scuff rate is at its maximum.")]
+        [SerializeField] private float _scuffFullSlipSpeed = 5f;
         [Tooltip("Speed (m/s) below which a saturated foot is a standing shove, not a skid.")]
         [SerializeField] private float _scuffMinSpeed = 2f;
         [Tooltip("Scuff marks per second per saturated player.")]
@@ -280,19 +285,21 @@ namespace PoSoccer
         }
 
         /// <summary>
-        /// A scuff is laid when the feet are at the limit of the friction circle
-        /// AND the body is moving - which is exactly the condition under which the
-        /// traction model is taking speed away rather than adding it.
+        /// A scuff is laid when the body is sliding across its own facing AND
+        /// moving - the moment the lateral drag is taking speed away rather than
+        /// the feet adding it.
         /// </summary>
         void EmitScuff(Agent_Soccer agent, float dt)
         {
-            if (agent.TractionSaturation < _scuffSaturation) return;
+            float slip = Mathf.Abs(agent.LateralSlipSpeed);
+            if (slip < _scuffSlipSpeed) return;
 
             Vector2 velocity = agent.Body.linearVelocity;
             float speed = velocity.magnitude;
             if (speed < _scuffMinSpeed) return;
 
-            float strength = Mathf.InverseLerp(_scuffSaturation, 1f, agent.TractionSaturation);
+            float strength = Mathf.InverseLerp(_scuffSlipSpeed,
+                Mathf.Max(_scuffSlipSpeed + 0.1f, _scuffFullSlipSpeed), slip);
             _scuffCredit += strength * _scuffRate * dt;
             int count = Mathf.FloorToInt(_scuffCredit);
             if (count <= 0) return;

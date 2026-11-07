@@ -46,6 +46,8 @@ namespace PoSoccer
         static readonly int KitColor = Shader.PropertyToID("_KitColor");
         static readonly int KitScale = Shader.PropertyToID("_KitScale");
         static readonly int Fatigue = Shader.PropertyToID("_Fatigue");
+        static readonly int TurfDetail = Shader.PropertyToID("_TurfDetail");
+        static readonly int TurfScale = Shader.PropertyToID("_TurfScale");
 
         // _Fatigue is quantised before it is pushed, so a body that is not
         // getting any more tired does not get a property-block write every tick.
@@ -57,6 +59,11 @@ namespace PoSoccer
         [SerializeField] private float _pitchStripeCount = 9f;
         [Tooltip("Wet-grass sheen travelling across the pitch.")]
         [Range(0f, 1f)] [SerializeField] private float _pitchSheen = 0.045f;
+        [Tooltip("Blade grain and mow-direction sheen on the pitch, applied only while " +
+                 "Agent_Quality's desktop Ultra tier is active.")]
+        [Range(0f, 1f)] [SerializeField] private float _turfDetail = 0.7f;
+        [Tooltip("Blades across the pitch sprite for the Ultra turf detail.")]
+        [SerializeField] private float _turfBlades = 260f;
         [Tooltip("Strength of the team-coloured rim on player bodies.")]
         [Range(0f, 3f)] [SerializeField] private float _playerRim = 0.9f;
         [Tooltip("Add a small Light2D to the ball so it carries its own highlight.")]
@@ -131,6 +138,24 @@ namespace PoSoccer
         /// takes a tired body out of the SRP Batcher.
         /// </summary>
         public bool FatigueVisible { get; set; } = true;
+
+        /// <summary>
+        /// Ultra-only turf micro-detail (blade grain + anisotropic mow sheen).
+        /// Off by default; Agent_Quality switches it on with the desktop Ultra
+        /// tier and off again the moment that tier is shed. One SetFloat on the
+        /// shared pitch material, so toggling it costs nothing per frame.
+        /// </summary>
+        public bool TurfDetailEnabled
+        {
+            get => _turfDetailEnabled;
+            set
+            {
+                _turfDetailEnabled = value;
+                if (_pitchMaterial != null) _pitchMaterial.SetFloat(TurfDetail, value ? _turfDetail : 0f);
+            }
+        }
+
+        bool _turfDetailEnabled;
 
         /// <summary>
         /// Everything that makes two player bodies look different. Two agents
@@ -218,6 +243,9 @@ namespace PoSoccer
             _pitchMaterial.SetFloat(SheenSpeed, 0.06f);
             _pitchMaterial.SetFloat(SheenWidth, 3.5f);
             if (turfNormal != null) _pitchMaterial.SetTexture(NormalMap, turfNormal);
+            _pitchMaterial.SetFloat(TurfScale, _turfBlades);
+            // Whatever Agent_Quality decided before this material existed.
+            _pitchMaterial.SetFloat(TurfDetail, _turfDetailEnabled ? _turfDetail : 0f);
 
             _ballMaterial = new Material(shader) { name = "PoSoccer_Ball" };
             if (sphereNormal != null) _ballMaterial.SetTexture(NormalMap, sphereNormal);

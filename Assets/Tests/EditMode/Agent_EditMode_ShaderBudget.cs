@@ -55,6 +55,8 @@ namespace PoSoccer.Tests
         /// The UnityPerMaterial block is allowed to hold this many float4-equivalent
         /// entries. Raising it is fine; doing it without noticing is not.
         /// </summary>
+        // 2026-11-07: 19 -> 21 entries with _TurfDetail / _TurfScale (Ultra turf
+        // micro-detail). Still under the budget, so the budget is unchanged.
         const int MAX_CBUFFER_ENTRIES = 24;
 
         [Test]

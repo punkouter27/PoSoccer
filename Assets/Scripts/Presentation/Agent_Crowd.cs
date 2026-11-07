@@ -78,6 +78,22 @@ namespace PoSoccer
         Flashbulb[] _bulbs;
         float _flashBoost;
 
+        [Header("Chances (xG)")]
+        [Tooltip("Missed shots below this xG get no gasp - a hopeful punt is not a chance.")]
+        [Range(0f, 1f)] [SerializeField] private float _gaspMinXg = 0.12f;
+        [Tooltip("xG at which a miss draws the loudest gasp.")]
+        [Range(0f, 1f)] [SerializeField] private float _gaspFullXg = 0.5f;
+
+        Agent_ExpectedGoals _xg;
+        Agent_Audio _audio;
+        bool _xgLookedUp;
+        readonly int[] _seenShots = new int[2];
+        readonly float[] _seenTotal = new float[2];
+        int _seenResolved;
+        bool _shotOpen, _shotScored;
+        Agent_Soccer.Team _shotTeam;
+        float _shotXg;
+
         void Start()
         {
             _env = GetComponent<Agent_EnvController>();
@@ -238,12 +254,90 @@ namespace PoSoccer
             if (winner == null) return;
             // Everyone reaches for their phone at once.
             _flashBoost = 1f;
+            if (_shotOpen && winner.Value == _shotTeam) _shotScored = true;
         }
 
         void Update()
         {
             Shimmer();
             TickFlashbulbs();
+            ReactToChances();
+        }
+
+        // -- Reacting to chances (2026-11-07) ---------------------------------
+        //
+        // The crowd used to react to two things: proximity to goal (Agent_Audio's
+        // pressure) and goals. A real crowd reacts to CHANCES - it rises as a good
+        // shot is struck and groans when it misses - and Agent_ExpectedGoals already
+        // prices every shot. So: a shot opens -> anticipation scaled by its xG
+        // (flashbulbs, a cheer swell); the shot resolves without a goal -> a gasp
+        // scaled by the same xG, so a sitter missed is heard as one and a hopeful
+        // punt from distance barely registers.
+        //
+        // Read through the PUBLIC totals only (ShotsFor, TotalFor, ResolvedShots),
+        // polled once a frame: a shot's xG is the jump in its side's total. No
+        // edit to Agent_ExpectedGoals and no event to keep in sync with it.
+
+        void ReactToChances()
+        {
+            if (_xg == null)
+            {
+                if (_xgLookedUp) return;
+                _xgLookedUp = true;
+                _xg = GetComponent<Agent_ExpectedGoals>();
+                _audio = GetComponent<Agent_Audio>();
+                if (_audio == null) _audio = FindAnyObjectByType<Agent_Audio>();
+                if (_xg == null || !_xg.isActiveAndEnabled) { _xg = null; return; }
+                SnapshotChances();
+                return;
+            }
+
+            // Resolution first: a touch that ends one shot can open the next in the
+            // same frame, and the old one must be judged before it is replaced.
+            int resolved = _xg.ResolvedShots;
+            if (resolved != _seenResolved)
+            {
+                _seenResolved = resolved;
+                if (_shotOpen && !_shotScored && _shotXg >= _gaspMinXg)
+                {
+                    float amount = Mathf.InverseLerp(_gaspMinXg, _gaspFullXg, _shotXg);
+                    if (_audio != null) _audio.Gasp(Mathf.Lerp(0.35f, 1f, amount));
+                    _flashBoost = Mathf.Max(_flashBoost, 0.25f * amount);
+                }
+                _shotOpen = false;
+                _shotScored = false;
+            }
+
+            for (int side = 0; side < 2; side++)
+            {
+                var team = (Agent_Soccer.Team)side;
+                int shots = _xg.ShotsFor(team);
+                if (shots == _seenShots[side]) continue;
+
+                float total = _xg.TotalFor(team);
+                float value = Mathf.Max(0f, total - _seenTotal[side]);
+                _seenShots[side] = shots;
+                _seenTotal[side] = total;
+
+                _shotOpen = true;
+                _shotScored = false;
+                _shotTeam = team;
+                _shotXg = value;
+
+                // Anticipation: the stands rise with the quality of the chance.
+                _flashBoost = Mathf.Max(_flashBoost, Mathf.Clamp01(value * 1.5f) * 0.6f);
+                if (_audio != null) _audio.Cheer(Mathf.Clamp01(value * 1.2f));
+            }
+        }
+
+        void SnapshotChances()
+        {
+            _seenResolved = _xg.ResolvedShots;
+            for (int side = 0; side < 2; side++)
+            {
+                _seenShots[side] = _xg.ShotsFor((Agent_Soccer.Team)side);
+                _seenTotal[side] = _xg.TotalFor((Agent_Soccer.Team)side);
+            }
         }
 
         /// <summary>

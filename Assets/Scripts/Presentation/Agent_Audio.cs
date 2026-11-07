@@ -175,6 +175,13 @@ namespace PoSoccer
         [Range(0f, 1f)] [SerializeField] private float _reverbMix = 0.32f;
         [Tooltip("Reverb decay in seconds - a bowl this size rings for about this long.")]
         [SerializeField] private float _reverbDecay = 1.6f;
+        [Tooltip("Strength of the stadium reverb zone under the positional sounds " +
+                 "(impacts, roll, skid). 0 = dry, as before 2026-11-07.")]
+        [Range(0f, 1f)] [SerializeField] private float _spaceReverb = 0.45f;
+        [Tooltip("Reverb send of a contact right next to the listener.")]
+        [Range(0f, 1.1f)] [SerializeField] private float _nearReverbSend = 0.25f;
+        [Tooltip("Reverb send of a contact at maxDistance - far sounds are mostly room.")]
+        [Range(0f, 1.1f)] [SerializeField] private float _farReverbSend = 1f;
 
         [Header("Physics-driven")]
         [Tooltip("Ball speed (m/s) at which the rolling loop is fully open and loudest.")]
@@ -205,13 +212,25 @@ namespace PoSoccer
         [Tooltip("Contact voices allowed to ring at once before quiet contacts are " +
                  "dropped. Loud ones still steal the oldest voice.")]
         [SerializeField] private int _maxContactVoices = 6;
+        [Tooltip("Synthesise every contact from its impulse (modal synthesis, " +
+                 "Agent_ImpactSynth) instead of playing the sample banks. The banks stay " +
+                 "as the fallback when this is off.")]
+        [SerializeField] private bool _synthesiseImpacts = true;
 
         [Header("Foot skid")]
         [Tooltip("Looping skid bed. Auto-loaded from Resources/Audio/skid when empty, " +
                  "and synthesised once at start when that is missing too.")]
         public AudioClip skid;
-        [Tooltip("Fraction of the friction circle above which feet are heard slipping.")]
-        [Range(0.5f, 0.99f)] [SerializeField] private float _skidSaturation = 0.85f;
+        // 2026-11-07: the skid used to be gated on TractionSaturation > 0.85. On the
+        // shipped bodies that ratio cannot pass 0.59 (519 N boosted drive against an
+        // 883 N budget - CLAUDE.md landmines), so the skid voice NEVER sounded. It is
+        // now driven by the measured sideways slip, Agent_Soccer.LateralSlipSpeed,
+        // the same signal Agent_Skids draws its streaks from - so what is heard and
+        // what is drawn are the same event.
+        [Tooltip("Sideways slip (m/s across the facing) at which feet start to be heard.")]
+        [SerializeField] private float _skidSlipSpeed = 1.2f;
+        [Tooltip("Sideways slip (m/s) at which the scuff is at full level.")]
+        [SerializeField] private float _skidFullSlipSpeed = 4f;
         [Tooltip("Speed (m/s) below which a saturated foot is a standing shove, not a skid.")]
         [SerializeField] private float _skidMinSpeed = 1.5f;
         [Tooltip("Speed (m/s) at which the skid is loudest and highest.")]
@@ -311,6 +330,14 @@ namespace PoSoccer
         AudioClip[][] _pairClips;
         Agent_Contact[] _contacts;
 
+        // Procedural contacts. Null when synthesis is off; PlayContact then uses
+        // the sample banks exactly as before.
+        Agent_ImpactSynth _synth;
+
+        // Crowd gasp voice, built on first use - see Gasp.
+        AudioSource _gasp;
+        float _gaspLevel, _gaspTime;
+
         // -- Foot skid --------------------------------------------------------
         AudioSource _skid;
         AudioClip _synthSkid;
@@ -334,6 +361,53 @@ namespace PoSoccer
             _booTime = Mathf.Max(_booTime, 1.2f * Mathf.Clamp01(amount));
             _goalSpike = Mathf.Clamp01(Mathf.Max(_goalSpike, amount * 0.6f));
             if (crowdBoo != null) Play2D(crowdBoo, 0.6f * Mathf.Clamp01(amount));
+        }
+
+        /// <summary>
+        /// The crowd's "ooh" at a chance that did not go in (2026-11-07, driven by
+        /// Agent_Crowd from Agent_ExpectedGoals). <paramref name="amount"/> is 0..1,
+        /// normally the missed shot's xG, so a 0.6 xG miss gasps far louder than a
+        /// speculative 0.08 one.
+        ///
+        /// It is the roar clip on its own voice with a FALLING pitch glide and a fast
+        /// rise / slow fall envelope: an intake of breath that sags as the ball goes
+        /// wide. A pitch glide cannot be done on a broadcast voice (pitch belongs to
+        /// the source and those are shared), hence the dedicated source.
+        /// </summary>
+        public void Gasp(float amount)
+        {
+            amount = Mathf.Clamp01(amount);
+            if (amount <= 0.01f || Muted) return;
+            var clip = crowdRoar != null ? crowdRoar : crowdSwell;
+            if (clip == null) return;
+
+            if (_gasp == null)
+            {
+                _gasp = NewBus("Audio_CrowdGasp", out _);
+                _gasp.loop = false;
+            }
+            _gasp.clip = clip;
+            _gasp.pitch = 1.08f;
+            _gasp.volume = 0f;
+            _gasp.Play();
+            _gaspLevel = amount;
+            _gaspTime = 0f;
+            _goalSpike = Mathf.Max(_goalSpike, amount * 0.5f);
+        }
+
+        void UpdateGasp(float dt)
+        {
+            if (_gasp == null || !_gasp.isPlaying) return;
+            _gaspTime += dt;
+            const float RISE = 0.12f;
+            const float FALL = 1.5f;
+            float envelope = _gaspTime < RISE
+                ? _gaspTime / RISE
+                : Mathf.Max(0f, 1f - (_gaspTime - RISE) / FALL);
+            _gasp.volume = Muted ? 0f : envelope * _gaspLevel * 0.8f * CrowdBus;
+            // The sag: pitch falls a fifth over the gasp.
+            _gasp.pitch = Mathf.Lerp(1.08f, 0.72f, Mathf.Clamp01(_gaspTime / (RISE + FALL)));
+            if (envelope <= 0f) _gasp.Stop();
         }
 
         /// <summary>Referee's whistle - kickoff countdown, halftime, full time.</summary>
@@ -645,8 +719,23 @@ namespace PoSoccer
             var listener = FindAnyObjectByType<AudioListener>();
             if (listener != null) _listener = listener.transform;
 
+            BuildStadiumSpace();
             BuildBroadcastBus();
             BuildPhysicsVoices();
+            BuildImpactSynth();
+        }
+
+        /// <summary>
+        /// The synthesiser lives on its own GameObject: OnAudioFilterRead processes
+        /// the source on the object it sits on, and nothing else may share it.
+        /// </summary>
+        void BuildImpactSynth()
+        {
+            if (!_synthesiseImpacts) return;
+            var go = new GameObject("Audio_ImpactSynth");
+            go.transform.SetParent(transform, false);
+            go.AddComponent<AudioSource>();
+            _synth = go.AddComponent<Agent_ImpactSynth>();
         }
 
         AudioSource NewPositionalVoice(GameObject go)
@@ -659,7 +748,50 @@ namespace PoSoccer
             source.minDistance = _minDistance;
             source.maxDistance = _maxDistance;
             source.dopplerLevel = 0f;   // a top-down pitch has no fly-bys to sell
+            source.reverbZoneMix = _nearReverbSend;
             return source;
+        }
+
+        /// <summary>
+        /// The bowl the positional sounds happen in (2026-11-07).
+        ///
+        /// Until now only the broadcast cues (whistle, horn, boo) had a reverb tail;
+        /// every impact was bone-dry, which is how a kick sounds in a studio, not in
+        /// a stadium. Hanging an AudioReverbFilter on each pooled voice would cost a
+        /// reverb per voice and re-tune with every hit, so this is ONE
+        /// AudioReverbZone over the pitch. A zone colours every 3D source the
+        /// listener hears from inside it, and each source chooses how much it sends
+        /// through AudioSource.reverbZoneMix - which is what makes it a DISTANCE cue:
+        /// PlayAt sends a near contact mostly dry and a far one mostly wet, the
+        /// direct-to-reverberant ratio a real listener judges distance by. Together
+        /// with the stereo pan and the air-absorption low-pass already in PlayAt,
+        /// that is the spatial picture: where (pan), how far (level, treble, wet),
+        /// and in what space (the tail). Not HRTF: a top-down game played on phone
+        /// speakers has no elevation or front/back to resolve.
+        /// </summary>
+        void BuildStadiumSpace()
+        {
+            if (_spaceReverb <= 0f) return;
+
+            var go = new GameObject("Audio_StadiumSpace");
+            go.transform.SetParent(transform, false);
+            var zone = go.AddComponent<AudioReverbZone>();
+            // Big enough that the listener (the camera, a few metres above the
+            // pitch on z) is always inside the full-strength radius.
+            float span = Mathf.Max(_env.PitchHalfExtents.magnitude, 10f);
+            zone.minDistance = span * 3f;
+            zone.maxDistance = span * 4f;
+            zone.reverbPreset = AudioReverbPreset.User;
+            zone.room = Mathf.RoundToInt(Mathf.Lerp(-2500f, -300f, _spaceReverb));
+            zone.roomHF = -600;
+            zone.decayTime = _reverbDecay;
+            zone.decayHFRatio = 0.6f;
+            zone.reflections = -800;
+            zone.reflectionsDelay = 0.025f;
+            zone.reverb = Mathf.RoundToInt(Mathf.Lerp(-2400f, 0f, _spaceReverb));
+            zone.reverbDelay = 0.04f;
+            zone.diffusion = 100f;
+            zone.density = 100f;
         }
 
         /// <summary>
@@ -772,15 +904,38 @@ namespace PoSoccer
 
             // Explicit stereo spread on top of the 3D image: on a phone speaker
             // the HRTF-free 3D pan is nearly inaudible, but panStereo is not.
-            float halfWidth = Mathf.Max(0.01f, _env.PitchHalfExtents.x);
-            float offset = (worldPosition.x - transform.position.x) / halfWidth;
-            source.panStereo = Mathf.Clamp(offset, -1f, 1f) * _stereoSpread;
+            source.panStereo = PanFor(worldPosition);
 
             source.pitch = pitch;
             source.volume = Mathf.Clamp01(volume) * SfxBus;
             ApplyAirAbsorption(worldPosition);
+            source.reverbZoneMix = ReverbSend(worldPosition);
             source.clip = clip;
             source.Play();
+        }
+
+        /// <summary>
+        /// Direct-to-reverberant ratio by distance: near contacts mostly dry, far
+        /// ones mostly room. Mapped over the same minDistance..maxDistance as the
+        /// rolloff and the air absorption so all three distance cues agree.
+        /// </summary>
+        float ReverbSend(Vector3 worldPosition)
+        {
+            if (_listener == null) return _nearReverbSend;
+            float distance = Vector3.Distance(worldPosition, _listener.position);
+            float t = Mathf.InverseLerp(_minDistance, _maxDistance, distance);
+            return Mathf.Lerp(_nearReverbSend, _farReverbSend, t);
+        }
+
+        /// <summary>
+        /// Shared pan law for every positional voice, synthesised or sampled:
+        /// position across the pitch width, times the stereo spread.
+        /// </summary>
+        float PanFor(Vector3 worldPosition)
+        {
+            float halfWidth = Mathf.Max(0.01f, _env.PitchHalfExtents.x);
+            float offset = (worldPosition.x - transform.position.x) / halfWidth;
+            return Mathf.Clamp(offset, -1f, 1f) * _stereoSpread;
         }
 
         /// <summary>
@@ -906,7 +1061,7 @@ namespace PoSoccer
             // collider to hit - Agent_GoalFrame draws the mouth as a LineRenderer
             // with no physics at all - so position is the only thing that can tell
             // the two apart, and it is the thing a listener is using anyway.
-            if (post != null && IsNearGoalMouth(at))
+            if ((post != null || _synth != null) && IsNearGoalMouth(at))
             {
                 // The one pair that goes UP with force: a struck bar rings higher
                 // the harder it is hit, and that is what reads as "off the
@@ -943,11 +1098,9 @@ namespace PoSoccer
         void PlayContact(ContactPair pair, Vector3 at, float strength,
                          float lightPitch, float heavyPitch)
         {
-            if (Muted || _pairClips == null) return;
+            if (Muted) return;
 
             int index = (int)pair;
-            var bank = _pairClips[index];
-            if (bank == null || bank.Length == 0) return;
 
             // Unscaled: the interval is about what a listener hears, and a
             // hit-stop that slows the clock must not also stretch the gap.
@@ -957,6 +1110,24 @@ namespace PoSoccer
             float loudness = Agent_ImpactScale.Loudness(strength);
             if (loudness < 0.12f) return;
 
+            float pitchLaw = Mathf.Lerp(lightPitch, heavyPitch, Mathf.Clamp01(strength));
+
+            // Synthesised path: the impulse drives level AND timbre (see
+            // Agent_ImpactSynth). Same re-trigger interval and loudness floor as the
+            // samples, so switching paths changes the sound, not the density. The
+            // synth carries its own eight voices and steals the quietest.
+            if (_synth != null && _synth.isActiveAndEnabled)
+            {
+                _pairLastTime[index] = now;
+                _synth.Strike(SurfaceFor(pair), strength, loudness * PairGain[index],
+                    PanFor(at), Distance01(at), pitchLaw);
+                return;
+            }
+
+            if (_pairClips == null) return;
+            var bank = _pairClips[index];
+            if (bank == null || bank.Length == 0) return;
+
             // At the cap, quiet contacts are dropped and loud ones are allowed to
             // steal - NextVoice takes the oldest slot when none is free.
             if (loudness < 0.5f && ActiveContactVoices() >= Mathf.Max(1, _maxContactVoices)) return;
@@ -965,9 +1136,28 @@ namespace PoSoccer
             int slot = _pairNextClip[index] % bank.Length;
             _pairNextClip[index] = (slot + 1) % bank.Length;
 
-            float pitch = Mathf.Lerp(lightPitch, heavyPitch, Mathf.Clamp01(strength))
-                          * Random.Range(1f - _pitchJitter, 1f + _pitchJitter);
+            float pitch = pitchLaw * Random.Range(1f - _pitchJitter, 1f + _pitchJitter);
             PlayAt(bank[slot], at, loudness * PairGain[index], pitch);
+        }
+
+        /// <summary>The material pair each contact type rings as.</summary>
+        static Agent_ImpactSynth.Surface SurfaceFor(ContactPair pair)
+        {
+            switch (pair)
+            {
+                case ContactPair.BallPlayer: return Agent_ImpactSynth.Surface.Leather;
+                case ContactPair.BallWall: return Agent_ImpactSynth.Surface.Boards;
+                case ContactPair.BallPost: return Agent_ImpactSynth.Surface.Post;
+                default: return Agent_ImpactSynth.Surface.Body;
+            }
+        }
+
+        /// <summary>0 at minDistance from the listener, 1 at maxDistance.</summary>
+        float Distance01(Vector3 worldPosition)
+        {
+            if (_listener == null) return 0f;
+            float distance = Vector3.Distance(worldPosition, _listener.position);
+            return Mathf.InverseLerp(_minDistance, _maxDistance, distance);
         }
 
         int ActiveContactVoices()
@@ -1001,6 +1191,14 @@ namespace PoSoccer
         {
             if (winner != null)
             {
+                // The ball hitting the net: the one contact with no collider to
+                // report it, so it is struck here, at the conceding goal.
+                if (_synth != null && _synth.isActiveAndEnabled)
+                {
+                    Vector3 net = _env.GetGoalPosition(Agent_Soccer.Opponent(winner.Value));
+                    _synth.Strike(Agent_ImpactSynth.Surface.Net, 0.8f, 0.9f,
+                        PanFor(net), Distance01(net), 1f);
+                }
                 Play2D(goalHorn, 0.85f);
                 if (crowdRoar != null) Play2D(crowdRoar, 0.9f);
                 Duck();
@@ -1015,8 +1213,13 @@ namespace PoSoccer
             _goalSpike = Mathf.Max(0f, _goalSpike - dt * 0.7f);
             _booTime = Mathf.Max(0f, _booTime - dt);
 
+            // The synth mixes on the audio thread; its bus gain is pushed from here
+            // once a frame so a slider drag or a mute is heard at once.
+            if (_synth != null) _synth.OutputGain = Muted ? 0f : SfxBus;
+
             float pressure = Pressure();
             UpdateCrowd(dt, pressure);
+            UpdateGasp(dt);
             UpdateMusic(dt, pressure);
             UpdateFilters(dt);
             UpdateRoll(dt);
@@ -1027,10 +1230,12 @@ namespace PoSoccer
         /// <summary>
         /// Feet at the limit of grip, heard.
         ///
-        /// The signal is the same one Agent_ImpactFX draws scuffs from and
-        /// Agent_Wear darkens the pitch with: Agent_Soccer.TractionSaturation
-        /// above a threshold, times speed - saturated and stationary is a shove,
-        /// not a skid. The voice follows the MAX over players rather than a sum,
+        /// The signal is Agent_Soccer.LateralSlipSpeed - the body moving across its
+        /// own facing - above a threshold, weighted by speed (slipping while nearly
+        /// stationary is a shove, not a skid). It was TractionSaturation until
+        /// 2026-11-07, which cannot reach its threshold on the shipped bodies; see
+        /// the field comment above. Pitch rises with how hard the slip is: a light
+        /// scuff grinds low, a full slide squeaks high. The voice follows the MAX over players rather than a sum,
         /// so two players cutting at once are as loud as the harder cut, not
         /// twice as loud.
         ///
@@ -1057,18 +1262,21 @@ namespace PoSoccer
                     var player = _players[i];
                     if (player == null || player.Body == null || !player.isActiveAndEnabled) continue;
 
-                    float saturation = player.TractionSaturation;
-                    if (saturation <= _skidSaturation) continue;
+                    float lateral = Mathf.Abs(player.LateralSlipSpeed);
+                    if (lateral <= _skidSlipSpeed) continue;
 
                     float speed = player.Body.linearVelocity.magnitude;
                     if (speed <= _skidMinSpeed) continue;
 
                     float speed01 = Mathf.Clamp01((speed - _skidMinSpeed) / speedSpan);
-                    float slip = Mathf.InverseLerp(_skidSaturation, 1f, saturation) * speed01;
+                    float slip = Mathf.InverseLerp(_skidSlipSpeed, Mathf.Max(_skidSlipSpeed + 0.1f, _skidFullSlipSpeed), lateral)
+                                 * Mathf.Max(0.35f, speed01);
                     if (slip <= best) continue;
 
                     best = slip;
-                    bestSpeed01 = speed01;
+                    // Pitch follows the SHEAR, not just the speed: a hard slide
+                    // squeaks, a light scuff grinds.
+                    bestSpeed01 = Mathf.Max(speed01, slip);
                     slipping = player;
                 }
             }

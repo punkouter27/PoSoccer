@@ -16,6 +16,7 @@
 //   _EmissionBoost                                 celebration flare
 //   _NetStrength    / _NetTiling   / _NetRipple    goal net (cuts ALPHA, not albedo)
 //   _Fatigue                                       tired body: desaturation + sweat sheen
+//   _TurfDetail     / _TurfScale                   blade grain + mow-direction sheen (Ultra)
 //
 // No shader_feature keywords on purpose: four toggles would mean sixteen
 // variants for effects that cost a few ALU each, and keyword-free branches keep
@@ -58,6 +59,12 @@ Shader "PoSoccer/SpriteLitFX"
         // 0 = rested, and bit-identical to the shader before this existed.
         // Driven per body by Agent_Surfaces from Agent_Stamina.
         _Fatigue("Fatigue (0 rested .. 1 spent)", Range(0, 1)) = 0
+
+        // Turf micro-detail (2026-11-07): blade grain plus an anisotropic sheen that
+        // flips with the mow direction. 0 = off and bit-identical to before.
+        // Desktop Ultra only - Agent_Surfaces sets it from Agent_Quality.UltraActive.
+        _TurfDetail("Turf Detail", Range(0, 1)) = 0
+        _TurfScale("Turf Blades Across", Float) = 260
 
         // Legacy properties, kept so this can fall back to the sprite shader.
         [HideInInspector] _Color("Tint", Color) = (1,1,1,1)
@@ -126,6 +133,8 @@ Shader "PoSoccer/SpriteLitFX"
                 half  _KitMode;
                 half  _KitScale;
                 half  _Fatigue;
+                half  _TurfDetail;
+                half  _TurfScale;
             CBUFFER_END
 
             #include "PoSoccerFX.hlsl"
@@ -213,6 +222,8 @@ Shader "PoSoccer/SpriteLitFX"
                 half  _KitMode;
                 half  _KitScale;
                 half  _Fatigue;
+                half  _TurfDetail;
+                half  _TurfScale;
             CBUFFER_END
 
             Varyings NormalsRenderingVertex(Attributes input)
@@ -282,6 +293,8 @@ Shader "PoSoccer/SpriteLitFX"
                 half  _KitMode;
                 half  _KitScale;
                 half  _Fatigue;
+                half  _TurfDetail;
+                half  _TurfScale;
             CBUFFER_END
 
             #include "PoSoccerFX.hlsl"
