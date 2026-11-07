@@ -139,6 +139,11 @@ namespace PoSoccer
             if (go.GetComponent<Agent_ExpectedGoals>() == null) go.AddComponent<Agent_ExpectedGoals>();
             if (go.GetComponent<Agent_Skids>() == null) go.AddComponent<Agent_Skids>();
 
+            // Momentum timeline (2026-11-07). Samples Agent_WinProbability's threat and
+            // Agent_ExpectedGoals' running xG, writes an end-panel card: scoreboard-side,
+            // and after both of the components it reads.
+            if (go.GetComponent<Agent_Momentum>() == null) go.AddComponent<Agent_Momentum>();
+
             // Screen-space and device-wide owners. All three are singular by
             // nature - one framebuffer, one vibrator, one frame budget - so they
             // belong here rather than in InstallVisuals, whatever the gallery
@@ -217,6 +222,12 @@ namespace PoSoccer
             // Per-pitch: the tracer projects THIS pitch's ball off THIS pitch's
             // walls, so every gallery clone needs its own.
             if (go.GetComponent<Agent_ShotTracer>() == null) go.AddComponent<Agent_ShotTracer>();
+            // Per-pitch overlays (2026-11-07): each reads only THIS pitch's players.
+            if (go.GetComponent<Agent_PassLanes>() == null) go.AddComponent<Agent_PassLanes>();
+            if (go.GetComponent<Agent_StaminaRing>() == null) go.AddComponent<Agent_StaminaRing>();
+            // Visual-only spin swirl on THIS pitch's ball. No physics: the Magnus curve
+            // already lives in Agent_EnvController.magnusScale.
+            if (go.GetComponent<Agent_BallSpin>() == null) go.AddComponent<Agent_BallSpin>();
         }
     }
 }

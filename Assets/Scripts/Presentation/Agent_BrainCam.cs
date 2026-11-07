@@ -37,6 +37,13 @@ namespace PoSoccer
     /// took three brains out of comparability. The bars show what the network
     /// emitted; the gain is printed in the header so the two are never confused.
     ///
+    /// SALIENCY (2026-11-07). Under the rows, ten bars say what the focused brain is
+    /// READING: occlusion saliency over its input groups (ball / opponent / wall rays,
+    /// self, ball, goals, mate, opponents, role, clock), from its own network run on
+    /// a private worker - see <see cref="Agent_Saliency"/>. It never touches the
+    /// decision that drives the body. Throttled to new decisions at ~4 Hz, one
+    /// player only; J hides it.
+    ///
     /// COST WHEN HIDDEN IS ZERO: the panel is built on first show and Update
     /// returns immediately while closed. Toggle with B.
     /// Presentation only; self-disables in training and evaluation.
@@ -59,6 +66,21 @@ namespace PoSoccer
                  "chrome (10), below the telemetry overlay (100).")]
         [SerializeField] private int _sortingOrder = 40;
         [SerializeField] private bool _enableBrainCam = true;
+
+        [Header("Saliency (what the focused brain is reading)")]
+        [Tooltip("Seconds between saliency recomputations. Each one is eleven forward passes " +
+                 "of the focused player's network on the CPU, and only runs on a new decision.")]
+        [SerializeField] private float _saliencyInterval = 0.25f;
+        [Tooltip("Smoothing (0 = none, towards 1 = slower) applied to the displayed shares so " +
+                 "the bars read as a trend rather than flicker decision to decision.")]
+        [Range(0f, 0.95f)] [SerializeField] private float _saliencySmoothing = 0.6f;
+        [SerializeField] private bool _saliencyOnStart = true;
+
+        /// <summary>
+        /// Whether the saliency block runs while the brain cam is open. Static so a
+        /// settings screen can drive it; toggle with J in a match.
+        /// </summary>
+        public static bool SaliencyEnabled { get; set; } = true;
 
         /// <summary>Channel order is the action vector's own: see Agent_Soccer.OnActionReceived.</summary>
         static readonly string[] ChannelNames = { "FWD", "LAT", "TURN", "BST" };
@@ -149,6 +171,23 @@ namespace PoSoccer
         bool _visible;
         float _nextRefresh;
 
+        VisualElement _rowsHost;
+
+        // Saliency block. The worker is created on first bind and disposed in OnDestroy.
+        Agent_CameraFollow _camera;
+        Agent_Saliency _saliency;
+        VisualElement _saliencyBlock;
+        Label _saliencyHeading;
+        readonly VisualElement[] _saliencyFills = new VisualElement[Agent_Saliency.GROUP_COUNT];
+        readonly float[] _saliencyShown = new float[Agent_Saliency.GROUP_COUNT];
+        float _nextSaliency;
+        bool _saliencyBlockShown;
+        Vector4 _saliencyLastAction;
+        Agent_Soccer _saliencySubjectShown;
+
+        /// <summary>The saliency engine, for the tests. Null until the block first runs.</summary>
+        public Agent_Saliency Saliency => _saliency;
+
         /// <summary>Whether the panel is on screen.</summary>
         public bool IsVisible => _visible;
 
@@ -158,11 +197,6 @@ namespace PoSoccer
         /// <summary>Rolling commitment (mean |forward|) for one player, or 0 before its first decision.</summary>
         public float CommitmentOf(Agent_Soccer agent) =>
             agent != null && _readouts.TryGetValue(agent, out var readout) ? readout.Commitment() : 0f;
-
-        /// <summary>Forward-channel sign flips per 100 decisions, the churn figure.</summary>
-        public float ChurnOf(Agent_Soccer agent) =>
-            agent != null && _readouts.TryGetValue(agent, out var readout)
-                ? readout.FlipsPer100(readout.Move) : 0f;
 
         void Start()
         {
@@ -176,11 +210,14 @@ namespace PoSoccer
             }
 
             _window = Mathf.Max(4, _window);
+            _camera = FindAnyObjectByType<Agent_CameraFollow>();
+            SaliencyEnabled = _saliencyOnStart;
             if (_visibleOnStart) SetVisible(true);
         }
 
         void OnDestroy()
         {
+            if (_saliency != null) _saliency.Dispose();
             if (_panel != null) _panel.RemoveFromHierarchy();
             if (_doc != null) Destroy(_doc.gameObject);
         }
@@ -196,6 +233,7 @@ namespace PoSoccer
         {
             var keyboard = Keyboard.current;
             if (keyboard != null && keyboard.bKey.wasPressedThisFrame) SetVisible(!_visible);
+            if (keyboard != null && keyboard.jKey.wasPressedThisFrame) SaliencyEnabled = !SaliencyEnabled;
 
             if (!_visible || _env == null) return;
 
@@ -209,6 +247,8 @@ namespace PoSoccer
             if (refresh) _nextRefresh = Time.unscaledTime + _refreshInterval;
 
             for (int i = 0; i < _rows.Count; i++) UpdateRow(_rows[i], refresh);
+
+            UpdateSaliency();
         }
 
         /// <summary>
@@ -304,6 +344,162 @@ namespace PoSoccer
             _heading.text = "BRAIN CAM  ·  RAW POLICY OUTPUT  ·  " +
                             $"ActionGain {Agent_Soccer.ActionGain:0.0}";
             _panel.Add(_heading);
+
+            // Rows get their own host so the saliency block below them stays below
+            // them when SyncRows rebuilds the roster.
+            _rowsHost = new VisualElement();
+            _panel.Add(_rowsHost);
+
+            BuildSaliencyBlock();
+        }
+
+        /// <summary>
+        /// Ten bars in two columns, one per input group, showing the share of the
+        /// focused brain's last decision that leaned on that group.
+        /// </summary>
+        void BuildSaliencyBlock()
+        {
+            _saliencyBlock = new VisualElement();
+            _saliencyBlock.style.marginTop = 12;
+
+            _saliencyHeading = new Label("WHAT THE BRAIN IS READING");
+            _saliencyHeading.style.fontSize = Agent_UIStyle.FontXS;
+            _saliencyHeading.style.unityFontStyleAndWeight = FontStyle.Bold;
+            _saliencyHeading.style.color = Agent_UIStyle.TextMuted;
+            _saliencyBlock.Add(_saliencyHeading);
+
+            var grid = new VisualElement();
+            grid.style.flexDirection = FlexDirection.Row;
+            grid.style.flexWrap = Wrap.Wrap;
+            grid.style.marginTop = 4;
+            _saliencyBlock.Add(grid);
+
+            for (int groupIndex = 0; groupIndex < Agent_Saliency.GROUP_COUNT; groupIndex++)
+            {
+                var cell = new VisualElement();
+                cell.style.width = Length.Percent(50f);
+                cell.style.flexDirection = FlexDirection.Row;
+                cell.style.alignItems = Align.Center;
+                cell.style.paddingRight = 8;
+                cell.style.marginTop = 3;
+
+                var label = new Label(Agent_Saliency.GroupNames[groupIndex]);
+                label.style.fontSize = Agent_UIStyle.FontXS;
+                label.style.color = Agent_UIStyle.TextMuted;
+                label.style.width = Length.Percent(42f);
+                cell.Add(label);
+
+                var track = new VisualElement();
+                track.style.flexGrow = 1;
+                track.style.height = 10;
+                track.style.backgroundColor = new Color(1f, 1f, 1f, 0.12f);
+                track.style.overflow = Overflow.Hidden;
+                Agent_UIStyle.Round(track, 5);
+
+                var fill = new VisualElement();
+                fill.style.position = Position.Absolute;
+                fill.style.top = 0;
+                fill.style.bottom = 0;
+                fill.style.left = 0;
+                fill.style.width = Length.Percent(0f);
+                fill.style.backgroundColor = new Color(1f, 1f, 1f, 0.8f);
+                track.Add(fill);
+                _saliencyFills[groupIndex] = fill;
+
+                cell.Add(track);
+                grid.Add(cell);
+            }
+
+            _saliencyBlockShown = SaliencyEnabled;
+            _saliencyBlock.style.display = SaliencyEnabled ? DisplayStyle.Flex : DisplayStyle.None;
+            _panel.Add(_saliencyBlock);
+        }
+
+        /// <summary>
+        /// Throttled: at most once per <see cref="_saliencyInterval"/>, and only when
+        /// the subject has made a new decision since the last computation. The
+        /// subject is the camera's focused player if it has a network, otherwise the
+        /// first trained brain in the roster.
+        /// </summary>
+        void UpdateSaliency()
+        {
+            if (_saliencyBlock == null) return;
+
+            if (_saliencyBlockShown != SaliencyEnabled)
+            {
+                _saliencyBlockShown = SaliencyEnabled;
+                _saliencyBlock.style.display = SaliencyEnabled ? DisplayStyle.Flex : DisplayStyle.None;
+            }
+            if (!SaliencyEnabled) return;
+
+            if (Time.unscaledTime < _nextSaliency) return;
+            _nextSaliency = Time.unscaledTime + Mathf.Max(0.05f, _saliencyInterval);
+
+            var subject = PickSaliencySubject();
+            if (subject == null)
+            {
+                _saliencyHeading.text = "WHAT THE BRAIN IS READING  ·  no trained brain on the pitch";
+                return;
+            }
+
+            if (_saliency == null) _saliency = new Agent_Saliency();
+
+            var behavior = subject.GetComponent<Unity.MLAgents.Policies.BehaviorParameters>();
+            var model = behavior != null ? behavior.Model : null;
+            if (_saliency.Subject != subject || _saliency.BoundModel != model)
+            {
+                _saliency.Bind(subject);
+                _saliencyLastAction = new Vector4(float.NaN, 0f, 0f, 0f);
+            }
+
+            if (!_saliency.Ready)
+            {
+                _saliencyHeading.text = $"WHAT {NameOf(subject)} IS READING  ·  {_saliency.Status}";
+                return;
+            }
+
+            // Only a new decision changes the answer; the action is repeated between them.
+            Vector4 action = subject.LastRawActions;
+            if (action == _saliencyLastAction) return;
+            _saliencyLastAction = action;
+
+            if (!_saliency.Compute())
+            {
+                _saliencyHeading.text = $"WHAT {NameOf(subject)} IS READING  ·  {_saliency.Status}";
+                return;
+            }
+
+            bool newSubject = _saliencySubjectShown != subject;
+            _saliencySubjectShown = subject;
+            float keep = newSubject ? 0f : _saliencySmoothing;
+            for (int groupIndex = 0; groupIndex < Agent_Saliency.GROUP_COUNT; groupIndex++)
+            {
+                float share = _saliency.ShareOf(groupIndex);
+                _saliencyShown[groupIndex] = keep * _saliencyShown[groupIndex] + (1f - keep) * share;
+                var fill = _saliencyFills[groupIndex];
+                if (fill != null) fill.style.width = Length.Percent(_saliencyShown[groupIndex] * 100f);
+            }
+
+            // One string per computation, at most ~4 Hz.
+            _saliencyHeading.text = $"WHAT {NameOf(subject)} IS READING  ·  occlusion  ·  " +
+                                    $"peak change {_saliency.Peak:0.00}  ·  J hides";
+        }
+
+        Agent_Soccer PickSaliencySubject()
+        {
+            if (_camera != null && _camera.Focus != null)
+            {
+                var focused = _camera.Focus.GetComponent<Agent_Soccer>();
+                if (focused != null && !focused.RuleBased && focused.isActiveAndEnabled) return focused;
+            }
+
+            var roster = _env.agents;
+            for (int i = 0; i < roster.Count; i++)
+            {
+                var agent = roster[i];
+                if (agent != null && !agent.RuleBased && agent.isActiveAndEnabled) return agent;
+            }
+            return null;
         }
 
         /// <summary>
@@ -332,7 +528,7 @@ namespace PoSoccer
                 if (roster[i] == null) continue;
                 var row = BuildRow(roster[i]);
                 _rows.Add(row);
-                _panel.Add(row.Root);
+                (_rowsHost ?? _panel).Add(row.Root);
             }
         }
 

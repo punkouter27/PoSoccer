@@ -67,6 +67,8 @@ namespace PoSoccer.Tests
             // 2026-10-11: one writes the ticker and an end-panel card; the other is a
             // match-only overlay the installer adds on the same side.
             "Agent_ExpectedGoals", "Agent_Skids",
+            // 2026-11-07: samples the one win-probability strip and writes an end card.
+            "Agent_Momentum",
         };
 
         static System.Type Resolve(string typeName)
