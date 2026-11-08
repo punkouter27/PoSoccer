@@ -13,7 +13,9 @@ MonoBehaviour:
   m_Name: Reward_NICK
   m_EditorClassIdentifier: 
   playerName: NICK
-  trainingConfigHash: 25e6e074f203
+  reactionLatencyMs: 0
+  staminaModel: 0
+  trainingConfigHash: aac5bd85bf72
   trainedPhysicsVersion: phys-2026-10-10
   trainedInterfaceVersion: iface-2026-10-10
   personalityNotes: 'THE MIDFIELDER. Possession is the point: continuous reward for
@@ -23,10 +25,10 @@ MonoBehaviour:
     moving the ball. Weakness by design: passes up shots.'
   playerColor: {r: 0.66, g: 0.4, b: 0.92, a: 1}
   brainModel: {fileID: 5022602860645237092, guid: 351f9b3a07efb15469cdbd7191897b73, type: 3}
-  trainingSteps: 10000177
-  trainingRunId: soccer_p31_nick
-  trainedOn: 2026-10-11
-  evalWinRate: 0.26
+  trainingSteps: 30000260
+  trainingRunId: soccer_p38_nick
+  trainedOn: 2026-11-08
+  evalWinRate: 0.8629
   evalEpisodes: 350
   trainedActionGain: 1.0
   bodyScale: 0.85

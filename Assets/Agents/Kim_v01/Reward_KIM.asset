@@ -13,7 +13,9 @@ MonoBehaviour:
   m_Name: Reward_KIM
   m_EditorClassIdentifier: 
   playerName: KIM
-  trainingConfigHash: 4e9cd9730b67
+  reactionLatencyMs: 0
+  staminaModel: 0
+  trainingConfigHash: fd0845f0a45a
   trainedPhysicsVersion: phys-2026-10-10
   trainedInterfaceVersion: iface-2026-10-10
   personalityNotes: 'THE WALL. Deepest conceding fear on the roster; screening the
@@ -24,10 +26,10 @@ MonoBehaviour:
     scores rarely.'
   playerColor: {r: 0.16, g: 0.75, b: 0.85, a: 1}
   brainModel: {fileID: 5022602860645237092, guid: d83ea2dfd74225341a63821e2ebabb77, type: 3}
-  trainingSteps: 10000245
-  trainingRunId: soccer_p31_kim
-  trainedOn: 2026-10-11
-  evalWinRate: 0.3057
+  trainingSteps: 30000181
+  trainingRunId: soccer_p38_kim
+  trainedOn: 2026-11-08
+  evalWinRate: 0.8686
   evalEpisodes: 350
   trainedActionGain: 1.0
   bodyScale: 0.9
