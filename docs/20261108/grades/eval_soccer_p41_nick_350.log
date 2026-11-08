@@ -1,0 +1,4 @@
+eval timeout: 40 min for 350 episodes
+Eval 'soccer_p41_nick': 350 episodes | blue 348 / red 1 / stale 1 | win-rate 99.4% | mean steps 1,570
+  stamped Reward_NICK.asset: 99.4% over 350 episodes
+PASS: acceptance bar met (>=80% wins, <=10% stalemates).

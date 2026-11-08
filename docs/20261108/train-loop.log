@@ -1,0 +1,45 @@
+2026-11-08 01:57:54  loop start: deadline 09:57, profiles MATT,KIM,NICK, baseline p38
+2026-11-08 01:57:54    MATT: 82.3% wins, 12.0% stale, pass=False
+2026-11-08 01:57:54    KIM: 86.9% wins, 7.4% stale, pass=True
+2026-11-08 01:57:54    NICK: 86.3% wins, 10.9% stale, pass=False
+2026-11-08 01:57:54  adopting running round p39bot
+2026-11-08 02:58:02    [p39bot] MATT. Step: 5800000. Time Elapsed: 4218.010 s. Mean Reward: 4.476. Std of Reward: 2.240. Training.
+2026-11-08 02:58:02    [p39bot] KIM. Step: 5800000. Time Elapsed: 4242.415 s. Mean Reward: 4.726. Std of Reward: 1.752. Training.
+2026-11-08 02:58:02    [p39bot] NICK. Step: 5850000. Time Elapsed: 4241.863 s. Mean Reward: 4.724. Std of Reward: 1.305. Training.
+2026-11-08 03:49:09  round p39bot finished (MATT,KIM,NICK deployed)
+2026-11-08 03:49:09  rebuild player
+2026-11-08 03:50:51    MATT: 90.6% wins, 7.4% stale -> NEW BEST (margin +2.6% vs -2.0%)
+2026-11-08 03:50:51    KIM: 96.6% wins, 1.4% stale -> NEW BEST (margin +8.6% vs +2.6%)
+2026-11-08 03:50:51    NICK: 98.0% wins, 1.4% stale -> NEW BEST (margin +8.6% vs -0.9%)
+2026-11-08 03:50:51  round p40: MATT,KIM,NICK (all pass: refining), 10M steps each, continuing MATT=soccer_p39bot_matt, KIM=soccer_p39bot_kim, NICK=soccer_p39bot_nick
+2026-11-08 04:51:29    [p40] MATT. Step: 4950000. Time Elapsed: 3603.959 s. Mean Reward: 4.583. Std of Reward: 2.152. Training.
+2026-11-08 04:51:30    [p40] KIM. Step: 4900000. Time Elapsed: 3621.725 s. Mean Reward: 5.041. Std of Reward: 1.542. Training.
+2026-11-08 04:51:30    [p40] NICK. Step: 4900000. Time Elapsed: 3623.239 s. Mean Reward: 5.293. Std of Reward: 0.728. Training.
+2026-11-08 05:51:37    [p40] MATT. Step: 9950000. Time Elapsed: 7228.556 s. Mean Reward: 4.882. Std of Reward: 1.689. Training.
+2026-11-08 05:51:37    [p40] KIM. Step: 9700000. Time Elapsed: 7213.595 s. Mean Reward: 5.325. Std of Reward: 1.075. Training.
+2026-11-08 05:51:37    [p40] NICK. Step: 9700000. Time Elapsed: 7212.894 s. Mean Reward: 5.103. Std of Reward: 1.178. Training.
+2026-11-08 05:54:38  round p40 finished (MATT,KIM,NICK deployed)
+2026-11-08 05:54:38  rebuild player
+2026-11-08 05:55:51    MATT: 93.1% wins, 4.9% stale -> NEW BEST (margin +5.1% vs +2.6%)
+2026-11-08 05:55:51    KIM: 99.7% wins, 0.0% stale -> NEW BEST (margin +10.0% vs +8.6%)
+2026-11-08 05:55:51    NICK: 98.9% wins, 0.0% stale -> NEW BEST (margin +10.0% vs +8.6%)
+2026-11-08 05:55:51  round p41: MATT,KIM,NICK (all pass: refining), 10M steps each, continuing MATT=soccer_p40_matt, KIM=soccer_p40_kim, NICK=soccer_p40_nick
+2026-11-08 06:56:29    [p41] MATT. Step: 5000000. Time Elapsed: 3620.846 s. Mean Reward: 4.470. Std of Reward: 2.042. Training.
+2026-11-08 06:56:29    [p41] KIM. Step: 4950000. Time Elapsed: 3631.115 s. Mean Reward: 5.334. Std of Reward: 1.043. Training.
+2026-11-08 06:56:29    [p41] NICK. Step: 4900000. Time Elapsed: 3609.818 s. Mean Reward: 5.316. Std of Reward: 0.728. Training.
+2026-11-08 07:56:37    [p41] MATT. Step: 9950000. Time Elapsed: 7213.748 s. Mean Reward: 4.993. Std of Reward: 1.648. Training.
+2026-11-08 07:56:37    [p41] KIM. Step: 9800000. Time Elapsed: 7204.350 s. Mean Reward: 5.532. Std of Reward: 0.721. Training.
+2026-11-08 07:56:37    [p41] NICK. Step: 9800000. Time Elapsed: 7226.506 s. Mean Reward: 5.451. Std of Reward: 0.692. Training.
+2026-11-08 07:58:37  round p41 finished (MATT,KIM,NICK deployed)
+2026-11-08 07:58:37  rebuild player
+2026-11-08 07:59:45    MATT: 96.9% wins, 2.3% stale -> NEW BEST (margin +7.7% vs +5.1%)
+2026-11-08 07:59:45    KIM: 98.9% wins, 0.6% stale -> worse than soccer_p40_kim; restoring it
+2026-11-08 07:59:45    NICK: 99.4% wins, 0.3% stale -> worse than soccer_p40_nick; restoring it
+2026-11-08 07:59:45  no time for another round (would be 0 M steps)
+2026-11-08 07:59:45  rebuild player
+2026-11-08 08:00:10  final grade, 1000 episodes: KIM=soccer_p40_kim, NICK=soccer_p40_nick, MATT=soccer_p41_matt
+2026-11-08 08:01:29    FINAL MATT: 96.2% wins, 2.0% stale, 1.8% losses -> PASS
+2026-11-08 08:01:29    FINAL KIM: 98.0% wins, 0.5% stale, 1.5% losses -> PASS
+2026-11-08 08:01:29    FINAL NICK: 99.4% wins, 0.1% stale, 0.5% losses -> PASS
+2026-11-08 08:02:29  report: C:\Users\punko\Downloads\_CODEMATT\PoSoccer\docs\20261108\training-report.html
+2026-11-08 08:02:29  loop done

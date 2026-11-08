@@ -15,7 +15,7 @@ MonoBehaviour:
   playerName: MATT
   reactionLatencyMs: 0
   staminaModel: 0
-  trainingConfigHash: 2cde97e3a2b1
+  trainingConfigHash: be0b2fcfcb34
   trainedPhysicsVersion: phys-2026-10-10
   trainedInterfaceVersion: iface-2026-10-10
   personalityNotes: 'THE STRIKER. Glory hunter: biggest scoring reward and shoot gradient on the roster, lowest fear of conceding, hates draws, presses with urgency (loose jitter rein, high step cost). Same total incentive budget as everyone (2.2 terminal / 0.0016 dense) - just spent on attack. Weakness by design: last home when defending.'
@@ -24,11 +24,11 @@ MonoBehaviour:
   kitColor: {r: 1, g: 1, b: 1, a: 0}
   kitBands: 6
   brainModel: {fileID: 5022602860645237092, guid: d9ed0854806da8247b8bd4564815f17a, type: 3}
-  trainingSteps: 30000232
-  trainingRunId: soccer_p38_matt
+  trainingSteps: 10000651
+  trainingRunId: soccer_p41_matt
   trainedOn: 2026-11-08
-  evalWinRate: 0.8229
-  evalEpisodes: 350
+  evalWinRate: 0.962
+  evalEpisodes: 1000
   trainedActionGain: 1.0
   bodyScale: 1.25
   bodyMass: 117

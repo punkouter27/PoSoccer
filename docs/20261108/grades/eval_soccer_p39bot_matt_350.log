@@ -1,0 +1,4 @@
+eval timeout: 40 min for 350 episodes
+Eval 'soccer_p39bot_matt': 350 episodes | blue 317 / red 7 / stale 26 | win-rate 90.6% | mean steps 2,998
+  stamped Reward_MATT.asset: 90.6% over 350 episodes
+PASS: acceptance bar met (>=80% wins, <=10% stalemates).

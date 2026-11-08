@@ -1,0 +1,242 @@
+{
+  "started": "2026-11-08T01:57:54.5442623-05:00",
+  "deadline": "2026-11-08T09:57:54.5442623-05:00",
+  "profiles": [
+    "MATT",
+    "KIM",
+    "NICK"
+  ],
+  "best": {
+    "MATT": {
+      "run": "soccer_p41_matt",
+      "episodes": 350,
+      "win": 0.9686,
+      "stale": 0.0229,
+      "loss": 0.0086,
+      "pass": true,
+      "margin": 0.0771
+    },
+    "KIM": {
+      "run": "soccer_p40_kim",
+      "episodes": 350,
+      "win": 0.9971,
+      "stale": 0.0,
+      "loss": 0.0029,
+      "pass": true,
+      "margin": 0.1
+    },
+    "NICK": {
+      "run": "soccer_p40_nick",
+      "episodes": 350,
+      "win": 0.9886,
+      "stale": 0.0,
+      "loss": 0.0114,
+      "pass": true,
+      "margin": 0.1
+    }
+  },
+  "rounds": [
+    {
+      "tag": "p38",
+      "profiles": [
+        "MATT",
+        "KIM",
+        "NICK"
+      ],
+      "steps": null,
+      "grades": {
+        "MATT": {
+          "run": "soccer_p38_matt",
+          "episodes": 350,
+          "win": 0.8229,
+          "stale": 0.12,
+          "loss": 0.0571,
+          "pass": false,
+          "margin": -0.02
+        },
+        "KIM": {
+          "run": "soccer_p38_kim",
+          "episodes": 350,
+          "win": 0.8686,
+          "stale": 0.0743,
+          "loss": 0.0571,
+          "pass": true,
+          "margin": 0.0257
+        },
+        "NICK": {
+          "run": "soccer_p38_nick",
+          "episodes": 350,
+          "win": 0.8629,
+          "stale": 0.1086,
+          "loss": 0.0286,
+          "pass": false,
+          "margin": -0.0086
+        }
+      },
+      "kept": {
+        "MATT": true,
+        "KIM": true,
+        "NICK": true
+      }
+    },
+    {
+      "tag": "p39bot",
+      "profiles": [
+        "MATT",
+        "KIM",
+        "NICK"
+      ],
+      "steps": 10000000,
+      "grades": {
+        "MATT": {
+          "run": "soccer_p39bot_matt",
+          "episodes": 350,
+          "win": 0.9057,
+          "stale": 0.0743,
+          "loss": 0.02,
+          "pass": true,
+          "margin": 0.0257
+        },
+        "KIM": {
+          "run": "soccer_p39bot_kim",
+          "episodes": 350,
+          "win": 0.9657,
+          "stale": 0.0143,
+          "loss": 0.02,
+          "pass": true,
+          "margin": 0.0857
+        },
+        "NICK": {
+          "run": "soccer_p39bot_nick",
+          "episodes": 350,
+          "win": 0.98,
+          "stale": 0.0143,
+          "loss": 0.0057,
+          "pass": true,
+          "margin": 0.0857
+        }
+      },
+      "kept": {
+        "MATT": true,
+        "KIM": true,
+        "NICK": true
+      }
+    },
+    {
+      "tag": "p40",
+      "profiles": [
+        "MATT",
+        "KIM",
+        "NICK"
+      ],
+      "steps": 10000000,
+      "grades": {
+        "MATT": {
+          "run": "soccer_p40_matt",
+          "episodes": 350,
+          "win": 0.9314,
+          "stale": 0.0486,
+          "loss": 0.02,
+          "pass": true,
+          "margin": 0.0514
+        },
+        "KIM": {
+          "run": "soccer_p40_kim",
+          "episodes": 350,
+          "win": 0.9971,
+          "stale": 0.0,
+          "loss": 0.0029,
+          "pass": true,
+          "margin": 0.1
+        },
+        "NICK": {
+          "run": "soccer_p40_nick",
+          "episodes": 350,
+          "win": 0.9886,
+          "stale": 0.0,
+          "loss": 0.0114,
+          "pass": true,
+          "margin": 0.1
+        }
+      },
+      "kept": {
+        "MATT": true,
+        "KIM": true,
+        "NICK": true
+      }
+    },
+    {
+      "tag": "p41",
+      "profiles": [
+        "MATT",
+        "KIM",
+        "NICK"
+      ],
+      "steps": 10000000,
+      "grades": {
+        "MATT": {
+          "run": "soccer_p41_matt",
+          "episodes": 350,
+          "win": 0.9686,
+          "stale": 0.0229,
+          "loss": 0.0086,
+          "pass": true,
+          "margin": 0.0771
+        },
+        "KIM": {
+          "run": "soccer_p41_kim",
+          "episodes": 350,
+          "win": 0.9886,
+          "stale": 0.0057,
+          "loss": 0.0057,
+          "pass": true,
+          "margin": 0.0943
+        },
+        "NICK": {
+          "run": "soccer_p41_nick",
+          "episodes": 350,
+          "win": 0.9943,
+          "stale": 0.0029,
+          "loss": 0.0029,
+          "pass": true,
+          "margin": 0.0971
+        }
+      },
+      "kept": {
+        "MATT": true,
+        "KIM": false,
+        "NICK": false
+      }
+    }
+  ],
+  "final": {
+    "MATT": {
+      "run": "soccer_p41_matt",
+      "episodes": 1000,
+      "win": 0.962,
+      "stale": 0.02,
+      "loss": 0.018,
+      "pass": true,
+      "margin": 0.08
+    },
+    "KIM": {
+      "run": "soccer_p40_kim",
+      "episodes": 1000,
+      "win": 0.98,
+      "stale": 0.005,
+      "loss": 0.015,
+      "pass": true,
+      "margin": 0.095
+    },
+    "NICK": {
+      "run": "soccer_p40_nick",
+      "episodes": 1000,
+      "win": 0.994,
+      "stale": 0.001,
+      "loss": 0.005,
+      "pass": true,
+      "margin": 0.099
+    }
+  },
+  "finished": "2026-11-08T08:01:29.3201285-05:00"
+}

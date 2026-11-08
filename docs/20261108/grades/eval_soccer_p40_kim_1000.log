@@ -1,0 +1,4 @@
+eval timeout: 113 min for 1000 episodes
+Eval 'soccer_p40_kim': 1000 episodes | blue 980 / red 15 / stale 5 | win-rate 98.0% | mean steps 1,874
+  stamped Reward_KIM.asset: 98.0% over 1000 episodes
+PASS: acceptance bar met (>=80% wins, <=10% stalemates).

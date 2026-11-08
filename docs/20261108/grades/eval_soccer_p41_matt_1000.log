@@ -1,0 +1,4 @@
+eval timeout: 113 min for 1000 episodes
+Eval 'soccer_p41_matt': 1000 episodes | blue 962 / red 18 / stale 20 | win-rate 96.2% | mean steps 2,313
+  stamped Reward_MATT.asset: 96.2% over 1000 episodes
+PASS: acceptance bar met (>=80% wins, <=10% stalemates).
