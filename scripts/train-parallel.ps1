@@ -102,8 +102,8 @@ if ($WorkerProfile) {
 }
 
 # ---- launcher ---------------------------------------------------------------
-$preflightArgs = @("-EnvPath", $EnvPath)
-if ($AllowStale) { $preflightArgs += "-AllowStale" }
+$preflightArgs = @{ EnvPath = $EnvPath }
+if ($AllowStale) { $preflightArgs.AllowStale = $true }
 & "$PSScriptRoot\preflight.ps1" @preflightArgs
 if ($LASTEXITCODE -ne 0) { throw "Preflight failed - see above. Nothing was started." }
 

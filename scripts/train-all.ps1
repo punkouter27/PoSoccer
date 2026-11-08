@@ -98,8 +98,8 @@ if (-not (Test-Path $envExe)) { throw "No player build at $envExe - build SCN_Tr
 # trainers, and a stale-build check over all of Assets. The narrower stale check below
 # stays as it was.
 . "$PSScriptRoot\lib-profile.ps1"
-$preflightArgs = @("-EnvPath", $EnvPath)
-if ($AllowStale) { $preflightArgs += "-AllowStale" }
+$preflightArgs = @{ EnvPath = $EnvPath }
+if ($AllowStale) { $preflightArgs.AllowStale = $true }
 & "$PSScriptRoot\preflight.ps1" @preflightArgs
 if ($LASTEXITCODE -ne 0) { throw "Preflight failed - see above. Nothing was started." }
 

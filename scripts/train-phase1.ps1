@@ -39,9 +39,9 @@ $root = Split-Path $PSScriptRoot -Parent
 . "$PSScriptRoot\lib-profile.ps1"
 
 # Pre-flight: stale build, scene order, toolchain parity, LFS stubs, orphaned trainers.
-$preflightArgs = @()
-if ($EnvPath) { $preflightArgs += @("-EnvPath", $EnvPath) } else { $preflightArgs += "-InEditor" }
-if ($AllowStale) { $preflightArgs += "-AllowStale" }
+$preflightArgs = @{}
+if ($EnvPath) { $preflightArgs.EnvPath = $EnvPath } else { $preflightArgs.InEditor = $true }
+if ($AllowStale) { $preflightArgs.AllowStale = $true }
 & "$PSScriptRoot\preflight.ps1" @preflightArgs
 if ($LASTEXITCODE -ne 0) { throw "Preflight failed - see above. Nothing was started." }
 # Prefer .venv2 if it exists (the canonical .venv can be locked by Unity at
