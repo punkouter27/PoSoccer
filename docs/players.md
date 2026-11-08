@@ -12,7 +12,52 @@ profile** (`Reward_Settings` asset — the personality DNA) in a versioned folde
 | **NICK** | The Midfielder — paid for close control (`possessionScale`), loves the assist, stays central, passes up shots | `Assets/Agents/Nick_v01/` | `Reward_NICK.asset` | `NICK` (designed, untrained) |
 | **BOT** | The Benchmark — not a personality. The rule-based `Agent_HeuristicBot` (chase, line up ball→goal, push, unstick) that every trained brain is measured against. Reward values mirror STANDARD and are inert in exhibition play. | `Assets/Agents/Bot_v01/` | `Reward_BOT.asset` | none, permanently — `brainModel` stays null so `Agent_MatchLoader` always falls back to the bot |
 
-**Balance rule (unique but equally good):** every profile spends the same total
+## The 16 characters (2026-11-08)
+
+Sixteen characters have a face, user-supplied and cropped by
+`scripts/import-faces.py` into `Assets/Art/Faces/FACE_<NAME>.png`. `Agent_Faces` draws
+each face on the square body with the **chin toward the front** (where the player
+faces) and the top of the head at the back. STANDARD stays faceless and green. The
+skills are play style only: reward weights on a STANDARD body.
+`Editor_CreateCharacters` builds the roster and wires it into
+`Agent_MainMenu.characters`:
+
+    scripts/unity-exec.ps1 -Method PoSoccer.EditorTools.Editor_CreateCharacters.Run
+
+| Character | Skills | Brain |
+|---|---|---|
+| MATT | Striker: shoots on sight, presses hard, weak at the back | trained (p41) |
+| KIM | Wall: screens the goal, hates conceding | trained (p40) |
+| NICK | Midfielder: keeps the ball, builds the play | trained (p40) |
+| ALAN | Captain: the assist and the team win outweigh his own goals | untrained |
+| BAILY | Sprinter: double touch reward, early shots | untrained |
+| BRENDAN | Veteran: holds the screening position, stays central, patient | untrained |
+| DECOY | Trickster: triple touch reward, keeps the ball close | untrained |
+| DUPEE | Bulldozer: four times the touch reward, ignores walls and corners | untrained |
+| JH | Sniper: four times the shot-speed bonus, hard long shots | untrained |
+| JOSH | Grinder: deepest stalemate penalty, never settles for a draw | untrained |
+| MANZI | Rock: biggest fear of conceding, strongest screening reward | untrained |
+| MAYA | Prodigy: strongest progress-to-goal shaping | untrained |
+| PORTO | Showman: double shot-speed and touch rewards | untrained |
+| SOKOL | Enforcer: fears conceding, screens, wins the ball back | untrained |
+| TONG | Wildcard: touch-hungry, careless near walls, indifferent to draws | untrained |
+| VELEZ | Poacher: biggest scoring reward, half the assist | untrained |
+
+An untrained character has no brain. It isn't offered in the pickers, and its tournament
+slot is a BYE until it is trained (one brain per character, from scratch, per AGENTS.md).
+Each character also has a voice: see `docs/voices.md`.
+
+**Balance for the new 13.** Their four terminal stakes (`goalScorer + assist +
+teamBaselineVictory + |goalConceded|`) are normalised to STANDARD's total of 4.0, so
+skills move the stakes around rather than adding to them. The two reward guard tests
+still apply to every profile: `stepPenalty`, `ballProximityScale`, `actionJitterScale`
+and `facingAlignmentScale` are pinned to the code defaults
+(`Agent_EditMode_SoccerAgent`), and no dense term may out-pay a goal
+(`Agent_EditMode_RewardBudget`).
+
+**Balance rule (unique but equally good):** *(historical: the 2.2 / 0.0016
+figures below predate the pinned shaping terms; today the trained trio sit at 2.6-3.05
+and STANDARD at 4.0. The new 13 use 4.0, as above.)* every profile spends the same total
 incentive budget — terminal stakes (`goalScorer + assist + teamBaselineVictory +
 |goalConceded|`) = **2.2** and dense shaping (`ballProximityScale +
 facingAlignmentScale + ballToGoalVelocityScale + defensivePositionScale +

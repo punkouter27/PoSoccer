@@ -1,0 +1,440 @@
+## 01 menu  (SCN_Menu, 1080x1920, file 01_menu.png)
+  Chrome:
+    [text] PoSoccer
+    [text] LINEUP
+    [button] SETTINGS
+    [button] DEBUG
+    [text] v1.0.0 · 261108
+  Menu:
+    [text] PoSoccer
+    [text] tap a name to add · tap a card to remove
+    [button] 1v1
+    [button] 2v2
+    [button] 5v5
+    [button] CLEAR ALL
+    [text] BLUE
+    [button] −
+    [text] 2
+    [button] +
+    [button] CLEAR
+    [button] MATT
+    [button] KIM
+    [button] NICK
+    [text] MATT
+    [text] trained AI
+    [text] 10M steps
+    [text] KIM
+    [text] trained AI
+    [text] 10M steps
+    [text] RED
+    [button] −
+    [text] 2
+    [button] +
+    [button] CLEAR
+    [button] MATT
+    [button] KIM
+    [button] NICK
+    [text] NICK
+    [text] trained AI
+    [text] 10M steps
+    [text] MATT
+    [text] trained AI
+    [text] 10M steps
+    [text] 2v2  ·  pitch 13m x 25m
+    [button] PLAY
+    [button] TOURNAMENT
+    [button] CARDS
+    [button] GALLERY
+    [button] HUB
+    [button] SND ON
+
+## 02 lap1_match_open  (SCN_Exhibition, 1080x1920, file 02_lap1_match_open.png)
+  Chrome:
+    [text] PoSoccer
+    [text] EXHIBITION
+    [button] MENU
+    [button] SETTINGS
+    [button] DEBUG
+    [text] v1.0.0 · 261108
+  HUD:
+    [text] 0  —  0
+    [text] 8:00
+    [button] II
+    [button] STATS
+    [button] VIEW 4
+    [text] 3
+    [text] MATT
+    [text] KIM
+    [text] VS
+    [text] NICK
+    [text] MATT
+
+## 03 lap1_match_play  (SCN_Exhibition, 1080x1920, file 03_lap1_match_play.png)
+  Chrome:
+    [text] PoSoccer
+    [text] EXHIBITION
+    [button] MENU
+    [button] SETTINGS
+    [button] DEBUG
+    [text] v1.0.0 · 261108
+  HUD:
+    [text] 0  —  0
+    [text] 7:52
+    [button] II
+    [button] STATS
+    [button] VIEW 4
+
+## 04 lap1_goal  (SCN_Exhibition, 1080x1920, file 04_lap1_goal.png)
+  Chrome:
+    [text] PoSoccer
+    [text] EXHIBITION
+    [button] MENU
+    [button] SETTINGS
+    [button] DEBUG
+    [text] v1.0.0 · 261108
+  HUD:
+    [text] 1  —  0
+    [text] 7:52
+    [button] II
+    [button] STATS
+    [button] VIEW 4
+    [text] All the way from the halfway line!
+    [text] GOAL — KIM
+
+## 05 lap1_end_summary  (SCN_Exhibition, 1080x1920, file 05_lap1_end_summary.png)
+  Chrome:
+    [text] PoSoccer
+    [text] EXHIBITION
+    [button] MENU
+    [button] SETTINGS
+    [button] DEBUG
+    [text] v1.0.0 · 261108
+  HUD:
+    [text] 2  —  0
+    [text] 7:51
+    [button] II
+    [button] STATS
+    [button] VIEW 4
+    [text] BLUE WINS
+    [text] 2  —  0
+    [button] SUMMARY
+    [button] STATS
+    [button] PLAYERS
+    [text] first to 2  ·  0:09 played
+    [button] REMATCH
+    [button] CHANGE LINEUP
+
+## 06 lap1_end_stats  (SCN_Exhibition, 1080x1920, file 06_lap1_end_stats.png)
+  Chrome:
+    [text] PoSoccer
+    [text] EXHIBITION
+    [button] MENU
+    [button] SETTINGS
+    [button] DEBUG
+    [text] v1.0.0 · 261108
+  HUD:
+    [text] 2  —  0
+    [text] 7:51
+    [text] BLUE 95%  ·  MODEL  ·  RED 5%
+    [text] MATT  ·  0.0 m/s  ·  stamina 100%
+    [text] DISTANCE · MATT 16 m
+    [button] II
+    [button] STATS
+    [button] VIEW 4
+    [text] CAM · CHASE
+    [text] BLUE WINS
+    [text] 2  —  0
+    [button] SUMMARY
+    [button] STATS
+    [button] PLAYERS
+    [text] first to 2  ·  0:09 played
+    [button] REMATCH
+    [button] CHANGE LINEUP
+
+## 07 lap1_end_players  (SCN_Exhibition, 1080x1920, file 07_lap1_end_players.png)
+  Chrome:
+    [text] PoSoccer
+    [text] EXHIBITION
+    [button] MENU
+    [button] SETTINGS
+    [button] DEBUG
+    [text] v1.0.0 · 261108
+  HUD:
+    [text] 2  —  0
+    [text] 7:51
+    [text] BLUE 95%  ·  MODEL  ·  RED 5%
+    [text] MATT  ·  0.0 m/s  ·  stamina 100%
+    [text] DISTANCE · MATT 16 m
+    [button] II
+    [button] STATS
+    [button] VIEW 4
+    [text] CAM · CHASE
+    [text] BLUE WINS
+    [text] 2  —  0
+    [button] SUMMARY
+    [button] STATS
+    [button] PLAYERS
+    [text] MATT
+    [text] AI
+    [text] soccer_p41_matt
+    [text] NICK
+    [text] AI
+    [text] soccer_p40_nick
+    [text] KIM
+    [text] AI
+    [text] soccer_p40_kim
+    [text] MATT
+    [text] AI
+    [text] soccer_p41_matt
+    [button] REMATCH
+    [button] CHANGE LINEUP
+
+## 08 lap1_back_at_menu  (SCN_Menu, 1080x1920, file 08_lap1_back_at_menu.png)
+  Chrome:
+    [text] PoSoccer
+    [text] LINEUP
+    [button] SETTINGS
+    [button] DEBUG
+    [text] v1.0.0 · 261108
+  Menu:
+    [text] PoSoccer
+    [text] tap a name to add · tap a card to remove
+    [button] 1v1
+    [button] 2v2
+    [button] 5v5
+    [button] CLEAR ALL
+    [text] BLUE
+    [button] −
+    [text] 2
+    [button] +
+    [button] CLEAR
+    [button] MATT
+    [button] KIM
+    [button] NICK
+    [text] MATT
+    [text] trained AI
+    [text] 10M steps
+    [text] KIM
+    [text] trained AI
+    [text] 10M steps
+    [text] RED
+    [button] −
+    [text] 2
+    [button] +
+    [button] CLEAR
+    [button] MATT
+    [button] KIM
+    [button] NICK
+    [text] NICK
+    [text] trained AI
+    [text] 10M steps
+    [text] MATT
+    [text] trained AI
+    [text] 10M steps
+    [text] 2v2  ·  pitch 13m x 25m
+    [button] PLAY
+    [button] TOURNAMENT
+    [button] CARDS
+    [button] GALLERY
+    [button] HUB
+    [button] SND ON
+
+## 09 lap2_match_open  (SCN_Exhibition, 1080x1920, file 09_lap2_match_open.png)
+  Chrome:
+    [text] PoSoccer
+    [text] EXHIBITION
+    [button] MENU
+    [button] SETTINGS
+    [button] DEBUG
+    [text] v1.0.0 · 261108
+  HUD:
+    [text] 0  —  0
+    [text] 8:00
+    [text] BLUE 51%  ·  MODEL  ·  RED 49%
+    [text] MATT  ·  0.0 m/s  ·  stamina 100%
+    [button] II
+    [button] STATS
+    [button] VIEW 4
+    [text] CAM · WIDE
+    [text] 2
+    [text] MATT
+    [text] KIM
+    [text] VS
+    [text] NICK
+    [text] MATT
+
+## 10 lap2_match_play  (SCN_Exhibition, 1080x1920, file 10_lap2_match_play.png)
+  Chrome:
+    [text] PoSoccer
+    [text] EXHIBITION
+    [button] MENU
+    [button] SETTINGS
+    [button] DEBUG
+    [text] v1.0.0 · 261108
+  HUD:
+    [text] 0  —  0
+    [text] 7:52
+    [text] BLUE 40%  ·  MODEL  ·  RED 60%
+    [text] NICK  ·  1.8 m/s  ·  stamina 100%
+    [text] DISTANCE · MATT 17 m
+    [button] II
+    [button] STATS
+    [button] VIEW 4
+    [text] CAM · CHASE
+
+## 11 lap2_goal  (SCN_Exhibition, 1080x1920, file 11_lap2_goal.png)
+  Chrome:
+    [text] PoSoccer
+    [text] EXHIBITION
+    [button] MENU
+    [button] SETTINGS
+    [button] DEBUG
+    [text] v1.0.0 · 261108
+  HUD:
+    [text] 1  —  1
+    [text] 7:52
+    [text] BLUE 37%  ·  MODEL  ·  RED 63%
+    [text] MATT  ·  0.0 m/s  ·  stamina 100%
+    [text] DISTANCE · MATT 17 m
+    [button] II
+    [button] STATS
+    [button] VIEW 4
+    [text] CAM · WIDE
+    [text] ● GOLDEN GOAL ●
+    [text] Next goal wins it.
+    [text] GOLDEN GOAL
+
+## 12 lap2_end_summary  (SCN_Exhibition, 1080x1920, file 12_lap2_end_summary.png)
+  Chrome:
+    [text] PoSoccer
+    [text] EXHIBITION
+    [button] MENU
+    [button] SETTINGS
+    [button] DEBUG
+    [text] v1.0.0 · 261108
+  HUD:
+    [text] 2  —  1
+    [text] 7:51
+    [text] BLUE 82%  ·  MODEL  ·  RED 18%
+    [text] MATT  ·  0.0 m/s  ·  stamina 100%
+    [text] DISTANCE · MATT 17 m
+    [button] II
+    [button] STATS
+    [button] VIEW 4
+    [text] CAM · CHASE
+    [text] BLUE WINS
+    [text] 2  —  1
+    [button] SUMMARY
+    [button] STATS
+    [button] PLAYERS
+    [text] first to 2  ·  0:09 played
+    [button] REMATCH
+    [button] CHANGE LINEUP
+
+## 13 lap2_end_stats  (SCN_Exhibition, 1080x1920, file 13_lap2_end_stats.png)
+  Chrome:
+    [text] PoSoccer
+    [text] EXHIBITION
+    [button] MENU
+    [button] SETTINGS
+    [button] DEBUG
+    [text] v1.0.0 · 261108
+  HUD:
+    [text] 2  —  1
+    [text] 7:51
+    [button] II
+    [button] STATS
+    [button] VIEW 4
+    [text] BLUE WINS
+    [text] 2  —  1
+    [button] SUMMARY
+    [button] STATS
+    [button] PLAYERS
+    [text] first to 2  ·  0:09 played
+    [button] REMATCH
+    [button] CHANGE LINEUP
+
+## 14 lap2_end_players  (SCN_Exhibition, 1080x1920, file 14_lap2_end_players.png)
+  Chrome:
+    [text] PoSoccer
+    [text] EXHIBITION
+    [button] MENU
+    [button] SETTINGS
+    [button] DEBUG
+    [text] v1.0.0 · 261108
+  HUD:
+    [text] 2  —  1
+    [text] 7:51
+    [button] II
+    [button] STATS
+    [button] VIEW 4
+    [text] BLUE WINS
+    [text] 2  —  1
+    [button] SUMMARY
+    [button] STATS
+    [button] PLAYERS
+    [text] MATT
+    [text] AI
+    [text] soccer_p41_matt
+    [text] NICK
+    [text] AI
+    [text] soccer_p40_nick
+    [text] KIM
+    [text] AI
+    [text] soccer_p40_kim
+    [text] MATT
+    [text] AI
+    [text] soccer_p41_matt
+    [button] REMATCH
+    [button] CHANGE LINEUP
+
+## 15 lap2_back_at_menu  (SCN_Menu, 1080x1920, file 15_lap2_back_at_menu.png)
+  Menu:
+    [text] PoSoccer
+    [text] tap a name to add · tap a card to remove
+    [button] 1v1
+    [button] 2v2
+    [button] 5v5
+    [button] CLEAR ALL
+    [text] BLUE
+    [button] −
+    [text] 2
+    [button] +
+    [button] CLEAR
+    [button] MATT
+    [button] KIM
+    [button] NICK
+    [text] MATT
+    [text] trained AI
+    [text] 10M steps
+    [text] KIM
+    [text] trained AI
+    [text] 10M steps
+    [text] RED
+    [button] −
+    [text] 2
+    [button] +
+    [button] CLEAR
+    [button] MATT
+    [button] KIM
+    [button] NICK
+    [text] NICK
+    [text] trained AI
+    [text] 10M steps
+    [text] MATT
+    [text] trained AI
+    [text] 10M steps
+    [text] 2v2  ·  pitch 13m x 25m
+    [button] PLAY
+    [button] TOURNAMENT
+    [button] CARDS
+    [button] GALLERY
+    [button] HUB
+    [button] SND ON
+  Chrome:
+    [text] PoSoccer
+    [text] LINEUP
+    [button] SETTINGS
+    [button] DEBUG
+    [text] v1.0.0 · 261108
+

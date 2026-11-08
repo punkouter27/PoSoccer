@@ -22,7 +22,7 @@ param(
     [Parameter(HelpMessage = "Players per side on each training pitch, cycled over the grid: '2' = all 2v2, '1,2' = alternate. Empty = the authored 1v1.")]
     [string]$Squad = "",
     [Parameter(HelpMessage = "Roster profile to train (POSOCCER_PROFILE). The config must name the same behavior.")]
-    [ValidateSet("STANDARD", "MATT", "KIM", "NICK")]
+    [ValidatePattern('^[A-Z]+$')]
     [string]$Profile = "STANDARD",
     [Parameter(HelpMessage = "Opt-in stamina model: shipped (default) or human (repeated-sprint).")]
     [ValidateSet("shipped", "human")]

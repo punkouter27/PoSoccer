@@ -13,7 +13,7 @@ param(
     # costs a few minutes.
     [int]$Episodes = 1000,
     [switch]$Baseline,
-    [ValidateSet("STANDARD", "MATT", "KIM", "NICK")]
+    [ValidatePattern('^[A-Z]+$')]
     [string]$Profile = "STANDARD",
     [string]$ExePath = "Builds\PoSoccer\PoSoccer.exe",
     # 0 = auto: scale with -Episodes. The old fixed 30 was silently incompatible
@@ -52,7 +52,9 @@ if ($Rebuild -or -not (Test-Path $exe)) {
 }
 
 # Agent asset folders follow <AgentName>_v<NN> (UNITY_RULES 1).
-$folders = @{ STANDARD = "Standard_v01"; MATT = "Matt_v01"; KIM = "Kim_v01"; NICK = "Nick_v01" }
+. "$PSScriptRoot\lib-profile.ps1"
+Assert-Profile $Profile
+$folders = $PoSoccerProfiles
 $model = Join-Path $root "Assets\Agents\$($folders[$Profile])\$Profile.onnx"
 if (-not $Baseline -and -not (Test-Path $model)) {
     Write-Error "No model at $model - train first, then scripts\update-model.ps1 -RunId <run> -Profile $Profile."

@@ -1,3 +1,39 @@
+# ---- The roster (2026-11-08) --------------------------------------------------
+# One table for every script: profile name -> asset folder under Assets/Agents.
+# STANDARD is the reference brain (benched from play, still trained and graded);
+# the other 16 are the face characters (docs/players.md). Scripts take any name
+# here; -Profile parameters use ValidatePattern and call Assert-Profile, because a
+# ValidateSet would have to repeat this list in five places.
+$PoSoccerProfiles = [ordered]@{
+    STANDARD = "Standard_v01"; MATT = "Matt_v01"; KIM = "Kim_v01"; NICK = "Nick_v01"
+    ALAN = "Alan_v01"; BAILY = "Baily_v01"; BRENDAN = "Brendan_v01"; DECOY = "Decoy_v01"
+    DUPEE = "Dupee_v01"; JH = "Jh_v01"; JOSH = "Josh_v01"; MANZI = "Manzi_v01"
+    MAYA = "Maya_v01"; PORTO = "Porto_v01"; SOKOL = "Sokol_v01"; TONG = "Tong_v01"
+    VELEZ = "Velez_v01"
+}
+
+function Assert-Profile([string]$Name) {
+    if (-not $PoSoccerProfiles.Contains($Name)) {
+        throw "Unknown profile '$Name'. Known: $($PoSoccerProfiles.Keys -join ', ')"
+    }
+}
+
+function Get-ProfileFolder([string]$Name) {
+    Assert-Profile $Name
+    return $PoSoccerProfiles[$Name]
+}
+
+# Base port for a profile's trainer. The original four keep the ports their logs and
+# docs name; the rest get a 20-port block each from 5100, so any three can run side
+# by side with -NumEnvs up to 19 without colliding.
+function Get-ProfilePort([string]$Name) {
+    $legacy = @{ STANDARD = 5005; MATT = 5015; KIM = 5025; NICK = 5045 }
+    if ($legacy.ContainsKey($Name)) { return $legacy[$Name] }
+    Assert-Profile $Name
+    $index = [array]::IndexOf(@($PoSoccerProfiles.Keys), $Name)
+    return 5100 + 20 * $index
+}
+
 # Shared helper: stamp a scalar field onto a Reward_Settings .asset (YAML text).
 #
 # Unity serializes ScriptableObjects as flat YAML, and a field that is absent from

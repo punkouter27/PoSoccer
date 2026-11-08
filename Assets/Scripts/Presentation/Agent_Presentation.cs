@@ -45,9 +45,15 @@ namespace PoSoccer
         /// have a screen". A component can legitimately want one and not the other,
         /// and conflating them is how the eval path (which runs headless but is NOT
         /// a match scene) would have been gated by accident.
+        ///
+        /// GRAPHICS DEVICE ONLY, NOT Application.isBatchMode (2026-11-08). Training
+        /// (--no-graphics) and evaluate.ps1 (-nographics) both run with a Null
+        /// device, so they stay headless. Batchmode alone is not "no screen": the
+        /// headless PlayMode runner (scripts/unity-test.ps1) is batchmode WITH
+        /// graphics so tests can measure the UI, and gating on batchmode left 13
+        /// presentation tests reading a HUD that had never been built.
         /// </summary>
         public static bool IsHeadless =>
-            Application.isBatchMode ||
             SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Null;
 
         /// <summary>
@@ -144,6 +150,14 @@ namespace PoSoccer
             // and after both of the components it reads.
             if (go.GetComponent<Agent_Momentum>() == null) go.AddComponent<Agent_Momentum>();
 
+            // Character voices and the tournament hand-off (2026-11-08). Voices own an
+            // audio pool for the whole match; the tournament component records the one
+            // result and steers the one end panel; the intro card draws on the one HUD.
+            // All singular, all scoreboard-side.
+            if (go.GetComponent<Agent_Voices>() == null) go.AddComponent<Agent_Voices>();
+            if (go.GetComponent<Agent_TournamentMatch>() == null) go.AddComponent<Agent_TournamentMatch>();
+            if (go.GetComponent<Agent_MatchIntro>() == null) go.AddComponent<Agent_MatchIntro>();
+
             // Screen-space and device-wide owners. All three are singular by
             // nature - one framebuffer, one vibrator, one frame budget - so they
             // belong here rather than in InstallVisuals, whatever the gallery
@@ -228,6 +242,8 @@ namespace PoSoccer
             // Visual-only spin swirl on THIS pitch's ball. No physics: the Magnus curve
             // already lives in Agent_EnvController.magnusScale.
             if (go.GetComponent<Agent_BallSpin>() == null) go.AddComponent<Agent_BallSpin>();
+            // Per-pitch (2026-11-08): face photos on THIS pitch's players.
+            if (go.GetComponent<Agent_Faces>() == null) go.AddComponent<Agent_Faces>();
         }
     }
 }

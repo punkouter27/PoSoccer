@@ -6,7 +6,7 @@
 #   .\scripts\update-model.ps1 -RunId matt_p1_00 -Profile MATT      # -> MATT
 param(
     [Parameter(Mandatory = $true)][string]$RunId,
-    [ValidateSet("STANDARD", "MATT", "KIM", "NICK")]
+    [ValidatePattern('^[A-Z]+$')]
     [string]$Profile = "STANDARD",
     [string]$Behavior
 )
@@ -16,13 +16,7 @@ $root = Split-Path $PSScriptRoot -Parent
 . "$PSScriptRoot\lib-profile.ps1"
 
 # Agent asset folders follow <AgentName>_v<NN> (UNITY_RULES 1).
-$folders = @{
-    STANDARD = "Standard_v01"
-    MATT     = "Matt_v01"
-    KIM      = "Kim_v01"
-    NICK     = "Nick_v01"
-}
-$folder = $folders[$Profile]
+$folder = Get-ProfileFolder $Profile
 
 # The trainer exports under the behavior name, which defaults to the profile name.
 if (-not $Behavior) { $Behavior = $Profile }
@@ -49,10 +43,15 @@ $isNewSlot = -not (Test-Path $target)
 Copy-Item $source $target -Force
 
 if ($isNewSlot) {
-    Write-Host "NEW slot created: Assets/Agents/$folder/$Profile.onnx"
-    Write-Host "  One-time step: open Assets/Agents/$folder/Reward_$Profile.asset in Unity"
-    Write-Host "  and drag $Profile.onnx into its 'brainModel' field. Every later run"
-    Write-Host "  overwrites the file in place, so the GUID never changes again."
+    # First brain for this character: point Reward_<NAME>.brainModel at the new file,
+    # headless (2026-11-08; this used to be a hand step in the Inspector). Every later
+    # run overwrites the file in place, so the GUID never changes again.
+    Write-Host "NEW slot created: Assets/Agents/$folder/$Profile.onnx - assigning it to Reward_$Profile.brainModel"
+    & "$PSScriptRoot\unity-exec.ps1" -Method PoSoccer.EditorTools.Editor_CreateCharacters.AssignBrains
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warning ("Could not assign the brain headless (is the editor open?). Run: " +
+            "scripts\unity-exec.ps1 -Method PoSoccer.EditorTools.Editor_CreateCharacters.AssignBrains")
+    }
 } else {
     Write-Host "OK: $RunId -> Assets/Agents/$folder/$Profile.onnx (GUID preserved)"
 }

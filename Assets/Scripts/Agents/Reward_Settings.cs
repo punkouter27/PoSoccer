@@ -18,6 +18,17 @@ namespace PoSoccer
         [Tooltip("Body tint applied at runtime. Team is shown by the eye color instead.")]
         public Color playerColor = Color.white;
 
+        [Header("Character (presentation only; never read by a brain)")]
+        [Tooltip("User-supplied face photo, upright (Assets/Art/Faces). Agent_Faces draws it on the " +
+                 "body with the chin toward where the player faces. Never auto-assigned; STANDARD stays untextured.")]
+        public Texture2D faceTexture;
+        [Tooltip("One line naming this character's skills, shown on cards and the tournament bracket.")]
+        public string skills;
+        [Tooltip("Pitch of the procedural placeholder voice (1 = average adult). WAVs in " +
+                 "Resources/Voices replace the placeholder per sound (see docs/voices.md).")]
+        [Range(0.5f, 2f)]
+        public float voicePitch = 1f;
+
         /// <summary>
         /// The single letter that identifies this player on a chip, a badge and the
         /// body label.

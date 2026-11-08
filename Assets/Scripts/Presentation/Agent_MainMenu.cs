@@ -47,6 +47,10 @@ namespace PoSoccer
                  "so picking it always fields Agent_HeuristicBot - that is how a trained brain " +
                  "gets measured against the bot inside a normal match.")]
         public Reward_Settings ruleBot;
+        [Tooltip("Every character with a face (2026-11-08), trained or not. A character joins the " +
+                 "pickers and the tournament as soon as it carries a usable brain; until then its " +
+                 "tournament slot is a BYE.")]
+        public Reward_Settings[] characters;
 
         [Header("Flow")]
         public string matchScene = "SCN_Exhibition";
@@ -147,7 +151,7 @@ namespace PoSoccer
             // before LFS, or the day the observation contract changes): then the full
             // list, bot included, comes back so the game can still be started, under
             // the "no trained brains installed" line that already says why.
-            _roster = WithCommunityBrains(TrainedOnly(Compact(standard, matt, kim, nick)));
+            _roster = SelectableRoster();
             if (_roster.Length == 0) _roster = Compact(standard, matt, kim, nick, ruleBot);
             if (_roster.Length == 0)
             {
@@ -163,6 +167,93 @@ namespace PoSoccer
 
             _root = root;
             Build();
+
+            // Tournament mode (2026-11-08). Arriving here mid-match (the chrome's MENU
+            // button) abandons that match; arriving from a result reopens the bracket,
+            // and with AUTO on the bracket starts the next match itself.
+            bool fromResult = Agent_Tournament.ShowBracketOnMenu;
+            Agent_Tournament.ShowBracketOnMenu = false;
+            if (Agent_Tournament.InMatch) Agent_Tournament.CancelMatch();
+            if (fromResult || (Agent_Tournament.Active && Agent_Tournament.AutoPlay)) _bracket?.Open();
+        }
+
+        Agent_BracketView _bracket;
+
+        /// <summary>
+        /// Who can be picked, fielded by a preset or entered in a tournament: every
+        /// face character carrying a usable brain, plus installed community brains.
+        ///
+        /// STANDARD IS BENCHED (2026-11-08, user request: every player on the pitch is
+        /// one of the 16 face characters). It stays wired as <see cref="standard"/> -
+        /// the reference brain training and grading use, the template for community
+        /// installs, and the no-brain fallback below - it just never takes the field.
+        /// </summary>
+        Reward_Settings[] SelectableRoster()
+            => WithCommunityBrains(TrainedOnly(WithCharacters(Compact(matt, kim, nick))));
+
+        /// <summary>The shipped four followed by every other wired character, each once.</summary>
+        Reward_Settings[] WithCharacters(Reward_Settings[] shipped)
+        {
+            if (characters == null || characters.Length == 0) return shipped;
+            var list = new List<Reward_Settings>(shipped);
+            for (int characterIndex = 0; characterIndex < characters.Length; characterIndex++)
+            {
+                var character = characters[characterIndex];
+                if (character != null && !list.Contains(character)) list.Add(character);
+            }
+            return list.ToArray();
+        }
+
+        /// <summary>A character by name: the selectable roster first, then every wired character.</summary>
+        Reward_Settings FindCharacter(string playerName)
+        {
+            var found = FindProfile(playerName);
+            if (found != null || characters == null) return found;
+            for (int characterIndex = 0; characterIndex < characters.Length; characterIndex++)
+            {
+                var character = characters[characterIndex];
+                if (character != null && string.Equals(character.playerName, playerName, System.StringComparison.Ordinal))
+                    return character;
+            }
+            return null;
+        }
+
+        /// <summary>Tournament entrants: the trained roster's names (byes fill the rest).</summary>
+        string[] TournamentEntrants()
+        {
+            var names = new List<string>(_roster.Length);
+            for (int rosterIndex = 0; rosterIndex < _roster.Length; rosterIndex++)
+            {
+                var profile = _roster[rosterIndex];
+                if (IsUsable(profile) && !names.Contains(profile.playerName)) names.Add(profile.playerName);
+            }
+            return names.ToArray();
+        }
+
+        /// <summary>Starts one tournament match, 1 v 1, through the same path as PLAY.</summary>
+        void LaunchTournamentMatch(string blueName, string redName)
+        {
+            var blueProfile = FindCharacter(blueName);
+            var redProfile = FindCharacter(redName);
+            if (blueProfile == null || redProfile == null)
+            {
+                Debug.LogWarning($"Agent_MainMenu: tournament match {blueName} vs {redName} names a character " +
+                                 "this menu does not know; abandoning it.");
+                Agent_Tournament.CancelMatch();
+                return;
+            }
+            Agent_MatchSetup.Clear();
+            Agent_MatchSetup.Applied = true;
+            Agent_MatchSetup.BlueSquad = new[] { blueProfile };
+            Agent_MatchSetup.RedSquad = new[] { redProfile };
+            SceneManager.LoadScene(matchScene);
+        }
+
+        Button TournamentButton()
+        {
+            var button = new Button(() => _bracket?.Open()) { text = "TOURNAMENT", name = "open-tournament" };
+            button.AddToClassList("btn");
+            return button;
         }
 
         // -- Remembered lineup -------------------------------------------------
@@ -402,6 +493,25 @@ namespace PoSoccer
             // The mute toggle stays out here on purpose: it is the one control
             // someone reaches for without looking, and it could previously only be
             // reached from inside a match.
+            _bracket = new Agent_BracketView(_root, FindCharacter, TournamentEntrants, LaunchTournamentMatch);
+            // TOURNAMENT shares PLAY's row (2026-11-08): the options row below is
+            // already as wide as the panel, and a second footer row would cost the
+            // squad strips height on a short phone.
+            if (footer != null && _play.parent == footer)
+            {
+                var playRow = new VisualElement { name = "play-row" };
+                playRow.style.flexDirection = FlexDirection.Row;
+                playRow.style.alignSelf = Align.Stretch;
+                footer.Insert(footer.IndexOf(_play), playRow);
+                playRow.Add(_play);
+                _play.style.flexGrow = 2;
+                _play.style.flexBasis = 0;
+                var tournament = TournamentButton();
+                tournament.style.flexGrow = 1;
+                tournament.style.flexBasis = 0;
+                tournament.style.marginLeft = Agent_UIStyle.Space2;
+                playRow.Add(tournament);
+            }
             options.Add(CardsButton());
             options.Add(GalleryButton());
             options.Add(BrainsButton());
@@ -773,7 +883,7 @@ namespace PoSoccer
         /// <summary>Roster entries that actually carry a trained brain, in menu order.</summary>
         Reward_Settings[] TrainedRoster()
         {
-            var all = Compact(standard, matt, kim, nick);
+            var all = WithCharacters(Compact(matt, kim, nick));
             var trained = new List<Reward_Settings>(all.Length);
             for (int i = 0; i < all.Length; i++)
             {
@@ -1115,7 +1225,7 @@ namespace PoSoccer
             bool reopen = _brainsOverlay != null;
             CloseBrains();
 
-            var roster = WithCommunityBrains(TrainedOnly(Compact(standard, matt, kim, nick)));
+            var roster = SelectableRoster();
             if (roster.Length == 0) roster = Compact(standard, matt, kim, nick, ruleBot);
             _roster = roster;
             _anyUsableBrain = AnyUsableBrain();

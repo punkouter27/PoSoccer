@@ -13,26 +13,28 @@ MonoBehaviour:
   m_Name: Reward_NICK
   m_EditorClassIdentifier: 
   playerName: NICK
-  reactionLatencyMs: 0
-  staminaModel: 0
-  trainingConfigHash: 59d87f08f3b8
-  trainedPhysicsVersion: phys-2026-10-10
-  trainedInterfaceVersion: iface-2026-10-10
-  personalityNotes: 'THE MIDFIELDER. Possession is the point: continuous reward for
-    keeping the ball within 1.2m (possessionScale, his signature trait), loves the
-    assist as much as the goal. Stays central (high wall penalty), tidy on the controls.
-    Same total incentive budget as everyone (2.2 / 0.0016) - spent on keeping and
-    moving the ball. Weakness by design: passes up shots.'
+  personalityNotes: 'THE MIDFIELDER. Possession is the point: continuous reward for keeping the ball within 1.2m (possessionScale, his signature trait), loves the assist as much as the goal. Stays central (high wall penalty), tidy on the controls. Same total incentive budget as everyone (2.2 / 0.0016) - spent on keeping and moving the ball. Weakness by design: passes up shots.'
   playerColor: {r: 0.66, g: 0.4, b: 0.92, a: 1}
+  faceTexture: {fileID: 2800000, guid: bf3085c1cf08f424183a1fa48902f981, type: 3}
+  skills: 'Midfielder: keeps the ball, builds the play'
+  voicePitch: 1.25
+  kitPattern: 0
+  kitColor: {r: 1, g: 1, b: 1, a: 0}
+  kitBands: 6
   brainModel: {fileID: 5022602860645237092, guid: 351f9b3a07efb15469cdbd7191897b73, type: 3}
   trainingSteps: 10000177
   trainingRunId: soccer_p40_nick
   trainedOn: 2026-11-08
   evalWinRate: 0.994
   evalEpisodes: 1000
-  trainedActionGain: 1.0
+  trainedActionGain: 1
+  trainedInterfaceVersion: iface-2026-10-10
+  trainedPhysicsVersion: phys-2026-10-10
+  trainingConfigHash: 59d87f08f3b8
   bodyScale: 0.85
   bodyMass: 54
+  staminaModel: 0
+  reactionLatencyMs: 0
   goalScorer: 1.2
   assist: 0.5
   teamBaselineVictory: 0.2
@@ -44,13 +46,14 @@ MonoBehaviour:
   ballProximityScale: 0.02
   useDifferentialProximity: 1
   facingAlignmentScale: 0
-  ballToGoalVelocityScale: 4e-05
+  ballToGoalVelocityScale: 0.00004
   useDifferentialBallToGoal: 1
   ballToGoalProgressScale: 0.02
   actionJitterScale: 0.0004
+  turnChurnScale: 0
   wallProximityPenalty: 0.0001
-  cornerBallPenalty: 6e-05
+  cornerBallPenalty: 0.00006
   defensivePositionScale: 0
-  possessionScale: 6e-05
+  possessionScale: 0.00006
   ballContact: 0.005
   maxEnvironmentSteps: 9000

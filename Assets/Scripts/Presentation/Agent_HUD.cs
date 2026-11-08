@@ -954,10 +954,13 @@ namespace PoSoccer
                 var chip = new VisualElement();
                 chip.AddToClassList("chip");
 
-                var square = new Label(agent.rewards.Initial.ToString());
+                // A face character's chip shows the face, not a letter (2026-11-08).
+                bool hasFace = agent.rewards.faceTexture != null;
+                var square = new Label(hasFace ? "" : agent.rewards.Initial.ToString());
                 square.AddToClassList("chip__badge");
                 // Profile colour and team tint are data, so they stay in code.
                 square.style.backgroundColor = agent.rewards.playerColor;
+                if (hasFace) square.style.backgroundImage = new StyleBackground(agent.rewards.faceTexture);
                 square.style.borderBottomColor = agent.team == Agent_Soccer.Team.Blue
                     ? Agent_UIStyle.BlueTeam : Agent_UIStyle.RedTeam;
                 chip.Add(square);
@@ -1058,7 +1061,7 @@ namespace PoSoccer
             // level scoreline as a RED win. matchTimeLimit makes level scores
             // reachable, so the third case has to exist.
             bool drawn = _blueScore == _redScore;
-            var headline = new Label(drawn ? "DRAW" : _blueScore > _redScore ? "BLUE WINS" : "RED WINS")
+            var headline = new Label(drawn ? "DRAW" : WinnerHeadline(_blueScore > _redScore ? Agent_Soccer.Team.Blue : Agent_Soccer.Team.Red))
             {
                 name = "end-headline",
             };
@@ -1118,6 +1121,27 @@ namespace PoSoccer
             _root.Add(_endPanel);
             Agent_UIStyle.PlayEntrance(_endPanel);
             ShowEndTab(EndTab.Summary);
+        }
+
+        /// <summary>
+        /// "MATT WINS" when the winning side is one named player, "BLUE WINS" /
+        /// "RED WINS" for a squad (2026-11-08: the end panel used to name only the
+        /// colour, even in a 1 v 1 between two characters).
+        /// </summary>
+        string WinnerHeadline(Agent_Soccer.Team winner)
+        {
+            string fallback = winner == Agent_Soccer.Team.Blue ? "BLUE WINS" : "RED WINS";
+            if (env == null) return fallback;
+            string name = null;
+            int count = 0;
+            for (int agentIndex = 0; agentIndex < env.agents.Count; agentIndex++)
+            {
+                var agent = env.agents[agentIndex];
+                if (agent == null || agent.team != winner) continue;
+                count++;
+                if (agent.rewards != null) name = agent.rewards.playerName;
+            }
+            return count == 1 && !string.IsNullOrEmpty(name) ? $"{name} WINS" : fallback;
         }
 
         /// <summary>Switches the end panel's content pane in place.</summary>

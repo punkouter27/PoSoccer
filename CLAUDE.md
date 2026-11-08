@@ -130,6 +130,12 @@ scripts (`build-android-aab.ps1`, `Tools/ci_webgl.ps1`).
   `Logs/Editor.log` grows by about 200 MB a minute (2026-10-10). Validate with a strict
   parser (`py -3.10 -c "import json; json.load(open(...))"`); PowerShell's
   `ConvertFrom-Json` accepts trailing commas.
+- **Batchmode is not "no screen".** The PlayMode runner is batchmode WITH graphics.
+  `Agent_Presentation.IsHeadless` checks only for a Null graphics device (training and
+  eval pass `-nographics`). Gating on `Application.isBatchMode` once failed 13
+  presentation tests, all reading a HUD that was never built (2026-11-08).
+- **`WaitForEndOfFrame` never resumes under the headless runner**: a test yielding on
+  it hangs the whole run. Use `ScreenCapture.CaptureScreenshot(path)` and `yield return null`.
 - A collider added to a sprite-less object auto-sizes to 0.0001; set `size` explicitly.
 - Overwriting a PNG in place can corrupt cached sprite geometry; use a new file name.
 - `Assets/Editor/Editor_PlayModeOptionsGuard.cs` resets "Enter Play Mode Options" after test
@@ -241,6 +247,15 @@ threat field on **X**) is a hand-set model and says MODEL wherever it shows; it 
 itself with a Brier figure and appends every shot to `xg_shots.csv` for a later fit.
 `Agent_Skids` (**G**) draws streaks from `Agent_Soccer.LateralSlipSpeed` and a measured g
 from `GroundForce`. Both are code-installed, match only.
+
+**Characters, voices, tournament (2026-11-08)**: 16 characters with faces
+(`docs/players.md`; `Agent_Faces` draws the face with the chin toward the front), each
+with a voice set of HAPPY / ANGRY / HURT / INSULT x 5 lines x 5 levels (`Agent_Voices`).
+WAVs live in `Resources/Voices`; any missing sound is synthesised by `Agent_VoiceSynth`
+(`docs/voices.md`). The menu's TOURNAMENT is a 16-slot bracket of trained characters
+plus BYEs, auto-playable to a champion, with Elo for every 1 v 1 (`docs/tournament.md`).
+`Agent_MatchIntro` shows the versus card at kickoff. Elo and bracket files are never
+written under batchmode.
 
 **Community brains**: `Agent_BrainHub` loads `.sentis` files from
 `persistentDataPath/brains` into the menu roster and can fetch them from a Hugging Face

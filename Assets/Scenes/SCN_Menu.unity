@@ -151,6 +151,9 @@ MonoBehaviour:
   _visibleOnStart: 0
   _sampleWindow: 240
   _refreshInterval: 0.25
+  _frameBudgetMs: 16.7
+  _writeSessionCsv: 1
+  _maxCsvRows: 10000
 --- !u!4 &337788959
 Transform:
   m_ObjectHideFlags: 0
@@ -385,6 +388,23 @@ MonoBehaviour:
   kim: {fileID: 11400000, guid: 8422c6b744068394992bf7f17ddaba21, type: 2}
   nick: {fileID: 11400000, guid: 59a6a1fc32970544e878f00aeb667f79, type: 2}
   ruleBot: {fileID: 11400000, guid: b17156f06611faf4eb5e77368965c421, type: 2}
+  characters:
+  - {fileID: 11400000, guid: 8864935e263b3b949aae2ce597bd1403, type: 2}
+  - {fileID: 11400000, guid: 8422c6b744068394992bf7f17ddaba21, type: 2}
+  - {fileID: 11400000, guid: 59a6a1fc32970544e878f00aeb667f79, type: 2}
+  - {fileID: 11400000, guid: 925dcdc45ee02f44c951785fdf1ea276, type: 2}
+  - {fileID: 11400000, guid: f59f6246cfc0b664e9fff8fd9829d3d4, type: 2}
+  - {fileID: 11400000, guid: c3a3a00291d706c4e9d544f3529523fc, type: 2}
+  - {fileID: 11400000, guid: 808a8236737162c438cf69de538a68ca, type: 2}
+  - {fileID: 11400000, guid: 5179e1a1f13b7674c94dfd00d9ec46c8, type: 2}
+  - {fileID: 11400000, guid: 496a96e90a561e9408d1de3478fb2562, type: 2}
+  - {fileID: 11400000, guid: da5f0dc1a965bc848977e3675aafa559, type: 2}
+  - {fileID: 11400000, guid: c8fb3ef7e470d094f90844f667eba583, type: 2}
+  - {fileID: 11400000, guid: d3370c0f0ccbf724cb12af6e9ce9fef0, type: 2}
+  - {fileID: 11400000, guid: f453bdfadacd82d458b53ff42c4796a3, type: 2}
+  - {fileID: 11400000, guid: c695990a648c22740b2e07b0e3043236, type: 2}
+  - {fileID: 11400000, guid: 11e581d174753ec4f81c5ed90957b0e8, type: 2}
+  - {fileID: 11400000, guid: db5a1489ac867e74bb400bef086cb093, type: 2}
   matchScene: SCN_Exhibition
 --- !u!114 &1914075437
 MonoBehaviour:

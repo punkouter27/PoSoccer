@@ -69,6 +69,8 @@ namespace PoSoccer.Tests
             "Agent_ExpectedGoals", "Agent_Skids",
             // 2026-11-07: samples the one win-probability strip and writes an end card.
             "Agent_Momentum",
+            // 2026-11-08: one voice pool for the match; one tournament result per match.
+            "Agent_Voices", "Agent_TournamentMatch", "Agent_MatchIntro",
         };
 
         static System.Type Resolve(string typeName)

@@ -18,7 +18,7 @@
 # train-loop.json, so a later agent can pick up where the loop left off.
 param(
     [double]$Hours = 8,
-    [ValidateSet("STANDARD", "MATT", "KIM", "NICK")]
+    [ValidatePattern('^[A-Z]+$')]
     [string[]]$Profiles = @("MATT", "KIM", "NICK"),
     # A round already training when the loop starts: wait for it and grade it as round 1.
     [string]$AdoptTag = "",

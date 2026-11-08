@@ -1,0 +1,59 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: af179823a658aab41bd1d23c428ab770, type: 3}
+  m_Name: Reward_MANZI
+  m_EditorClassIdentifier: 
+  playerName: MANZI
+  personalityNotes: 'THE ROCK. Biggest fear of conceding and the strongest screening reward: a keeper in outfield clothes.'
+  playerColor: {r: 0.15, g: 0.5, b: 0.45, a: 1}
+  faceTexture: {fileID: 2800000, guid: e956391001fdba940b73ec84f8f5a83d, type: 3}
+  skills: 'Rock: goalkeeper''s instincts, stays home'
+  voicePitch: 0.88
+  kitPattern: 0
+  kitColor: {r: 1, g: 1, b: 1, a: 0}
+  kitBands: 6
+  brainModel: {fileID: 0}
+  trainingSteps: 0
+  trainingRunId: 
+  trainedOn: 
+  evalWinRate: -1
+  evalEpisodes: 0
+  trainedActionGain: -1
+  trainedInterfaceVersion: 
+  trainedPhysicsVersion: 
+  trainingConfigHash: 
+  bodyScale: 1
+  bodyMass: 75
+  staminaModel: 0
+  reactionLatencyMs: 0
+  goalScorer: 1.0666667
+  assist: 0.8888889
+  teamBaselineVictory: 0.7111111
+  goalConceded: -1.3333334
+  stalemateTimeout: -0.6
+  goalSpeedBonus: 0.05
+  crossbarProximity: 0
+  stepPenalty: -0.00005
+  ballProximityScale: 0.02
+  useDifferentialProximity: 1
+  facingAlignmentScale: 0
+  ballToGoalVelocityScale: 0.0001
+  useDifferentialBallToGoal: 1
+  ballToGoalProgressScale: 0.02
+  actionJitterScale: 0.0004
+  turnChurnScale: 0
+  wallProximityPenalty: 0.00005
+  cornerBallPenalty: 0.00006
+  defensivePositionScale: 0.00008
+  possessionScale: 0
+  ballContact: 0.005
+  maxEnvironmentSteps: 9000

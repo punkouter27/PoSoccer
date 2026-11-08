@@ -71,31 +71,54 @@ namespace PoSoccer
                 BuildTeamFrame(root, body, teamColor, frameInset, frameThickness, -frameZ);
             }
 
-            // Identity letter (S/M/K/N) on the body, driven by the assigned profile.
-            // Skipped when showPlayerLabel = false (clean-pitch scene option).
+            // Identity: the player's NAME under the body (2026-11-08; it used to be a
+            // single letter drawn ON the body, which sat over the face photo). The
+            // tag stays upright and below the square however the body turns
+            // (Agent_NameTag). Skipped when showPlayerLabel = false (clean-pitch option).
             if (showPlayerLabel && !string.IsNullOrEmpty(rewards.playerName) && root.Find("Label") == null)
             {
                 var labelGo = new GameObject("Label");
                 labelGo.transform.SetParent(root, false);
-                labelGo.transform.localPosition = new Vector3(0f, -0.12f, 0f);
 
-                var text = labelGo.AddComponent<TextMesh>();
-                text.text = rewards.Initial.ToString();
-                text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-                text.fontSize = 96;
-                text.characterSize = 0.085f;
-                text.anchor = TextAnchor.MiddleCenter;
-                text.alignment = TextAlignment.Center;
-                text.fontStyle = FontStyle.Bold;
-                text.color = Color.black;
+                var font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+                // Dark copy one pixel down-right, so the name reads on grass and lines alike.
+                AddNameText(labelGo.transform, "Shadow", rewards.playerName, font,
+                    new Color(0f, 0f, 0f, 0.85f), new Vector3(0.012f, -0.012f, 0.001f), 5);
+                AddNameText(labelGo.transform, "Name", rewards.playerName, font,
+                    Color.white, Vector3.zero, 6);
 
-                var renderer = labelGo.GetComponent<MeshRenderer>();
-                renderer.sharedMaterial = text.font.material;
-                renderer.sortingOrder = 5;
+                float below = 0.62f;
+                if (body != null && body.sprite != null)
+                {
+                    below = body.sprite.bounds.extents.y * Mathf.Abs(root.lossyScale.y) + 0.16f;
+                }
+                labelGo.AddComponent<Agent_NameTag>().Bind(root, below);
                 return labelGo.transform;
             }
 
             return null;
+        }
+
+        private static void AddNameText(Transform parent, string name, string text, Font font,
+            Color color, Vector3 offset, int sortingOrder)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = offset;
+
+            var mesh = go.AddComponent<TextMesh>();
+            mesh.text = text;
+            mesh.font = font;
+            mesh.fontSize = 64;
+            mesh.characterSize = 0.045f;
+            mesh.anchor = TextAnchor.UpperCenter;
+            mesh.alignment = TextAlignment.Center;
+            mesh.fontStyle = FontStyle.Bold;
+            mesh.color = color;
+
+            var renderer = go.GetComponent<MeshRenderer>();
+            renderer.sharedMaterial = font.material;
+            renderer.sortingOrder = sortingOrder;
         }
 
         private static void BuildTeamFrame(Transform parent, SpriteRenderer body, Color color,

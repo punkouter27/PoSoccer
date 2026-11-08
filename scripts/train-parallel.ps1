@@ -29,7 +29,7 @@
 # afterwards if a worker died and left env players behind.
 param(
     [Parameter(Mandatory = $true)][string]$Tag,
-    [ValidateSet("STANDARD", "MATT", "KIM", "NICK")]
+    [ValidatePattern('^[A-Z]+$')]
     [string[]]$Profiles = @("STANDARD", "MATT", "KIM", "NICK"),
     [string]$ConfigTag = "",
     [string]$EnvPath = "Builds\PoSoccer\PoSoccer.exe",
@@ -160,7 +160,8 @@ if ($longest) {
 }
 
 # Port ranges are 10 apart and skip 5037, which adb listens on (see train-all.ps1).
-$ports = @{ STANDARD = 5005; MATT = 5015; KIM = 5025; NICK = 5045 }
+$ports = @{}
+foreach ($name in $Profiles) { $ports[$name] = Get-ProfilePort $name }
 if ($NumEnvs -gt 8) { throw "-NumEnvs above 8 would overlap the per-profile port ranges." }
 
 $self = $MyInvocation.MyCommand.Path

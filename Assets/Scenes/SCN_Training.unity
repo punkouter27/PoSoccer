@@ -570,6 +570,13 @@ MonoBehaviour:
   _celebrationSeconds: 2.2
   _celebrationHz: 6
   _tonemapping: 1
+  _followSpot: 1
+  _spotIntensity: 0.45
+  _spotRadius: 3.2
+  _spotFollowRate: 6
+  _spotGoalBoost: 1.5
+  _spotGoalSeconds: 0.7
+  _castShadowIntensity: 0.45
 --- !u!4 &218900242
 Transform:
   m_ObjectHideFlags: 0
@@ -1271,6 +1278,19 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 8864935e263b3b949aae2ce597bd1403, type: 2}
   - {fileID: 11400000, guid: 8422c6b744068394992bf7f17ddaba21, type: 2}
   - {fileID: 11400000, guid: 59a6a1fc32970544e878f00aeb667f79, type: 2}
+  - {fileID: 11400000, guid: 925dcdc45ee02f44c951785fdf1ea276, type: 2}
+  - {fileID: 11400000, guid: f59f6246cfc0b664e9fff8fd9829d3d4, type: 2}
+  - {fileID: 11400000, guid: c3a3a00291d706c4e9d544f3529523fc, type: 2}
+  - {fileID: 11400000, guid: 808a8236737162c438cf69de538a68ca, type: 2}
+  - {fileID: 11400000, guid: 5179e1a1f13b7674c94dfd00d9ec46c8, type: 2}
+  - {fileID: 11400000, guid: 496a96e90a561e9408d1de3478fb2562, type: 2}
+  - {fileID: 11400000, guid: da5f0dc1a965bc848977e3675aafa559, type: 2}
+  - {fileID: 11400000, guid: c8fb3ef7e470d094f90844f667eba583, type: 2}
+  - {fileID: 11400000, guid: d3370c0f0ccbf724cb12af6e9ce9fef0, type: 2}
+  - {fileID: 11400000, guid: f453bdfadacd82d458b53ff42c4796a3, type: 2}
+  - {fileID: 11400000, guid: c695990a648c22740b2e07b0e3043236, type: 2}
+  - {fileID: 11400000, guid: 11e581d174753ec4f81c5ed90957b0e8, type: 2}
+  - {fileID: 11400000, guid: db5a1489ac867e74bb400bef086cb093, type: 2}
   ball: {fileID: 2082574069}
   blueGoal: {fileID: 2006005700}
   redGoal: {fileID: 2039853467}
@@ -1283,6 +1303,8 @@ MonoBehaviour:
   magnusScale: 0.0005
   ballDampingRange: {x: 0.08, y: 0.15}
   randomizeSpawns: 1
+  stuckSeconds: 20
+  stuckRadius: 2.5
 --- !u!4 &588775818
 Transform:
   m_ObjectHideFlags: 0
@@ -1344,8 +1366,46 @@ MonoBehaviour:
   crowdLoop: {fileID: 8300000, guid: 07661d89f6ff0f142a56d0ba2b477525, type: 3}
   music: {fileID: 0}
   crowdBoo: {fileID: 0}
+  crowdSwell: {fileID: 0}
+  crowdRoar: {fileID: 0}
+  ballRoll: {fileID: 0}
+  breath: {fileID: 0}
+  post: {fileID: 0}
+  musicBed: {fileID: 0}
+  musicTension: {fileID: 0}
+  musicDrive: {fileID: 0}
+  _tensionFullAt: 0.7
+  _driveFullAt: 0.75
+  _tensionMax: 0.8
+  _driveMax: 0.9
   crowdBase: 0.16
   crowdSwellMax: 0.45
+  _swellFullAt: 0.75
+  _swellMaxLevel: 0.55
+  _reverbMix: 0.32
+  _reverbDecay: 1.6
+  _spaceReverb: 0.45
+  _nearReverbSend: 0.25
+  _farReverbSend: 1
+  _rollFullSpeed: 12
+  _rollVolume: 0.35
+  _postZone: 0.62
+  _breathBelow: 0.55
+  _breathVolume: 0.3
+  _kickVariants: []
+  _wallVariants: []
+  _bodyVariants: []
+  _pitchJitter: 0.06
+  _maxContactVoices: 6
+  _synthesiseImpacts: 1
+  skid: {fileID: 0}
+  _skidSlipSpeed: 1.2
+  _skidFullSlipSpeed: 4
+  _skidMinSpeed: 1.5
+  _skidFullSpeed: 8
+  _skidVolume: 0.3
+  _skidAttack: 0.04
+  _skidRelease: 0.15
   _masterVolume: 1
   _sfxVolume: 1
   _crowdVolume: 1
@@ -1355,6 +1415,7 @@ MonoBehaviour:
   _minDistance: 6
   _maxDistance: 40
   _stereoSpread: 0.7
+  _farCutoff: 900
   _duckAmount: 0.55
   _duckRelease: 1.4
   _frozenCutoff: 850
@@ -1897,8 +1958,8 @@ MonoBehaviour:
     NumStackedVectorObservations: 1
     m_ActionSpec:
       m_NumContinuousActions: 0
-      BranchSizes: 01000000
-    VectorActionSize: 01000000
+      BranchSizes: 01000000i
+    VectorActionSize: 01000000i
     VectorActionDescriptions: []
     VectorActionSpaceType: 0
     hasUpgradedBrainParametersWithActionSpec: 1
@@ -2082,6 +2143,8 @@ MonoBehaviour:
   interiorHalfExtents: {x: 17, y: 26}
   unstickAfter: 1.25
   perceptionRadius: 0
+  version: 1
+  postTolerance: 0.8
 --- !u!1 &1593781668
 GameObject:
   m_ObjectHideFlags: 0
@@ -2140,6 +2203,8 @@ MonoBehaviour:
   interiorHalfExtents: {x: 17, y: 26}
   unstickAfter: 1.25
   perceptionRadius: 0
+  version: 1
+  postTolerance: 0.8
 --- !u!114 &1593781673
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2211,8 +2276,8 @@ MonoBehaviour:
     NumStackedVectorObservations: 1
     m_ActionSpec:
       m_NumContinuousActions: 0
-      BranchSizes: 01000000
-    VectorActionSize: 01000000
+      BranchSizes: 01000000i
+    VectorActionSize: 01000000i
     VectorActionDescriptions: []
     VectorActionSpaceType: 0
     hasUpgradedBrainParametersWithActionSpec: 1
@@ -2550,6 +2615,7 @@ MonoBehaviour:
   env: {fileID: 588775817}
   enableMatchFlow: 0
   matchGoals: 5
+  matchTimeLimit: 480
   menuScene: SCN_Menu
   showHud: 1
 --- !u!114 &1977980028

@@ -1,0 +1,59 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: af179823a658aab41bd1d23c428ab770, type: 3}
+  m_Name: Reward_SOKOL
+  m_EditorClassIdentifier: 
+  playerName: SOKOL
+  personalityNotes: 'THE ENFORCER. A defender''s fear of conceding, a screening reward and more for every touch: wins the ball back.'
+  playerColor: {r: 0.6, g: 0.1, b: 0.15, a: 1}
+  faceTexture: {fileID: 2800000, guid: 80f90b1c9cbd6e8499205d66ba53ac14, type: 3}
+  skills: 'Enforcer: wins it back, defends hard'
+  voicePitch: 0.85
+  kitPattern: 0
+  kitColor: {r: 1, g: 1, b: 1, a: 0}
+  kitBands: 6
+  brainModel: {fileID: 0}
+  trainingSteps: 0
+  trainingRunId: 
+  trainedOn: 
+  evalWinRate: -1
+  evalEpisodes: 0
+  trainedActionGain: -1
+  trainedInterfaceVersion: 
+  trainedPhysicsVersion: 
+  trainingConfigHash: 
+  bodyScale: 1
+  bodyMass: 75
+  staminaModel: 0
+  reactionLatencyMs: 0
+  goalScorer: 1.1162791
+  assist: 0.9302325
+  teamBaselineVictory: 0.74418604
+  goalConceded: -1.2093022
+  stalemateTimeout: -0.6
+  goalSpeedBonus: 0.05
+  crossbarProximity: 0
+  stepPenalty: -0.00005
+  ballProximityScale: 0.02
+  useDifferentialProximity: 1
+  facingAlignmentScale: 0
+  ballToGoalVelocityScale: 0.0001
+  useDifferentialBallToGoal: 1
+  ballToGoalProgressScale: 0.02
+  actionJitterScale: 0.0004
+  turnChurnScale: 0
+  wallProximityPenalty: 0.00005
+  cornerBallPenalty: 0.00006
+  defensivePositionScale: 0.00004
+  possessionScale: 0
+  ballContact: 0.0075
+  maxEnvironmentSteps: 9000
