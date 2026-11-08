@@ -37,6 +37,9 @@ param(
     [string]$Squad = "",
     # Continue each profile from its own soccer_<InitFromTag>_<name> run. Empty = from scratch.
     [string]$InitFromTag = "",
+    # Per-profile override of -InitFromTag: "MATT=soccer_p38_matt;NICK=soccer_p39bot_nick".
+    # Used by train-loop.ps1, which continues each profile from ITS OWN best-graded run.
+    [string]$InitFromRuns = "",
     # Opt-in realism options (Agent_Realism), applied to every profile in this launch.
     [ValidateSet("shipped", "human")]
     [string]$StaminaModel = "shipped",
@@ -46,6 +49,7 @@ param(
     [switch]$Force,
     # Internal: set when this script re-invokes itself as one profile's worker.
     [string]$WorkerProfile = "",
+    [string]$WorkerInitFrom = "",
     [int]$WorkerPort = 0
 )
 
@@ -53,6 +57,17 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path $PSScriptRoot -Parent
 . "$PSScriptRoot\lib-profile.ps1"
 if (-not $ConfigTag) { $ConfigTag = $Tag }
+
+# Resolve which run each profile continues from ("" = from scratch). Only ever the
+# profile's own lineage (soccer_*_<name>), never another profile's brain (AGENTS.md).
+function Resolve-InitFrom([string]$name) {
+    foreach ($pair in ($InitFromRuns -split ';')) {
+        $kv = $pair -split '=', 2
+        if ($kv.Count -eq 2 -and $kv[0].Trim() -eq $name) { return $kv[1].Trim() }
+    }
+    if ($InitFromTag) { return "soccer_${InitFromTag}_$($name.ToLower())" }
+    return ""
+}
 
 function Resolve-ProfileConfig([string]$name) {
     $path = Join-Path $root "config\TRAIN_${name}_${ConfigTag}.yaml"
@@ -79,11 +94,8 @@ if ($WorkerProfile) {
     $mlArgs = @($config,
                 "--run-id=$runId", "--base-port=$WorkerPort", "--results-dir=$root\results",
                 "--env=$root\$EnvPath", "--no-graphics", "--num-envs=$NumEnvs")
-    $initFrom = ""
-    if ($InitFromTag) {
-        $initFrom = "soccer_${InitFromTag}_$($name.ToLower())"
-        $mlArgs += "--initialize-from=$initFrom"
-    }
+    $initFrom = $WorkerInitFrom
+    if ($initFrom) { $mlArgs += "--initialize-from=$initFrom" }
     if ($Force) { $mlArgs += "--force" }
 
     $prov = Write-RunProvenance -Root $root -RunId $runId -ConfigPath $config -Profile $name `
@@ -115,10 +127,14 @@ foreach ($name in $Profiles) {
     if (-not (Select-String -Path $config -Pattern "^\s{2}${name}:\s*$" -Quiet)) {
         throw "Config $config has no 'behaviors: ${name}:' block - the $name worker would train nothing."
     }
-    if ($InitFromTag) {
-        $source = Join-Path $root "results\soccer_${InitFromTag}_$($name.ToLower())"
+    $init = Resolve-InitFrom $name
+    if ($init) {
+        if (-not $init.EndsWith("_$($name.ToLower())")) {
+            throw "$name cannot continue from $init - a profile only continues its own lineage (AGENTS.md)."
+        }
+        $source = Join-Path $root "results\$init"
         if (-not (Test-Path $source)) {
-            throw "-InitFromTag ${InitFromTag}: $source does not exist (archived runs in results\_archive are not searched)."
+            throw "Init source $source does not exist (archived runs in results\_archive are not searched)."
         }
     }
 }
@@ -156,7 +172,8 @@ foreach ($name in $Profiles) {
                     '-Tag', $Tag, '-ConfigTag', $ConfigTag, '-EnvPath', $EnvPath,
                     '-NumEnvs', "$NumEnvs", '-WorkerProfile', $name, '-WorkerPort', "$($ports[$name])")
     if ($Squad) { $workerArgs += @('-Squad', $Squad) }
-    if ($InitFromTag) { $workerArgs += @('-InitFromTag', $InitFromTag) }
+    $init = Resolve-InitFrom $name
+    if ($init) { $workerArgs += @('-WorkerInitFrom', $init) }
     $workerArgs += @('-StaminaModel', $StaminaModel, '-ReactionMs', "$ReactionMs")
     if ($Force) { $workerArgs += '-Force' }
     $p = Start-Process pwsh -ArgumentList $workerArgs -WorkingDirectory $root -WindowStyle Hidden -PassThru `
