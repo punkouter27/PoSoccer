@@ -27,7 +27,7 @@ MonoBehaviour:
   trainingSteps: 10000245
   trainingRunId: soccer_p31_kim
   trainedOn: 2026-10-11
-  evalWinRate: 0.2229
+  evalWinRate: 0.3057
   evalEpisodes: 350
   trainedActionGain: 1.0
   bodyScale: 0.9

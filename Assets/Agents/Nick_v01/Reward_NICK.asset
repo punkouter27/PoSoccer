@@ -26,7 +26,7 @@ MonoBehaviour:
   trainingSteps: 10000177
   trainingRunId: soccer_p31_nick
   trainedOn: 2026-10-11
-  evalWinRate: 0.2686
+  evalWinRate: 0.26
   evalEpisodes: 350
   trainedActionGain: 1.0
   bodyScale: 0.85

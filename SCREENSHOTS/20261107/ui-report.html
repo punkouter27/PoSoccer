@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI Pass 2026-11-07</title>
+<style>
+  :root { --bg:#f7f7f5; --fg:#1b1d1c; --muted:#5d625f; --card:#ffffff; --line:#dcdedb; --accent:#1f8a4c; --warn:#b54708; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#111413; --fg:#e8eae8; --muted:#a3a8a5; --card:#1a1e1c; --line:#2c312e; --accent:#3fbf73; --warn:#f0a35e; } }
+  :root[data-theme="dark"] { --bg:#111413; --fg:#e8eae8; --muted:#a3a8a5; --card:#1a1e1c; --line:#2c312e; --accent:#3fbf73; --warn:#f0a35e; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width:1100px; margin:0 auto; padding:32px 16px 64px; }
+  h1 { font-size:28px; margin:0 0 4px; }
+  h2 { font-size:20px; margin:40px 0 12px; }
+  .sub { color:var(--muted); margin:0 0 24px; }
+  .pair { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  figure { margin:0; background:var(--card); border:1px solid var(--line); border-radius:10px; padding:10px; }
+  figure img { width:100%; height:auto; display:block; border-radius:6px; }
+  figcaption { font-size:13px; color:var(--muted); margin-top:6px; }
+  .tag { display:inline-block; font-size:12px; font-weight:600; letter-spacing:.04em; padding:2px 8px; border-radius:99px; border:1px solid var(--line); margin-bottom:6px; }
+  .after .tag { color:var(--accent); border-color:var(--accent); }
+  ol.notes { margin:12px 0 0; padding-left:20px; }
+  ol.notes li { margin:4px 0; }
+  .callout { background:var(--card); border:1px solid var(--line); border-left:4px solid var(--warn); border-radius:8px; padding:12px 14px; margin-top:24px; }
+  @media (max-width:640px) { .pair { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<main>
+<h1>UI pass, 2026-11-07</h1>
+<p class="sub">Before = commit e6e5389's UI files, After = HEAD. Captured in the editor Game view at 1440×3088 (portrait) with ScreenCapture, so the UI Toolkit overlay is included. Lineup: STANDARD + MATT vs KIM + NICK.</p>
+
+<h2>1. Menu</h2>
+<div class="pair">
+  <figure><span class="tag">BEFORE</span><img src="before/01_menu.png" alt="Menu before"><figcaption>FPS at top centre on the default screen; five-button row runs edge to edge; version label has no date.</figcaption></figure>
+  <figure class="after"><span class="tag">AFTER</span><img src="after/01_menu.png" alt="Menu after"><figcaption>Corner grid: title + screen name TL, SETTINGS TR, DEBUG BL, version + YYMMDD build stamp BR.</figcaption></figure>
+</div>
+<ol class="notes">
+  <li><b>TL</b> scene title (LINEUP / EXHIBITION / GALLERY) under the product name, inside the chrome's own bar.</li>
+  <li><b>TC</b> FPS removed from the default screen; it appears only while the TAB health panel is open.</li>
+  <li><b>TR</b> SETTINGS moved out of the bottom row into the corner, same place on every screen.</li>
+  <li><b>BR</b> <code>v1.0.0 · 261107</code>: the build stamp is written at build time by <code>Editor_BuildStamp</code>.</li>
+  <li>The bottom row drops to four buttons and no longer touches the screen edges.</li>
+</ol>
+
+<h2>2. Settings sheet</h2>
+<div class="pair">
+  <figure><span class="tag">BEFORE</span><img src="before/02_settings.png" alt="Settings before"><figcaption>AUDIO / DISPLAY / ACCESS / ADVANCED tabs.</figcaption></figure>
+  <figure class="after"><span class="tag">AFTER</span><img src="after/02_settings_match.png" alt="Settings after"><figcaption>MATCH / VIEW / OVERLAYS / AUDIO, tabs at the bottom within thumb reach.</figcaption></figure>
+</div>
+<div class="pair" style="margin-top:16px">
+  <figure class="after"><span class="tag">AFTER</span><img src="after/03_settings_overlays.png" alt="Overlays tab"><figcaption>OVERLAYS tab: every overlay from one registry (<code>Agent_Overlays</code>), three per row.</figcaption></figure>
+  <figure class="after"><span class="tag">AFTER · IN MATCH</span><img src="after/05_match_overlays.png" alt="Overlays tab in a match"><figcaption>The same tab in a match. Green = on. New entries: STAMINA (H), LANES (P), SALIENCY (J).</figcaption></figure>
+</div>
+
+<h2>3. Match HUD</h2>
+<div class="pair">
+  <figure><span class="tag">BEFORE</span><img src="before/04_match.png" alt="Match before"><figcaption>FPS readout on the pitch view; SND ON in the control row; an "AI" tag under every chip.</figcaption></figure>
+  <figure class="after"><span class="tag">AFTER</span><img src="after/04_match.png" alt="Match after"><figcaption>II · STATS · VIEW n. VIEW cycles the overlays (also <b>O</b>); n is how many are on.</figcaption></figure>
+</div>
+<ol class="notes">
+  <li>SND removed from the match controls (sound is in AUDIO, one tap away via SETTINGS).</li>
+  <li>The AI/BOT chip tags show only when a bot is actually on the pitch; every selectable player is a trained brain now.</li>
+  <li>The result screen's MENU button reads CHANGE LINEUP (not shown: needs a full match to five).</li>
+</ol>
+
+<div class="callout">
+  <b>Fixed during this capture.</b> On the menu, SETTINGS first sat a button-width in from the right edge, because the hidden MENU slot was to its right. The two buttons were swapped, so SETTINGS is now the rightmost control on every screen.
+</div>
+</main>
+</body>
+</html>

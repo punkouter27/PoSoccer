@@ -265,17 +265,20 @@ namespace PoSoccer
             // and the gallery. The menu's own SETTINGS button went with it, and
             // keeps its element name ("open-settings") so nothing that looked for
             // the way in loses it.
-            var settingsButton = ChromeButton("SETTINGS", OpenSettings);
-            settingsButton.name = "open-settings";
-            settingsButton.style.marginRight = Agent_UIStyle.Space2;
-            top.Add(settingsButton);
-
+            // MENU first, SETTINGS last: SETTINGS is the rightmost control, so it sits
+            // in the corner on every screen (it used to float a button-width in from
+            // the edge on the menu, beside MENU's empty slot).
             _menuButton = ChromeButton("MENU", ReturnToMenu);
             _menuButton.name = "chrome-menu";
+            _menuButton.style.marginRight = Agent_UIStyle.Space2;
             // Already at the menu: keep the slot so the row keeps its shape, but
             // nothing to navigate to.
             _menuButton.style.visibility = inMenu ? Visibility.Hidden : Visibility.Visible;
             top.Add(_menuButton);
+
+            var settingsButton = ChromeButton("SETTINGS", OpenSettings);
+            settingsButton.name = "open-settings";
+            top.Add(settingsButton);
 
             // -- top centre: the FPS readout ---------------------------------
             //

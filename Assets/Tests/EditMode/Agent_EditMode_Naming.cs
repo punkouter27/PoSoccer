@@ -27,6 +27,8 @@ namespace PoSoccer.Tests
         static readonly HashSet<string> UnityOwnedFolders = new HashSet<string>
         {
             "Build Profiles",
+            // Written by the ML-Agents package at runtime (timers, demos); gitignored.
+            "ML-Agents",
         };
 
         static readonly Regex ScriptPrefix = new Regex(@"^(Agent_|Sensor_|Reward_)[A-Z]\w*\.cs$");

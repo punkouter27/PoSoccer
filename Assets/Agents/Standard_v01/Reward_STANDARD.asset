@@ -23,8 +23,8 @@ MonoBehaviour:
   trainingSteps: 10000115
   trainingRunId: soccer_p37bot_standard
   trainedOn: 2026-10-14
-  evalWinRate: 0.913
-  evalEpisodes: 1000
+  evalWinRate: 0.9314
+  evalEpisodes: 350
   trainedActionGain: 1.0
   bodyScale: 1
   bodyMass: 75

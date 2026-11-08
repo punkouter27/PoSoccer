@@ -25,7 +25,7 @@ MonoBehaviour:
   trainingSteps: 10000302
   trainingRunId: soccer_p31_matt
   trainedOn: 2026-10-11
-  evalWinRate: 0.2057
+  evalWinRate: 0.2714
   evalEpisodes: 350
   trainedActionGain: 1.0
   bodyScale: 1.25
