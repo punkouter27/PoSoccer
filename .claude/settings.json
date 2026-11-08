@@ -3,17 +3,7 @@
     "defaultMode": "acceptEdits",
     "allow": [
       "Bash(git lfs ls-files*)",
-      "Bash(tasklist*)",
-
-      "mcp__unity-coplay__read_console",
-      "mcp__unity-coplay__find_gameobjects",
-      "mcp__unity-coplay__find_in_file",
-      "mcp__unity-coplay__get_sha",
-      "mcp__unity-coplay__get_test_job",
-      "mcp__unity-coplay__unity_docs",
-      "mcp__unity-coplay__unity_reflect",
-      "mcp__unity-coplay__validate_script",
-      "mcp__unity-coplay__debug_request_context"
+      "Bash(tasklist*)"
     ]
   },
   "hooks": {

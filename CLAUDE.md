@@ -43,9 +43,12 @@ that page is a real defect.
 - **Git branch: `master` only.** Do not create other branches unless explicitly asked.
 - **Never push unless explicitly asked.** Committing locally is fine. The phrase
   **`git sync`** counts as the ask (commit what is pending, pull, push).
-- **Scene setup goes through Unity MCP tools only**, never editor scripts. Building things at
-  runtime in gameplay code is fine and used heavily (see the exemption for why the global
-  presentation components must stay code-installed).
+- **Unity is driven only through the headless CLI** (since 2026-11-07; the CoplayDev,
+  IvanMurzak and Unity-Skills MCP packages were removed). Scene, prefab and asset setup is
+  an `Editor_` method in `Assets/Editor` run with `scripts/unity-exec.ps1`; never a text
+  edit of `.unity` / `.prefab` YAML. Building things at runtime in gameplay code is fine
+  and used heavily (see the exemption for why the global presentation components must
+  stay code-installed). Do not reinstall an editor-bridge package without being asked.
 - Script prefixes `Agent_` / `Sensor_` / `Reward_` (`Editor_` inside `Assets/Editor`, exempt);
   scenes `SCN_`; folder depth at most 2 under `Assets/`; agent assets in `<Name>_v<NN>`.
 - **UI Toolkit only**, code-built, shared `PanelSettings` at 1080x1920 match-width. Fixed
@@ -95,56 +98,43 @@ that page is a real defect.
 .\scripts\purge-artifacts.ps1 [-Apply|-Report] # dry-run purge of failed/short runs + disk report
 ```
 
-**Builds**: MCP `manage_build(action="build", target="windows64",
-output_path="Builds/PoSoccer/PoSoccer.exe", scenes="Assets/Scenes/SCN_Training.unity")`.
-It is async: look for "Build Finished" in `Logs/Editor.log`, then verify
-`PoSoccer_Data/Managed`. Never judge a build by the `.exe` mtime; check
-`PoSoccer_Data/*.assets`. Rebuild after every `update-model.ps1` or you grade stale weights.
+**Builds**: `.\scripts\build-headless.ps1` (Build Settings scenes, `SCN_Training` at index
+0, output `Builds/PoSoccer/PoSoccer.exe`). Never judge a build by the `.exe` mtime; the
+script compares `PoSoccer_Data/*.assets` against its own pre-build stamp. Rebuild after
+every `update-model.ps1` or you grade stale weights.
 
-**Tests** via MCP `run_tests`, always scoped: `assembly_names: ["PoSoccer.EditModeTests"]`
-or `["PoSoccer.PlayModeTests"]`. Always assert on `summary.total`: a PlayMode run that
-reports success with `total: 0` is a no-op, not a pass.
+**Tests**: `.\scripts\unity-test.ps1 -Platform EditMode` and `-Platform PlayMode`
+(`-Filter <name>` to narrow). Exit 0 pass, 1 failures or **zero tests ran** (a `total 0`
+run is a no-op, not a pass), 2 no results file (compile error; the script prints the
+first `error CS` lines). Results XML and log land in `Logs/tests-*`.
 
-## Working with the live editor (MCP)
+## Headless Unity CLI
 
-The working server is CoplayDev (`unity-coplay` in `.mcp.json`, stdio via `uvx`); its tools
-appear as `mcp__unity-coplay__*`. `ai-game-developer` is the IvanMurzak cloud connector and
-needs authorizing; the `assets-*` / `gameobject-*` / `scene-*` skills belong to it.
+Three scripts share `scripts/lib-unity.ps1` (editor path from `ProjectVersion.txt`, lock
+check, `Start-Process -Wait`): `unity-test.ps1`, `unity-exec.ps1 -Method <Ns.Class.Method>
+[-BuildTarget X]`, `build-headless.ps1`. The Android and WebGL builds have their own
+scripts (`build-android-aab.ps1`, `Tools/ci_webgl.ps1`).
 
-- **Read the bridge port from `~/.unity-mcp/unity-mcp-status-*.json`.** Editors contend for
-  6400 and the loser rebinds. With several editors open, call `set_active_instance` with
-  `PoSoccer@<hash>` from that file.
-- **Missing Unity tools usually means a cwd-keying problem, not a disabled tool.**
-  `~/.claude.json` keys projects by the cwd string and Windows yields several spellings.
-- **MCP is not required to reach the editor.** The bridge is plain TCP: read the
-  `WELCOME UNITY-MCP 1 FRAMING=1` line, then exchange 8-byte big-endian length-prefixed
-  UTF-8 JSON frames `{"type":"<tool>","params":{...}}`.
-- "No Unity Editor instances found" does not mean the editor is gone. Check the status file.
-
-Traps:
-
-- **Play mode blocks scene edits.** `manage_editor stop` first.
-- `refresh_unity` after C# edits drops the connection (domain reload); "Connection closed"
-  is success.
-- **An unfocused editor barely runs play-mode frames.** Verify behaviour with PlayMode tests
-  or `execute_code` readings, not by watching the Game view.
-- **`manage_camera` screenshots are the wrong tool here**: every screen is UI Toolkit on an
-  overlay, so the UI is absent, and the call resizes the Game View. Walk
-  `UIDocument.rootVisualElement` and read `worldBound` / `resolvedStyle` instead.
-- **A menu item that opens a confirmation dialog hangs the bridge** and looks like a dead
-  editor. Prefer the API (`AssetDatabase.Refresh`) over the menu.
+- **The editor must be closed.** Batchmode cannot open a project an editor holds; Unity
+  says so on the console only and exits 1 with nothing in `-logFile`. The scripts check
+  first and name the PID.
+- **An `-executeMethod` method reports through `EditorApplication.Exit(code)`.** A method
+  that returns normally exits 0 under `-quit` whatever it logged.
+- **Trust the artifact or results file, not Unity's exit code.** A platform switch
+  reimports everything and muddies the return value.
+- **Observe play-mode behaviour with PlayMode tests**, not by watching an editor. Every
+  screen is UI Toolkit on an overlay: tests walk `UIDocument.rootVisualElement` and read
+  `worldBound` / `resolvedStyle`. PlayMode runs without `-nographics` for that reason.
 - **`Packages/manifest.json` must be strict JSON.** A trailing comma makes the resolver
-  return 500, the Package Manager UI then logs a `FormatException` every frame, the bridge
-  stops answering and `Logs/Editor.log` grows by about 200 MB a minute (2026-10-10). Validate
-  with a strict parser after any scripted edit; PowerShell's `ConvertFrom-Json` accepts it.
-- Colours and vectors in `component_properties` are objects, not arrays.
+  return 500, the Package Manager logs a `FormatException` every frame and
+  `Logs/Editor.log` grows by about 200 MB a minute (2026-10-10). Validate with a strict
+  parser (`py -3.10 -c "import json; json.load(open(...))"`); PowerShell's
+  `ConvertFrom-Json` accepts trailing commas.
 - A collider added to a sprite-less object auto-sizes to 0.0001; set `size` explicitly.
 - Overwriting a PNG in place can corrupt cached sprite geometry; use a new file name.
-- The PlayMode runner often wedges on the first run after a domain reload
-  (`stuck_suspected`). `manage_editor stop` and retry; do not revert code over it.
 - `Assets/Editor/Editor_PlayModeOptionsGuard.cs` resets "Enter Play Mode Options" after test
   runs. That setting must stay off: the ML-Agents Academy needs the domain reload.
-- Installing a Unity module while the editor is open breaks compilation until a restart.
+- Installing a Unity module while an editor is open breaks compilation until a restart.
 
 ## Architecture
 

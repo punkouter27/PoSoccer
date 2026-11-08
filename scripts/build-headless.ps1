@@ -61,7 +61,7 @@ $holder = Get-CimInstance Win32_Process -Filter "Name='Unity.exe'" -ErrorAction 
 if ($holder) {
     throw ("The Unity editor has this project open (PID $(($holder.ProcessId) -join ', ')). " +
            "Batchmode cannot open the same project - close the editor and re-run, " +
-           "or build from the running editor via MCP manage_build instead.")
+           "and nothing else holds the project lock.")
 }
 
 # Start-Process -Wait rather than the call operator: `&` has been observed

@@ -1,28 +1,9 @@
 {
   "_comment": [
-    "Unity MCP servers for PoSoccer.",
-    "",
-    "Trimmed 2026-10-10 from five servers to the two that are used. unity-coplay is",
-    "the working toolset; ai-game-developer is the IvanMurzak cloud connector (needs",
-    "authorizing in an interactive session). Removed: unity-codergamester and",
-    "unity-anklebreaker (both pointed into the gitignored .tooling/ and failed to",
-    "connect on any machine without those clones) and unity-ozankasikci (hard-wired",
-    "to port 6400, which coplay also wants, and launched via an unpinned",
-    "`npx unity-editor-mcp@latest`).",
-    "",
-    "The coplay bridge port is ASSIGNED, not fixed: editors contend for 6400 and",
-    "the loser rebinds. Read it from ~/.unity-mcp/unity-mcp-status-*.json."
+    "No Unity MCP servers, on purpose (2026-11-07). The CoplayDev, IvanMurzak and",
+    "Unity-Skills packages were removed; the editor is driven only by the headless",
+    "CLI pipeline: scripts/unity-test.ps1, scripts/unity-exec.ps1 and",
+    "scripts/build-headless.ps1 (see CLAUDE.md, 'Headless Unity CLI')."
   ],
-
-  "mcpServers": {
-    "ai-game-developer": {
-      "type": "http",
-      "url": "https://ai-game.dev/mcp/p/161c6ea1"
-    },
-
-    "unity-coplay": {
-      "command": "uvx",
-      "args": ["--from", "mcpforunityserver==10.1.2", "mcp-for-unity"]
-    }
-  }
+  "mcpServers": {}
 }

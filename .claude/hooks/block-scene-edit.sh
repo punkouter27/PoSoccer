@@ -3,7 +3,7 @@
 # block-scene-edit.sh — BLOCKING HOOK
 # Prevents Claude from directly editing .unity, .prefab, and .asset YAML files.
 # These files contain serialized references that break when text-edited.
-# Use unity-mcp tools (manage_scene, manage_gameobject, manage_prefabs) instead.
+# Use an Editor_ method run headless (scripts/unity-exec.ps1 -Method ...) instead.
 # ============================================================================
 # Trigger: PreToolUse on Edit|Write
 # Exit: 2 = block, 0 = allow
@@ -32,12 +32,8 @@ case "$FILE_PATH" in
         echo "" >&2
         echo "  File: $FILE_PATH" >&2
         echo "" >&2
-        echo "  Instead, use unity-mcp tools:" >&2
-        echo "    - manage_scene      → create/load/modify scenes" >&2
-        echo "    - manage_gameobject  → create/modify GameObjects" >&2
-        echo "    - manage_components  → add/configure components" >&2
-        echo "    - manage_prefabs     → create/edit prefabs" >&2
-        echo "    - batch_execute      → bundle multiple operations" >&2
+                echo "  Instead, write an Editor_ method and run it headless:" >&2
+        echo "    scripts/unity-exec.ps1 -Method PoSoccer.EditorTools.Editor_X.Run" >&2
         unity_hook_block "$MSG"
         ;;
     *.asset)
@@ -51,10 +47,8 @@ case "$FILE_PATH" in
                 echo "" >&2
                 echo "  File: $FILE_PATH" >&2
                 echo "" >&2
-                echo "  Instead, use unity-mcp tools:" >&2
-                echo "    - manage_asset              → manage assets" >&2
-                echo "    - manage_scriptable_object   → edit ScriptableObjects" >&2
-                echo "    - manage_material            → edit materials" >&2
+                                echo "  Instead, write an Editor_ method and run it headless:" >&2
+                echo "    scripts/unity-exec.ps1 -Method PoSoccer.EditorTools.Editor_X.Run" >&2
                 unity_hook_block "$MSG"
                 ;;
         esac

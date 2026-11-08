@@ -290,8 +290,9 @@ benchmark's win rate with nothing in an eval JSON able to show it.
 
 **What does follow the rule.** The nine per-pitch drawing components
 (`Agent_Surfaces` ... `Agent_ShotTracer`) are serialized on the pitch root in
-`SCN_Exhibition` and tunable in the Inspector. Scene objects themselves are still authored
-through MCP only. `Agent_EditMode_SceneComposition` pins which side of the line each
+`SCN_Exhibition` and tunable in the Inspector. Scene objects themselves are authored through
+headless `Editor_` methods (`scripts/unity-exec.ps1`) since the MCP packages were removed
+on 2026-11-07. `Agent_EditMode_SceneComposition` pins which side of the line each
 component is on.
 
 **Cost.** The global components' tuning fields are reachable in the Inspector only while
