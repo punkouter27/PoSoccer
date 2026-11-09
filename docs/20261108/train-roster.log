@@ -64,3 +64,49 @@
 2026-11-09 05:24:38  [session] 166.4M steps trained so far; [session] 153.2M steps trained so far; [session] 137.7M steps trained so far; [session] 122.2M steps trained so far; round p50 : DECOY,DUPEE,JH (from scratch)
 2026-11-09 05:26:27  [session] 166.8M steps trained so far; [session] 166.4M steps trained so far; [session] 153.2M steps trained so far; [session] 137.7M steps trained so far; [session] 122.2M steps trained so far; round p50 : DECOY,DUPEE,JH (from scratch)
 2026-11-09 05:28:14  [session] window closed; final report C:\Users\punko\Downloads\_CODEMATT\PoSoccer\docs\20261108\roster-report.html
+2026-11-09 06:20:23     [p50] [INFO] ALAN. Step: 30000000. Time Elapsed: 21418.407 s. Mean Reward: 3.066. Std of Reward: 2.834. Training.
+2026-11-09 06:20:23     [p50] [INFO] BAILY. Step: 30000000. Time Elapsed: 21487.247 s. Mean Reward: 3.234. Std of Reward: 3.332. Training.
+2026-11-09 06:20:23     [p50] [INFO] BRENDAN. Step: 30000000. Time Elapsed: 21541.483 s. Mean Reward: 4.574. Std of Reward: 1.722. Training.
+2026-11-09 06:20:23     [p50] [INFO] DECOY. Step: 19950000. Time Elapsed: 14428.582 s. Mean Reward: 0.953. Std of Reward: 2.904. Training.
+2026-11-09 06:20:23     [p50] [INFO] DUPEE. Step: 20250000. Time Elapsed: 14438.214 s. Mean Reward: 3.564. Std of Reward: 2.344. Training.
+2026-11-09 06:20:23     [p50] [INFO] JH. Step: 20000000. Time Elapsed: 14427.624 s. Mean Reward: 10.859. Std of Reward: 7.139. Training.
+2026-11-09 07:20:31     [p50] [INFO] ALAN. Step: 30000000. Time Elapsed: 21418.407 s. Mean Reward: 3.066. Std of Reward: 2.834. Training.
+2026-11-09 07:20:31     [p50] [INFO] BAILY. Step: 30000000. Time Elapsed: 21487.247 s. Mean Reward: 3.234. Std of Reward: 3.332. Training.
+2026-11-09 07:20:31     [p50] [INFO] BRENDAN. Step: 30000000. Time Elapsed: 21541.483 s. Mean Reward: 4.574. Std of Reward: 1.722. Training.
+2026-11-09 07:20:31     [p50] [INFO] DECOY. Step: 24950000. Time Elapsed: 18043.156 s. Mean Reward: 1.206. Std of Reward: 3.044. Training.
+2026-11-09 07:20:31     [p50] [INFO] DUPEE. Step: 25300000. Time Elapsed: 18028.762 s. Mean Reward: 3.940. Std of Reward: 2.302. Training.
+2026-11-09 07:20:31     [p50] [INFO] JH. Step: 25000000. Time Elapsed: 18037.853 s. Mean Reward: 12.643. Std of Reward: 6.249. Training.
+2026-11-09 08:20:38     [p50] [INFO] ALAN. Step: 30000000. Time Elapsed: 21418.407 s. Mean Reward: 3.066. Std of Reward: 2.834. Training.
+2026-11-09 08:20:38     [p50] [INFO] BAILY. Step: 30000000. Time Elapsed: 21487.247 s. Mean Reward: 3.234. Std of Reward: 3.332. Training.
+2026-11-09 08:20:38     [p50] [INFO] BRENDAN. Step: 30000000. Time Elapsed: 21541.483 s. Mean Reward: 4.574. Std of Reward: 1.722. Training.
+2026-11-09 08:20:38     [p50] [INFO] DECOY. Step: 30000000. Time Elapsed: 21644.714 s. Mean Reward: 1.740. Std of Reward: 3.225. Training.
+2026-11-09 08:20:38     [p50] [INFO] DUPEE. Step: 30000000. Time Elapsed: 21388.475 s. Mean Reward: 4.517. Std of Reward: 1.660. Training.
+2026-11-09 08:20:38     [p50] [INFO] JH. Step: 30000000. Time Elapsed: 21617.571 s. Mean Reward: 12.116. Std of Reward: 6.721. Training.
+2026-11-09 08:21:54  round p51bot : DECOY,DUPEE,JH (from own p50)
+2026-11-09 09:22:23     [p51bot] [INFO] ALAN. Step: 10000000. Time Elapsed: 7152.053 s. Mean Reward: 4.345. Std of Reward: 2.023. Training.
+2026-11-09 09:22:23     [p51bot] [INFO] BAILY. Step: 10000000. Time Elapsed: 7121.114 s. Mean Reward: 5.572. Std of Reward: 2.326. Training.
+2026-11-09 09:22:23     [p51bot] [INFO] BRENDAN. Step: 10000000. Time Elapsed: 7214.439 s. Mean Reward: 4.971. Std of Reward: 1.353. Training.
+2026-11-09 09:22:23     [p51bot] [INFO] DECOY. Step: 5050000. Time Elapsed: 3617.152 s. Mean Reward: 2.917. Std of Reward: 3.135. Training.
+2026-11-09 09:22:23     [p51bot] [INFO] DUPEE. Step: 5000000. Time Elapsed: 3618.947 s. Mean Reward: 4.686. Std of Reward: 1.636. Training.
+2026-11-09 09:22:23     [p51bot] [INFO] JH. Step: 5000000. Time Elapsed: 3607.289 s. Mean Reward: 12.146. Std of Reward: 6.371. Training.
+2026-11-09 10:22:33     [p51bot] [INFO] ALAN. Step: 10000000. Time Elapsed: 7152.053 s. Mean Reward: 4.345. Std of Reward: 2.023. Training.
+2026-11-09 10:22:33     [p51bot] [INFO] BAILY. Step: 10000000. Time Elapsed: 7121.114 s. Mean Reward: 5.572. Std of Reward: 2.326. Training.
+2026-11-09 10:22:33     [p51bot] [INFO] BRENDAN. Step: 10000000. Time Elapsed: 7214.439 s. Mean Reward: 4.971. Std of Reward: 1.353. Training.
+2026-11-09 10:22:33     [p51bot] [INFO] DECOY. Step: 9250000. Time Elapsed: 7202.794 s. Mean Reward: 2.631. Std of Reward: 2.983. Training.
+2026-11-09 10:22:33     [p51bot] [INFO] DUPEE. Step: 9150000. Time Elapsed: 7212.607 s. Mean Reward: 4.927. Std of Reward: 1.234. Training.
+2026-11-09 10:22:33     [p51bot] [INFO] JH. Step: 9200000. Time Elapsed: 7231.336 s. Mean Reward: 13.608. Std of Reward: 4.985. Training.
+2026-11-09 10:36:05  rebuild player and grade DECOY,DUPEE,JH over 350 episodes
+2026-11-09 10:37:32     Eval 'soccer_p51bot_decoy': 350 episodes | blue 260 / red 36 / stale 54 | win-rate 74.3% | mean steps 3,767
+2026-11-09 10:37:32       stamped Reward_DECOY.asset: 74.3% over 350 episodes
+2026-11-09 10:37:32     FAIL: below acceptance bar (>=80% wins, <=10% stalemates).
+2026-11-09 10:37:32     DECOY: 74.3% wins, 15.4% stale -> below bar
+2026-11-09 10:38:06     Eval 'soccer_p51bot_dupee': 350 episodes | blue 344 / red 5 / stale 1 | win-rate 98.3% | mean steps 2,198
+2026-11-09 10:38:06       stamped Reward_DUPEE.asset: 98.3% over 350 episodes
+2026-11-09 10:38:06     PASS: acceptance bar met (>=80% wins, <=10% stalemates).
+2026-11-09 10:38:06     DUPEE: 98.3% wins, 0.3% stale -> PASS
+2026-11-09 10:38:39     Eval 'soccer_p51bot_jh': 350 episodes | blue 336 / red 9 / stale 5 | win-rate 96.0% | mean steps 2,548
+2026-11-09 10:38:39       stamped Reward_JH.asset: 96.0% over 350 episodes
+2026-11-09 10:38:39     PASS: acceptance bar met (>=80% wins, <=10% stalemates).
+2026-11-09 10:38:39     JH: 96.0% wins, 1.4% stale -> PASS
+2026-11-09 10:38:39  round p50 : JOSH,MANZI,MAYA (from scratch)
+2026-11-09 10:42:54  queue stopped by user request during p50 JOSH,MANZI,MAYA; resume with scripts/train-roster.ps1

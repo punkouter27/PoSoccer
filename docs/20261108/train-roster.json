@@ -3,9 +3,19 @@
   "done": [
     "ALAN",
     "BAILY",
-    "BRENDAN"
+    "BRENDAN",
+    "DECOY",
+    "DUPEE",
+    "JH"
   ],
   "grades": {
+    "DECOY": {
+      "pass": false,
+      "run": "soccer_p51bot_decoy",
+      "stale": 0.1543,
+      "episodes": 350,
+      "win": 0.7429
+    },
     "ALAN": {
       "pass": true,
       "run": "soccer_p51bot_alan",
@@ -20,12 +30,26 @@
       "episodes": 350,
       "win": 0.9771
     },
+    "DUPEE": {
+      "pass": true,
+      "run": "soccer_p51bot_dupee",
+      "stale": 0.0029,
+      "episodes": 350,
+      "win": 0.9829
+    },
     "BAILY": {
       "pass": true,
       "run": "soccer_p51bot_baily",
       "stale": 0.0286,
       "episodes": 350,
       "win": 0.92
+    },
+    "JH": {
+      "pass": true,
+      "run": "soccer_p51bot_jh",
+      "stale": 0.0143,
+      "episodes": 350,
+      "win": 0.96
     }
   },
   "queue": [

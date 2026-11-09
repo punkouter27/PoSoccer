@@ -21,16 +21,16 @@ MonoBehaviour:
   kitPattern: 0
   kitColor: {r: 1, g: 1, b: 1, a: 0}
   kitBands: 6
-  brainModel: {fileID: 0}
-  trainingSteps: 0
-  trainingRunId: 
-  trainedOn: 
-  evalWinRate: -1
-  evalEpisodes: 0
-  trainedActionGain: -1
-  trainedInterfaceVersion: 
-  trainedPhysicsVersion: 
-  trainingConfigHash: 
+  brainModel: {fileID: 5022602860645237092, guid: 3b15bef27e3fc05458a7f1953db6ab7f, type: 3}
+  trainingSteps: 10001602
+  trainingRunId: soccer_p51bot_decoy
+  trainedOn: 2026-11-09
+  evalWinRate: 0.7429
+  evalEpisodes: 350
+  trainedActionGain: 1.0
+  trainedInterfaceVersion: iface-2026-10-10
+  trainedPhysicsVersion: phys-2026-10-10
+  trainingConfigHash: a502ca4c0bc1
   bodyScale: 1
   bodyMass: 75
   staminaModel: 0
