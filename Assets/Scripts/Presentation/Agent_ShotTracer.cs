@@ -68,17 +68,19 @@ namespace PoSoccer
         [SerializeField] private float _thickness = 0.05f;
         [Tooltip("Sorting order. Above the intent overlay (15), below the confetti layer (20).")]
         [SerializeField] private int _sortingOrder = 16;
-        [Tooltip("Start with the tracer visible. On by default - unlike the intent arrows it " +
-                 "draws at most one line, and only while a ball is genuinely in flight.")]
-        [SerializeField] private bool _visibleOnStart = true;
         [SerializeField] private bool _enableShotTracer = true;
 
         /// <summary>
         /// Overlay visibility, static so the HUD or a settings screen can drive it
-        /// without holding a reference. Re-seeded from the serialized default in
-        /// Start, so a scene reload does not inherit the last session's state.
+        /// without holding a reference. Reset to OFF in Start, so a scene reload does
+        /// not inherit the last session's state.
+        ///
+        /// OFF BY DEFAULT (2026-11-09, user request: no line showing the ball's
+        /// future path). It used to start on from a serialized `_visibleOnStart`
+        /// (true in SCN_Exhibition); that field was removed so the scene's stored
+        /// value cannot switch it back on. Still available from OVERLAYS and T.
         /// </summary>
-        public static bool Visible { get; set; } = true;
+        public static bool Visible { get; set; }
 
         const int MAX_POINTS = 256;
 
@@ -128,7 +130,7 @@ namespace PoSoccer
                 return;
             }
 
-            Visible = _visibleOnStart;
+            Visible = false;
             _goals = GetComponentsInChildren<Reward_GoalTrigger>(true);
             _lines = new Agent_Lines("ShotTracer", _sortingOrder, vertexCapacity: MAX_POINTS * 4);
 

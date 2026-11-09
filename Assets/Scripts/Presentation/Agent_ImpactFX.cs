@@ -89,6 +89,13 @@ namespace PoSoccer
         float _lastContactTime = float.NegativeInfinity;
         Vector2 _lastContactPoint;
 
+        /// <summary>
+        /// Summed normal impulse (N*s) a player-on-player collision needs before it
+        /// draws anything. Above Agent_Contact's stagger threshold (12): only a hit
+        /// that knocks somebody back is shown.
+        /// </summary>
+        public const float BIG_COLLISION_IMPULSE = 20f;
+
         const float DedupeSeconds = 0.03f;
         const float DedupeDistance = 0.6f;
 
@@ -218,7 +225,11 @@ namespace PoSoccer
 
         void OnPlayerContact(Vector2 point, Vector2 normal, float impulse)
         {
-            if (impulse < _contactThreshold) return;
+            // Big collisions only (2026-11-09, user request): players leaning or
+            // rubbing on each other draw nothing. The floor is the code constant
+            // because SCN_Exhibition serializes the old jostle-level 6.
+            float floor = Mathf.Max(_contactThreshold, BIG_COLLISION_IMPULSE);
+            if (impulse < floor) return;
 
             // Second report of the same collision, from the other body.
             if (Time.time - _lastContactTime < DedupeSeconds

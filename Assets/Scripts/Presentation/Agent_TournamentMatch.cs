@@ -25,7 +25,7 @@ namespace PoSoccer
     [DisallowMultipleComponent]
     public sealed class Agent_TournamentMatch : MonoBehaviour
     {
-        public const float AUTO_RETURN_SECONDS = 6f;
+        public const float AUTO_RETURN_SECONDS = 5f;
         public const string BRACKET_BUTTON_TEXT = "BRACKET";
 
         [SerializeField] private string _menuScene = "SCN_Menu";

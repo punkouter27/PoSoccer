@@ -17,9 +17,11 @@ round of 16, quarter-finals, semi-finals, final and champion.
   strongest players meet last. A match against a BYE is decided without being played.
 - **PLAY NEXT** plays the next match: a 1 v 1, first to the HUD's `matchGoals`, with
   the player introduction card at kickoff.
-- **AUTO** plays every remaining match unattended. At full time the result card counts
-  down 6 s and returns to the bracket, and the bracket starts the next match after 3 s.
-  This continues until there is a champion, then AUTO switches itself off.
+- **Unattended by default (2026-11-09).** Starting a cup (opening a new bracket, NEW, or
+  PLAY NEXT) switches **AUTO** on, so the cup plays itself to a champion with no taps: the
+  full-time screen stays up for 5 s, the game returns to the bracket, and the next match
+  starts 3 s later. Tap **AUTO** to pause; PLAY NEXT resumes. AUTO switches itself off
+  when there is a champion, and the champion's full-time screen stays up.
 - **NEW** reseeds a fresh bracket by current Elo. **ELO** shows the rating table.
 - **Draws.** A draw (only possible on the time limit) counts for Elo but isn't a
   result. The same pairing is played again.

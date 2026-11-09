@@ -182,6 +182,9 @@ namespace PoSoccer
             }
 
             data.hasBracket = true;
+            // A started cup plays itself to the end (2026-11-09, user request): no tap
+            // is needed between matches. AUTO on the bracket screen can still pause it.
+            data.autoPlay = true;
             data.number++;
             LastResult = "";
             CancelMatch();
@@ -204,6 +207,12 @@ namespace PoSoccer
             if (bracket == null || !bracket.TryNextMatch(out int round, out int match)) return false;
             blue = bracket.Entrant(round, match, 0);
             red = bracket.Entrant(round, match, 1);
+            // Starting or resuming a match resumes the unattended run too.
+            if (!Current.autoPlay)
+            {
+                Current.autoPlay = true;
+                Save(Mode);
+            }
             InMatch = true;
             MatchRound = round;
             MatchIndex = match;
