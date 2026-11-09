@@ -37,7 +37,7 @@ function Snapshot {
             if ($line) { $total += [long]$line.Matches[0].Groups[1].Value }
         }
     }
-    $stage = (Get-Content $logPath -Tail 30 | Where-Object { $_ -match 'round |rebuild|grade|PASS|below bar|done' } |
+    $stage = (Get-Content $logPath -Tail 60 | Where-Object { $_ -notmatch '\[session\]' -and $_ -match 'round |rebuild|grade|PASS|below bar|done' } |
         Select-Object -Last 1) -replace '^\S+ \S+\s+', ''
     $rows = @(if (Test-Path $statusPath) { Get-Content $statusPath -Raw | ConvertFrom-Json })
     $rows += [pscustomobject]@{ time = (Get-Date).ToString("o"); totalSteps = $total; stage = "$stage" }

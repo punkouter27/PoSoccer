@@ -1,0 +1,46 @@
+{
+  "started": "2026-11-08T18:14:47.1562113-05:00",
+  "done": [
+    "ALAN",
+    "BAILY",
+    "BRENDAN"
+  ],
+  "grades": {
+    "ALAN": {
+      "pass": true,
+      "run": "soccer_p51bot_alan",
+      "stale": 0.0571,
+      "episodes": 350,
+      "win": 0.9171
+    },
+    "BRENDAN": {
+      "pass": true,
+      "run": "soccer_p51bot_brendan",
+      "stale": 0.0029,
+      "episodes": 350,
+      "win": 0.9771
+    },
+    "BAILY": {
+      "pass": true,
+      "run": "soccer_p51bot_baily",
+      "stale": 0.0286,
+      "episodes": 350,
+      "win": 0.92
+    }
+  },
+  "queue": [
+    "ALAN",
+    "BAILY",
+    "BRENDAN",
+    "DECOY",
+    "DUPEE",
+    "JH",
+    "JOSH",
+    "MANZI",
+    "MAYA",
+    "PORTO",
+    "SOKOL",
+    "TONG",
+    "VELEZ"
+  ]
+}

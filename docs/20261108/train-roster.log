@@ -1,0 +1,66 @@
+2026-11-08 18:14:47  roster queue start: ALAN,BAILY,BRENDAN,DECOY,DUPEE,JH,JOSH,MANZI,MAYA,PORTO,SOKOL,TONG,VELEZ in 5 batch(es) of up to 3, estimated ~42.8 h
+2026-11-08 18:14:47  build player
+2026-11-08 18:15:47  round p50 : ALAN,BAILY,BRENDAN (from scratch)
+2026-11-08 19:16:16     [p50] [INFO] ALAN. Step: 5100000. Time Elapsed: 3609.428 s. Mean Reward: -0.510. Std of Reward: 2.118. Training.
+2026-11-08 19:16:16     [p50] [INFO] BAILY. Step: 5050000. Time Elapsed: 3602.439 s. Mean Reward: -0.542. Std of Reward: 1.851. Training.
+2026-11-08 19:16:16     [p50] [INFO] BRENDAN. Step: 5050000. Time Elapsed: 3595.465 s. Mean Reward: 0.850. Std of Reward: 2.886. Training.
+2026-11-08 20:16:24     [p50] [INFO] ALAN. Step: 10150000. Time Elapsed: 7199.461 s. Mean Reward: -0.013. Std of Reward: 2.524. Training.
+2026-11-08 20:16:24     [p50] [INFO] BAILY. Step: 10100000. Time Elapsed: 7199.895 s. Mean Reward: 0.113. Std of Reward: 2.655. Training.
+2026-11-08 20:16:24     [p50] [INFO] BRENDAN. Step: 10100000. Time Elapsed: 7198.838 s. Mean Reward: 2.686. Std of Reward: 2.963. Training.
+2026-11-08 21:16:32     [p50] [INFO] ALAN. Step: 15200000. Time Elapsed: 10793.336 s. Mean Reward: 0.754. Std of Reward: 2.860. Training.
+2026-11-08 21:16:32     [p50] [INFO] BAILY. Step: 15150000. Time Elapsed: 10812.883 s. Mean Reward: -0.100. Std of Reward: 2.748. Training.
+2026-11-08 21:16:32     [p50] [INFO] BRENDAN. Step: 15100000. Time Elapsed: 10799.790 s. Mean Reward: 3.491. Std of Reward: 2.572. Training.
+2026-11-08 21:24:39  [session] 8 h watch window until Mon 05:24
+2026-11-08 21:24:39  [session] 47.5M steps trained so far; round p50 : ALAN,BAILY,BRENDAN (from scratch)
+2026-11-08 22:16:40     [p50] [INFO] ALAN. Step: 20200000. Time Elapsed: 14407.205 s. Mean Reward: 1.553. Std of Reward: 3.011. Training.
+2026-11-08 22:16:40     [p50] [INFO] BAILY. Step: 20150000. Time Elapsed: 14426.776 s. Mean Reward: 1.334. Std of Reward: 3.368. Training.
+2026-11-08 22:16:40     [p50] [INFO] BRENDAN. Step: 20100000. Time Elapsed: 14422.859 s. Mean Reward: 3.840. Std of Reward: 2.355. Training.
+2026-11-08 22:25:12  [session] 62.6M steps trained so far; [session] 47.5M steps trained so far; round p50 : ALAN,BAILY,BRENDAN (from scratch)
+2026-11-08 23:16:48     [p50] [INFO] ALAN. Step: 25250000. Time Elapsed: 18015.946 s. Mean Reward: 1.729. Std of Reward: 3.021. Training.
+2026-11-08 23:16:48     [p50] [INFO] BAILY. Step: 25150000. Time Elapsed: 18005.533 s. Mean Reward: 2.469. Std of Reward: 3.373. Training.
+2026-11-08 23:16:48     [p50] [INFO] BRENDAN. Step: 25100000. Time Elapsed: 18017.520 s. Mean Reward: 4.322. Std of Reward: 2.041. Training.
+2026-11-08 23:25:53  [session] 77.8M steps trained so far; [session] 62.6M steps trained so far; [session] 47.5M steps trained so far; round p50 : ALAN,BAILY,BRENDAN (from scratch)
+2026-11-09 00:16:13  round p51bot : ALAN,BAILY,BRENDAN (from own p50)
+2026-11-09 00:26:44  [session] 92.5M steps trained so far; round p51bot : ALAN,BAILY,BRENDAN (from own p50)
+2026-11-09 01:16:42     [p51bot] [INFO] ALAN. Step: 5050000. Time Elapsed: 3608.569 s. Mean Reward: 3.867. Std of Reward: 2.235. Training.
+2026-11-09 01:16:42     [p51bot] [INFO] BAILY. Step: 5050000. Time Elapsed: 3602.451 s. Mean Reward: 4.138. Std of Reward: 3.168. Training.
+2026-11-09 01:16:42     [p51bot] [INFO] BRENDAN. Step: 5000000. Time Elapsed: 3611.565 s. Mean Reward: 4.959. Std of Reward: 1.280. Training.
+2026-11-09 01:27:43  [session] 107.8M steps trained so far; [session] 92.5M steps trained so far; round p51bot : ALAN,BAILY,BRENDAN (from own p50)
+2026-11-09 02:17:15  rebuild player and grade ALAN,BAILY,BRENDAN over 350 episodes
+2026-11-09 02:18:19     Eval 'soccer_p51bot_alan': 350 episodes | blue 321 / red 9 / stale 20 | win-rate 91.7% | mean steps 2,838
+2026-11-09 02:18:19       stamped Reward_ALAN.asset: 91.7% over 350 episodes
+2026-11-09 02:18:19     PASS: acceptance bar met (>=80% wins, <=10% stalemates).
+2026-11-09 02:18:19     ALAN: 91.7% wins, 5.7% stale -> PASS
+2026-11-09 02:19:03     Eval 'soccer_p51bot_baily': 350 episodes | blue 322 / red 18 / stale 10 | win-rate 92.0% | mean steps 3,132
+2026-11-09 02:19:03       stamped Reward_BAILY.asset: 92.0% over 350 episodes
+2026-11-09 02:19:03     PASS: acceptance bar met (>=80% wins, <=10% stalemates).
+2026-11-09 02:19:03     BAILY: 92.0% wins, 2.9% stale -> PASS
+2026-11-09 02:19:31     Eval 'soccer_p51bot_brendan': 350 episodes | blue 342 / red 7 / stale 1 | win-rate 97.7% | mean steps 1,899
+2026-11-09 02:19:31       stamped Reward_BRENDAN.asset: 97.7% over 350 episodes
+2026-11-09 02:19:31     PASS: acceptance bar met (>=80% wins, <=10% stalemates).
+2026-11-09 02:19:31     BRENDAN: 97.7% wins, 0.3% stale -> PASS
+2026-11-09 02:19:31  round p50 : DECOY,DUPEE,JH (from scratch)
+2026-11-09 02:28:54  [session] 122.2M steps trained so far; round p50 : DECOY,DUPEE,JH (from scratch)
+2026-11-09 03:19:59     [p50] [INFO] ALAN. Step: 30000000. Time Elapsed: 21418.407 s. Mean Reward: 3.066. Std of Reward: 2.834. Training.
+2026-11-09 03:19:59     [p50] [INFO] BAILY. Step: 30000000. Time Elapsed: 21487.247 s. Mean Reward: 3.234. Std of Reward: 3.332. Training.
+2026-11-09 03:19:59     [p50] [INFO] BRENDAN. Step: 30000000. Time Elapsed: 21541.483 s. Mean Reward: 4.574. Std of Reward: 1.722. Training.
+2026-11-09 03:19:59     [p50] [INFO] DECOY. Step: 5050000. Time Elapsed: 3617.488 s. Mean Reward: -0.596. Std of Reward: 1.793. Training.
+2026-11-09 03:19:59     [p50] [INFO] DUPEE. Step: 5100000. Time Elapsed: 3619.245 s. Mean Reward: 0.183. Std of Reward: 2.455. Training.
+2026-11-09 03:19:59     [p50] [INFO] JH. Step: 5050000. Time Elapsed: 3599.490 s. Mean Reward: 5.178. Std of Reward: 7.832. Training.
+2026-11-09 03:30:13  [session] 137.7M steps trained so far; [session] 122.2M steps trained so far; round p50 : DECOY,DUPEE,JH (from scratch)
+2026-11-09 04:20:07     [p50] [INFO] ALAN. Step: 30000000. Time Elapsed: 21418.407 s. Mean Reward: 3.066. Std of Reward: 2.834. Training.
+2026-11-09 04:20:07     [p50] [INFO] BAILY. Step: 30000000. Time Elapsed: 21487.247 s. Mean Reward: 3.234. Std of Reward: 3.332. Training.
+2026-11-09 04:20:07     [p50] [INFO] BRENDAN. Step: 30000000. Time Elapsed: 21541.483 s. Mean Reward: 4.574. Std of Reward: 1.722. Training.
+2026-11-09 04:20:07     [p50] [INFO] DECOY. Step: 10050000. Time Elapsed: 7228.483 s. Mean Reward: 0.274. Std of Reward: 2.408. Training.
+2026-11-09 04:20:07     [p50] [INFO] DUPEE. Step: 10150000. Time Elapsed: 7210.618 s. Mean Reward: 1.686. Std of Reward: 2.820. Training.
+2026-11-09 04:20:07     [p50] [INFO] JH. Step: 10050000. Time Elapsed: 7195.237 s. Mean Reward: 8.812. Std of Reward: 7.983. Training.
+2026-11-09 04:31:46  [session] 153.2M steps trained so far; [session] 137.7M steps trained so far; [session] 122.2M steps trained so far; round p50 : DECOY,DUPEE,JH (from scratch)
+2026-11-09 05:20:15     [p50] [INFO] ALAN. Step: 30000000. Time Elapsed: 21418.407 s. Mean Reward: 3.066. Std of Reward: 2.834. Training.
+2026-11-09 05:20:15     [p50] [INFO] BAILY. Step: 30000000. Time Elapsed: 21487.247 s. Mean Reward: 3.234. Std of Reward: 3.332. Training.
+2026-11-09 05:20:15     [p50] [INFO] BRENDAN. Step: 30000000. Time Elapsed: 21541.483 s. Mean Reward: 4.574. Std of Reward: 1.722. Training.
+2026-11-09 05:20:15     [p50] [INFO] DECOY. Step: 15000000. Time Elapsed: 10806.396 s. Mean Reward: 0.366. Std of Reward: 2.938. Training.
+2026-11-09 05:20:15     [p50] [INFO] DUPEE. Step: 15200000. Time Elapsed: 10810.704 s. Mean Reward: 2.874. Std of Reward: 2.721. Training.
+2026-11-09 05:20:15     [p50] [INFO] JH. Step: 15050000. Time Elapsed: 10814.546 s. Mean Reward: 10.497. Std of Reward: 7.200. Training.
+2026-11-09 05:24:38  [session] 166.4M steps trained so far; [session] 153.2M steps trained so far; [session] 137.7M steps trained so far; [session] 122.2M steps trained so far; round p50 : DECOY,DUPEE,JH (from scratch)
+2026-11-09 05:26:27  [session] 166.8M steps trained so far; [session] 166.4M steps trained so far; [session] 153.2M steps trained so far; [session] 137.7M steps trained so far; [session] 122.2M steps trained so far; round p50 : DECOY,DUPEE,JH (from scratch)
+2026-11-09 05:28:14  [session] window closed; final report C:\Users\punko\Downloads\_CODEMATT\PoSoccer\docs\20261108\roster-report.html

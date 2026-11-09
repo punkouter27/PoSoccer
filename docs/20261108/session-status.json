@@ -1,0 +1,52 @@
+[
+  {
+    "time": "2026-11-08T21:24:39.2500419-05:00",
+    "totalSteps": 47450000,
+    "stage": "round p50 : ALAN,BAILY,BRENDAN (from scratch)"
+  },
+  {
+    "time": "2026-11-08T22:25:11.9982284-05:00",
+    "totalSteps": 62600000,
+    "stage": "round p50 : ALAN,BAILY,BRENDAN (from scratch)"
+  },
+  {
+    "time": "2026-11-08T23:25:53.4585354-05:00",
+    "totalSteps": 77850000,
+    "stage": "round p50 : ALAN,BAILY,BRENDAN (from scratch)"
+  },
+  {
+    "time": "2026-11-09T00:26:44.6108313-05:00",
+    "totalSteps": 92550000,
+    "stage": "round p51bot : ALAN,BAILY,BRENDAN (from own p50)"
+  },
+  {
+    "time": "2026-11-09T01:27:43.8955042-05:00",
+    "totalSteps": 107850000,
+    "stage": "round p51bot : ALAN,BAILY,BRENDAN (from own p50)"
+  },
+  {
+    "time": "2026-11-09T02:28:54.273599-05:00",
+    "totalSteps": 122250000,
+    "stage": "round p50 : DECOY,DUPEE,JH (from scratch)"
+  },
+  {
+    "time": "2026-11-09T03:30:13.0832755-05:00",
+    "totalSteps": 137700000,
+    "stage": "round p50 : DECOY,DUPEE,JH (from scratch)"
+  },
+  {
+    "time": "2026-11-09T04:31:46.5212242-05:00",
+    "totalSteps": 153200000,
+    "stage": "round p50 : DECOY,DUPEE,JH (from scratch)"
+  },
+  {
+    "time": "2026-11-09T05:24:38.8095445-05:00",
+    "totalSteps": 166400000,
+    "stage": "round p50 : DECOY,DUPEE,JH (from scratch)"
+  },
+  {
+    "time": "2026-11-09T05:26:27.3088885-05:00",
+    "totalSteps": 166750000,
+    "stage": "round p50 : DECOY,DUPEE,JH (from scratch)"
+  }
+]
