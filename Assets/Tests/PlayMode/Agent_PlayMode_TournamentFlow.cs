@@ -9,7 +9,7 @@ namespace PoSoccer.Tests
 {
     /// <summary>
     /// Tournament mode end to end (2026-11-08), through the real buttons:
-    /// menu -> TOURNAMENT -> NEW -> PLAY NEXT -> match (intro card, faces on the
+    /// menu -> 1v1 CUP -> BRACKET -> NEW -> PLAY NEXT -> match (intro card, faces on the
     /// pitch) -> full time (named winner, result card) -> BRACKET -> ... until a
     /// champion is crowned, with every played match in the Elo book.
     ///
@@ -26,6 +26,8 @@ namespace PoSoccer.Tests
             Agent_TimeFreeze.ReleaseAll();
             Agent_MatchSetup.Clear();
             Agent_Tournament.ResetForTests();
+            // The cup test leaves the menu on 1v1 CUP; later tests click PLAY expecting a match.
+            Agent_MainMenu.ForgetLineup();
             yield return null;
         }
 
@@ -78,9 +80,11 @@ namespace PoSoccer.Tests
             SceneManager.LoadScene("SCN_Menu");
             yield return Frames(4);
 
-            Click(ButtonIn(MenuRoot(), "TOURNAMENT"), "menu TOURNAMENT");
+            Click(MenuRoot().Q<Button>("mode-cup1"), "menu 1v1 CUP");
             yield return Frames(2);
-            Assert.IsNotNull(MenuRoot().Q(Agent_BracketView.OVERLAY_NAME), "TOURNAMENT did not open the bracket");
+            Click(MenuRoot().Q<Button>("play"), "menu BRACKET");
+            yield return Frames(2);
+            Assert.IsNotNull(MenuRoot().Q(Agent_BracketView.OVERLAY_NAME), "1v1 CUP -> BRACKET did not open the bracket");
             Click(ButtonIn(MenuRoot(), Agent_BracketView.NEW_TEXT), "bracket NEW");
             yield return Frames(2);
 
@@ -141,7 +145,7 @@ namespace PoSoccer.Tests
 
             Assert.AreEqual(expectedMatches, played, "a knockout of N players is N - 1 matches");
             Assert.IsFalse(string.IsNullOrEmpty(Agent_Tournament.Bracket.Champion), "no champion");
-            StringAssert.Contains("WINS TOURNAMENT", Agent_Tournament.LastResult);
+            StringAssert.Contains("WINS 1v1 CUP", Agent_Tournament.LastResult);
             Assert.IsFalse(ButtonIn(MenuRoot(), Agent_BracketView.PLAY_TEXT).enabledInHierarchy,
                 "PLAY NEXT should be disabled once there is a champion");
         }

@@ -102,6 +102,107 @@ namespace PoSoccer.Tests
             CollectionAssert.AreEqual(bracket.winners, copy.winners);
         }
 
+        [Test]
+        public void FourSlotBracket_IsSemisThenFinal()
+        {
+            var bracket = Agent_Bracket.Seeded(new List<string> { "T1", "T2", "T3", "T4" }, 4);
+            Assert.AreEqual(2, bracket.Rounds);
+            Assert.AreEqual("SEMI-FINALS", bracket.RoundName(0));
+            Assert.AreEqual("FINAL", bracket.RoundName(1));
+
+            int played = 0;
+            while (bracket.TryNextMatch(out int round, out int match))
+            {
+                bracket.Record(round, match, bracket.Entrant(round, match, 0), "1-0");
+                played++;
+            }
+            Assert.AreEqual(3, played, "four teams play two semis and a final");
+            Assert.AreEqual("T1", bracket.Champion);
+
+            var three = Agent_Bracket.Seeded(new List<string> { "T1", "T2", "T3" }, 4);
+            Assert.IsTrue(three.TryNextMatch(out int firstRound, out _));
+            Assert.AreEqual(0, firstRound, "seeds 2 and 3 meet in a semi; seed 1 has the bye");
+        }
+
+        [Test]
+        public void SixteenSlotNames_MatchTheOldFixedBracket()
+        {
+            var bracket = Agent_Bracket.Seeded(new List<string> { "A", "B" });
+            Assert.AreEqual(16, bracket.Size);
+            Assert.AreEqual("ROUND OF 16", bracket.RoundName(0));
+            Assert.AreEqual("QUARTER-FINALS", bracket.RoundName(1));
+            Assert.AreEqual("FINAL", bracket.RoundName(3));
+        }
+
+        [Test]
+        public void OldSave_WithoutASize_ReadsAsSixteen()
+        {
+            var bracket = Agent_Bracket.Seeded(new List<string> { "A", "B", "C" });
+            string json = JsonUtility.ToJson(bracket).Replace("\"size\":16,", "");
+            var copy = JsonUtility.FromJson<Agent_Bracket>(json);
+            Assert.AreEqual(16, copy.Size);
+            Assert.IsTrue(copy.IsWellFormed);
+        }
+
+        [Test]
+        public void SnakeDraft_BalancesTeams_AndNamesThemAfterTheCaptain()
+        {
+            var names = new List<string>();
+            for (int seed = 1; seed <= 16; seed++) names.Add("P" + seed);
+            var teams = Agent_Tournament.DraftTeams(names);
+
+            Assert.AreEqual(4, teams.Count);
+            CollectionAssert.AreEqual(new[] { "P1", "P8", "P9", "P16" }, teams[0].members);
+            CollectionAssert.AreEqual(new[] { "P4", "P5", "P12", "P13" }, teams[3].members);
+            Assert.AreEqual("TEAM P1", teams[0].name);
+
+            // Sum of seeds is equal for every team: 34.
+            foreach (var team in teams)
+            {
+                int total = 0;
+                foreach (string member in team.members) total += int.Parse(member.Substring(1));
+                Assert.AreEqual(34, total, team.name + " is not balanced");
+            }
+        }
+
+        [Test]
+        public void Draft_UsesOnlyFullTeams()
+        {
+            var nine = new List<string> { "A", "B", "C", "D", "E", "F", "G", "H", "I" };
+            var teams = Agent_Tournament.DraftTeams(nine);
+            Assert.AreEqual(2, teams.Count, "nine players make two teams of four");
+            Assert.AreEqual(Agent_Tournament.TEAM_SIZE, teams[1].members.Length);
+            Assert.AreEqual(0, Agent_Tournament.DraftTeams(new List<string> { "A", "B", "C" }).Count);
+            Assert.AreEqual(Agent_Tournament.MAX_TEAMS, Agent_Tournament.TeamCount(20));
+        }
+
+        [Test]
+        public void TeamCup_StartsOnlyWithTwoTeams_AndKeepsItsOwnBracket()
+        {
+            Agent_Tournament.ResetForTests();
+            try
+            {
+                Agent_Tournament.Mode = Agent_Tournament.Cup.Team;
+                Assert.IsFalse(Agent_Tournament.StartNew(new[] { "A", "B", "C", "D", "E", "F" }), "six players are one team");
+                Assert.IsNull(Agent_Tournament.Bracket);
+
+                var eight = new[] { "A", "B", "C", "D", "E", "F", "G", "H" };
+                Assert.IsTrue(Agent_Tournament.StartNew(eight));
+                Assert.AreEqual(4, Agent_Tournament.Bracket.Size);
+                Assert.AreEqual(2, Agent_Tournament.Bracket.EntrantCount);
+                Assert.IsTrue(Agent_Tournament.BeginNextMatch(out string blue, out string red));
+                Assert.AreEqual(4, Agent_Tournament.MembersOf(blue).Length);
+                Assert.AreEqual(4, Agent_Tournament.MembersOf(red).Length);
+
+                Agent_Tournament.Mode = Agent_Tournament.Cup.Solo;
+                Assert.IsNull(Agent_Tournament.Bracket, "the 1v1 cup has its own (empty) bracket");
+            }
+            finally
+            {
+                Agent_Tournament.ResetForTests();
+            }
+        }
+
         // -- Elo ---------------------------------------------------------------
 
         [Test]

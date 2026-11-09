@@ -252,14 +252,16 @@ from `GroundForce`. Both are code-installed, match only.
 (`docs/players.md`; `Agent_Faces` draws the face with the chin toward the front), each
 with a voice set of HAPPY / ANGRY / HURT / INSULT x 5 lines x 5 levels (`Agent_Voices`).
 WAVs live in `Resources/Voices`; any missing sound is synthesised by `Agent_VoiceSynth`
-(`docs/voices.md`). The menu's TOURNAMENT is a 16-slot bracket of trained characters
-plus BYEs, auto-playable to a champion, with Elo for every 1 v 1 (`docs/tournament.md`).
+(`docs/voices.md`). The menu (2026-11-09) is a 4 x 4 grid of the 16 faces (untrained ones
+greyed, IN TRAINING) and four modes: 1v1, 4v4, 1v1 CUP (16-slot bracket plus BYEs) and
+4v4 CUP (four Elo-drafted teams of four, 4-slot bracket, needs 8 trained). Cups auto-play
+to a champion; Elo counts 1v1 matches only (`docs/tournament.md`).
 `Agent_MatchIntro` shows the versus card at kickoff. Elo and bracket files are never
 written under batchmode.
 
 **Community brains**: `Agent_BrainHub` loads `.sentis` files from
-`persistentDataPath/brains` into the menu roster and can fetch them from a Hugging Face
-repo. The network client is compiled out of Android builds because the privacy policy
+`persistentDataPath/brains` and can fetch them from a Hugging Face repo. Its menu screen
+(HUB) was removed on 2026-11-09; the class and its tests remain. The network client is compiled out of Android builds because the privacy policy
 promises no network access. See `docs/brain-hub.md`.
 
 **Diagnostics**: `Agent_ErrorSink` records every error with scene and clock;

@@ -1,6 +1,14 @@
 # Tournament mode and Elo
 
-**TOURNAMENT** on the main menu opens a 16-slot knockout bracket with five columns:
+**2026-11-09:** the menu has two cups. Pick **1v1 CUP** or **4v4 CUP** in the mode bar, then
+**BRACKET**. The 1v1 cup is the 16-slot bracket described below; untrained characters are BYEs.
+The **4v4 cup** drafts the trained characters into up to four teams of four with a snake
+draft by Elo (`Agent_Tournament.DraftTeams`; players who don't make a full team sit out),
+names each team after its first pick, and plays semi-finals and a final in a 4-slot bracket
+saved to `persistentDataPath/tournament-4v4.json`. It needs 8 trained characters. Team
+matches don't change Elo, which stays a 1v1 rating.
+
+The 1v1 cup opens a 16-slot knockout bracket with five columns:
 round of 16, quarter-finals, semi-finals, final and champion.
 
 - **Entrants.** The bracket is filled with every character that has a usable brain.

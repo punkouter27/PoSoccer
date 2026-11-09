@@ -169,13 +169,10 @@ namespace PoSoccer.Tests
 
             string[] required =
             {
-                "safe", "header", "footer",
-                "presets", "preset-1v1", "preset-2v2", "preset-5v5", "preset-clear",
-                "band-blue", "name-blue", "minus-blue", "count-blue", "plus-blue",
-                "clear-blue", "roster-blue", "strip-blue",
-                "band-red", "name-red", "minus-red", "count-red", "plus-red",
-                "clear-red", "roster-red", "strip-red",
-                "pitch-note", "play", "options", "settings", "back-hint",
+                "safe", "header", "footer", "title", "brain-note",
+                "modes", "mode-1v1", "mode-4v4", "mode-cup1", "mode-cup4",
+                "lineup", "seats-blue", "seats-red", "cup-info", "grid",
+                "pitch-note", "play", "random", "options", "back-hint",
             };
 
             foreach (string name in required)
@@ -216,10 +213,9 @@ namespace PoSoccer.Tests
             // Added from C# in Agent_MainMenu, so no template scan can find them.
             string[] fromCode =
             {
-                "menu__pick", "menu__pick--blue", "menu__pick--red",
-                "slot", "slot--compact", "slot--blue", "slot--red",
-                "slot__name", "slot__driver", "slot__steps",
-                "menu__empty",
+                "menu__tile", "menu__tile-face", "menu__tile-name", "menu__tile-tag",
+                "menu__tile--blue", "menu__tile--red", "menu__tile--locked",
+                "menu__seat", "menu__seat--blue", "menu__seat--red", "menu__seat--empty",
             };
 
             foreach (string name in fromCode)

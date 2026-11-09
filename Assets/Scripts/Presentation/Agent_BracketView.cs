@@ -34,6 +34,7 @@ namespace PoSoccer
         const float AUTO_START_SECONDS = 3f;
         const int SLOT_HEIGHT = 66;
         const int FACE = 52;
+        const int TEAM_FACE = 44;
 
         static readonly Color Gold = new(1f, 0.84f, 0.2f);
         static readonly Color SlotBg = new(1f, 1f, 1f, 0.08f);
@@ -75,7 +76,7 @@ namespace PoSoccer
             _overlay.style.justifyContent = Justify.FlexStart;
             Agent_UIStyle.BindSafeArea(_overlay, Agent_Chrome.BAR_HEIGHT, Agent_Chrome.BAR_HEIGHT);
 
-            var title = new Label("TOURNAMENT") { name = "bracket-title" };
+            var title = new Label(Agent_Tournament.CupName) { name = "bracket-title" };
             title.style.fontSize = Agent_UIStyle.FontL;
             title.style.unityFontStyleAndWeight = FontStyle.Bold;
             title.style.color = Agent_UIStyle.TextPrimary;
@@ -197,32 +198,43 @@ namespace PoSoccer
                 _eloPanel = null;
                 return;
             }
-            _eloPanel = new VisualElement { name = "bracket-elo" };
-            _eloPanel.style.position = Position.Absolute;
-            _eloPanel.style.left = Length.Percent(10);
-            _eloPanel.style.right = Length.Percent(10);
-            _eloPanel.style.top = Length.Percent(20);
-            _eloPanel.style.backgroundColor = new Color(0.05f, 0.07f, 0.06f, 0.97f);
-            Agent_UIStyle.Round(_eloPanel, Agent_UIStyle.RadiusM);
-            Agent_UIStyle.PadAll(_eloPanel, Agent_UIStyle.Pad);
-            _eloPanel.RegisterCallback<PointerDownEvent>(_ => ToggleElo());
+            _eloPanel = EloPanel(ToggleElo);
+            _overlay.Add(_eloPanel);
+        }
 
-            var heading = new Label("ELO RATINGS  (tap to close)");
+        /// <summary>
+        /// The rating table (1v1 Elo, highest first) as a floating panel that calls
+        /// <paramref name="onTap"/> when tapped. Shared by the bracket screen and the
+        /// main menu's ELO button.
+        /// </summary>
+        public static VisualElement EloPanel(System.Action onTap)
+        {
+            var panel = new VisualElement { name = "elo-panel" };
+            panel.style.position = Position.Absolute;
+            panel.style.left = Length.Percent(10);
+            panel.style.right = Length.Percent(10);
+            panel.style.top = Length.Percent(20);
+            panel.style.backgroundColor = new Color(0.05f, 0.07f, 0.06f, 0.97f);
+            Agent_UIStyle.Round(panel, Agent_UIStyle.RadiusM);
+            Agent_UIStyle.PadAll(panel, Agent_UIStyle.Pad);
+            panel.RegisterCallback<PointerDownEvent>(_ => onTap());
+
+            var heading = new Label("ELO RATINGS, 1v1  (tap to close)");
             heading.style.fontSize = Agent_UIStyle.FontS;
             heading.style.unityFontStyleAndWeight = FontStyle.Bold;
             heading.style.color = Agent_UIStyle.TextPrimary;
             heading.style.marginBottom = Agent_UIStyle.Space3;
-            _eloPanel.Add(heading);
+            panel.Add(heading);
 
             var table = Agent_Elo.Table();
-            if (table.Count == 0) _eloPanel.Add(Row("No matches recorded yet.", Agent_UIStyle.TextMuted));
+            if (table.Count == 0) panel.Add(Row("No matches recorded yet.", Agent_UIStyle.TextMuted));
             for (int rank = 0; rank < table.Count && rank < 16; rank++)
             {
                 var entry = table[rank];
-                _eloPanel.Add(Row($"{rank + 1,2}. {entry.name,-10} {entry.rating,5:0}   {entry.wins}W {entry.losses}L {entry.draws}D",
+                panel.Add(Row($"{rank + 1,2}. {entry.name,-10} {entry.rating,5:0}   {entry.wins}W {entry.losses}L {entry.draws}D",
                     Agent_UIStyle.TextPrimary));
             }
-            _overlay.Add(_eloPanel);
+            return panel;
         }
 
         static Label Row(string text, Color color)
@@ -241,14 +253,14 @@ namespace PoSoccer
             _columns.Clear();
             if (bracket == null) return;
 
-            for (int round = 0; round < Agent_Bracket.ROUNDS; round++)
+            for (int round = 0; round < bracket.Rounds; round++)
             {
                 _columns.Add(RoundColumn(bracket, round));
             }
             _columns.Add(ChampionColumn(bracket));
 
             _status.text = string.IsNullOrEmpty(Agent_Tournament.LastResult)
-                ? $"TOURNAMENT #{Agent_Tournament.Number}  ·  {bracket.EntrantCount} players, {Agent_Bracket.SIZE - bracket.EntrantCount} byes"
+                ? $"{Agent_Tournament.CupName} #{Agent_Tournament.Number}  ·  {bracket.EntrantCount} {(Agent_Tournament.IsTeamCup ? "teams" : "players")}, {bracket.Size - bracket.EntrantCount} byes"
                 : Agent_Tournament.LastResult;
 
             bool hasNext = bracket.TryNextMatch(out int nextRound, out int nextMatch);
@@ -262,14 +274,14 @@ namespace PoSoccer
         static string NextLine(int round, int match)
         {
             var bracket = Agent_Tournament.Bracket;
-            return $"NEXT: {Agent_Bracket.RoundName(round)}  ·  " +
+            return $"NEXT: {bracket.RoundName(round)}  ·  " +
                    $"{bracket.Entrant(round, match, 0)} vs {bracket.Entrant(round, match, 1)}";
         }
 
         VisualElement RoundColumn(Agent_Bracket bracket, int round)
         {
-            var column = Column(Agent_Bracket.RoundName(round).Replace("-FINALS", "").Replace("ROUND OF ", "R"));
-            for (int match = 0; match < Agent_Bracket.MatchesIn(round); match++)
+            var column = Column(bracket.RoundName(round).Replace("-FINALS", "").Replace("ROUND OF ", "R"));
+            for (int match = 0; match < bracket.MatchesIn(round); match++)
             {
                 var box = new VisualElement();
                 box.style.flexGrow = 1;
@@ -285,7 +297,7 @@ namespace PoSoccer
                     bool lost = decided && name != winner;
                     box.Add(Slot(name, known, lost));
                 }
-                if (decided && bracket.played[Agent_Bracket.Offset(round) + match])
+                if (decided && bracket.played[bracket.Offset(round) + match])
                 {
                     var score = new Label(bracket.ScoreOf(round, match));
                     score.style.fontSize = 24;
@@ -338,17 +350,28 @@ namespace PoSoccer
             slot.style.overflow = Overflow.Hidden;
 
             bool bye = known && string.IsNullOrEmpty(name);
-            var profile = known && !bye ? _lookup(name) : null;
+            string[] members = known && !bye ? Agent_Tournament.MembersOf(name) : null;
 
-            if (profile != null)
+            if (members != null)
             {
-                var face = Agent_MatchIntro.Face(profile, profile.playerColor, FACE);
-                face.style.marginBottom = 0;
-                face.style.marginRight = 4;
-                face.style.flexShrink = 0;
-                face.style.borderBottomWidth = face.style.borderTopWidth =
-                    face.style.borderLeftWidth = face.style.borderRightWidth = 2;
-                slot.Add(face);
+                // A team: its four faces, small, captain first.
+                slot.style.height = SLOT_HEIGHT * 2;
+                slot.style.flexDirection = FlexDirection.Column;
+                slot.style.alignItems = Align.FlexStart;
+                var faces = new VisualElement();
+                faces.style.flexDirection = FlexDirection.Row;
+                faces.style.flexWrap = Wrap.Wrap;
+                for (int memberIndex = 0; memberIndex < members.Length; memberIndex++)
+                {
+                    var member = _lookup(members[memberIndex]);
+                    if (member != null) faces.Add(SmallFace(member, TEAM_FACE));
+                }
+                slot.Add(faces);
+            }
+            else
+            {
+                var profile = known && !bye ? _lookup(name) : null;
+                if (profile != null) slot.Add(SmallFace(profile, FACE));
             }
 
             var text = new VisualElement();
@@ -358,7 +381,7 @@ namespace PoSoccer
             label.style.unityFontStyleAndWeight = FontStyle.Bold;
             label.style.color = !known || bye ? ByeText : champion ? Gold : Agent_UIStyle.TextPrimary;
             text.Add(label);
-            if (known && !bye)
+            if (known && !bye && members == null)
             {
                 var elo = new Label($"{Agent_Elo.RatingOf(name):0}");
                 elo.style.fontSize = 20;
@@ -368,6 +391,17 @@ namespace PoSoccer
             slot.Add(text);
             if (lost) slot.style.opacity = 0.4f;
             return slot;
+        }
+
+        static VisualElement SmallFace(Reward_Settings profile, int size)
+        {
+            var face = Agent_MatchIntro.Face(profile, profile.playerColor, size);
+            face.style.marginBottom = 0;
+            face.style.marginRight = 4;
+            face.style.flexShrink = 0;
+            face.style.borderBottomWidth = face.style.borderTopWidth =
+                face.style.borderLeftWidth = face.style.borderRightWidth = 2;
+            return face;
         }
 
         static string DisplayName(string name) => string.IsNullOrEmpty(name) ? "nobody" : name;

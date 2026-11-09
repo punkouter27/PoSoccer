@@ -1019,107 +1019,232 @@
  * redesign the screen underneath the player.
  */
 
-.menu__presets {
-    flex-direction: row;
-    justify-content: center;
-    margin-bottom: var(--space-5);
+.menu__title {
+    font-size: var(--font-xl);
 }
 
-.menu__preset {
+/* Mode bar: four equal segments, the selected one filled with the accent. */
+.menu__modes {
+    flex-direction: row;
+    justify-content: center;
+    width: 1000;
+    margin-top: var(--space-3);
+}
+
+.menu__mode {
+    flex-grow: 1;
+    flex-basis: 0;
     -unity-font-style: bold;
-    padding-left: 30;
-    padding-right: 30;
+    padding-left: 8;
+    padding-right: 8;
     margin-left: 5;
     margin-right: 5;
-    border-top-left-radius: var(--radius-s);
-    border-top-right-radius: var(--radius-s);
-    border-bottom-left-radius: var(--radius-s);
-    border-bottom-right-radius: var(--radius-s);
 }
 
-.menu__section {
-    align-items: center;
-    width: 1000;
+.menu__mode.is-on {
+    background-color: var(--color-accent);
 }
 
-.menu__band {
-    height: 8;
-    width: 340;
-    margin-bottom: var(--space-3);
-    border-top-left-radius: 4;
-    border-top-right-radius: 4;
-    border-bottom-left-radius: 4;
-    border-bottom-right-radius: 4;
-}
-
-/* The team colours come from the palette variables, so the colour-vision modes
-   reach the menu bands and team names without a line of C#. */
-.menu__band--blue { background-color: var(--color-team-blue); }
-.menu__band--red { background-color: var(--color-team-red); }
-
-.menu__team-header {
+/* Lineup row: Blue seats VS Red seats. */
+.menu__lineup {
     flex-direction: row;
     align-items: center;
     justify-content: center;
-    margin-bottom: var(--space-2);
+    width: 1000;
+    margin-top: var(--space-4);
 }
 
-.menu__team-name {
-    font-size: 52px;
+.menu__side {
+    flex-grow: 1;
+    flex-basis: 0;
+    align-items: center;
+}
+
+.menu__side-name {
+    font-size: var(--font-s);
     -unity-font-style: bold;
-    margin-right: 26;
+    margin-bottom: var(--space-2);
 }
 
 .menu__team-name--blue { color: var(--color-team-blue); }
 .menu__team-name--red { color: var(--color-team-red); }
 
-.menu__stepper {
+.menu__seats {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    /* Two seats a row: a 4v4 side is a 2 x 2 block, so both sides fit across. */
+    max-width: 264;
+}
+
+.menu__versus {
+    font-size: var(--font-m);
+    -unity-font-style: bold;
+    color: var(--color-text-muted);
+    width: 80;
+    -unity-text-align: middle-center;
+}
+
+/* One squad place: a face (or an empty dashed box), tap to clear it. */
+.menu__seat {
     width: var(--touch-min);
     height: var(--touch-min);
-    font-size: 54px;
-    -unity-font-style: bold;
+    min-height: var(--touch-min);
+    margin-left: 4;
+    margin-right: 4;
+    margin-bottom: 8;
     padding-left: 0;
     padding-right: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--color-panel);
+    border-top-width: 4;
+    border-bottom-width: 4;
+    border-left-width: 4;
+    border-right-width: 4;
     border-top-left-radius: var(--radius-m);
     border-top-right-radius: var(--radius-m);
     border-bottom-left-radius: var(--radius-m);
     border-bottom-right-radius: var(--radius-m);
+    -unity-background-scale-mode: scale-and-crop;
+    font-size: var(--font-m);
+    color: var(--color-text-muted);
 }
 
-.menu__count {
-    font-size: 48px;
-    -unity-font-style: bold;
-    color: var(--color-text);
-    width: 120;
+.menu__seat--blue {
+    border-top-color: var(--color-team-blue);
+    border-bottom-color: var(--color-team-blue);
+    border-left-color: var(--color-team-blue);
+    border-right-color: var(--color-team-blue);
+}
+
+.menu__seat--red {
+    border-top-color: var(--color-team-red);
+    border-bottom-color: var(--color-team-red);
+    border-left-color: var(--color-team-red);
+    border-right-color: var(--color-team-red);
+}
+
+.menu__seat--empty {
+    opacity: 0.45;
+}
+
+.menu__cup-info {
+    width: 1000;
+    margin-top: var(--space-4);
+    white-space: normal;
     -unity-text-align: middle-center;
 }
 
-.menu__roster {
+/* The 4 x 4 character grid. */
+.menu__grid {
     flex-direction: row;
     flex-wrap: wrap;
     justify-content: center;
     width: 1000;
-    margin-bottom: var(--space-2);
+    margin-top: var(--space-4);
 }
 
-.menu__strip {
-    flex-direction: row;
-    flex-wrap: wrap;
-    justify-content: center;
-    width: 1000;
-    min-height: 190;
+.menu__tile {
+    width: 236;
+    height: 212;
+    margin-left: 7;
+    margin-right: 7;
+    margin-bottom: 12;
+    padding-left: 0;
+    padding-right: 0;
+    padding-top: 8;
+    padding-bottom: 6;
+    align-items: center;
+    justify-content: flex-start;
+    border-top-width: 5;
+    border-bottom-width: 5;
+    border-left-width: 5;
+    border-right-width: 5;
+    border-top-color: rgba(255, 255, 255, 0);
+    border-bottom-color: rgba(255, 255, 255, 0);
+    border-left-color: rgba(255, 255, 255, 0);
+    border-right-color: rgba(255, 255, 255, 0);
+}
+
+.menu__tile-face {
+    width: 128;
+    height: 128;
+    border-top-left-radius: var(--radius-m);
+    border-top-right-radius: var(--radius-m);
+    border-bottom-left-radius: var(--radius-m);
+    border-bottom-right-radius: var(--radius-m);
+    -unity-background-scale-mode: scale-and-crop;
+    -unity-text-align: middle-center;
+    -unity-font-style: bold;
+    font-size: var(--font-l);
+    color: rgb(0, 0, 0);
+}
+
+.menu__tile-name {
+    font-size: var(--font-xs);
+    -unity-font-style: bold;
+    color: var(--color-text);
+    -unity-text-align: middle-center;
+    margin-top: 4;
+}
+
+.menu__tile-tag {
+    font-size: 24px;
+    color: var(--color-text-muted);
+    -unity-text-align: middle-center;
+}
+
+.menu__tile--blue {
+    border-top-color: var(--color-team-blue);
+    border-bottom-color: var(--color-team-blue);
+    border-left-color: var(--color-team-blue);
+    border-right-color: var(--color-team-blue);
+}
+
+.menu__tile--red {
+    border-top-color: var(--color-team-red);
+    border-bottom-color: var(--color-team-red);
+    border-left-color: var(--color-team-red);
+    border-right-color: var(--color-team-red);
+}
+
+/* Untrained: visible but greyed and not pickable. :disabled already dims it. */
+.menu__tile--locked .menu__tile-face {
+    opacity: 0.45;
+}
+
+.menu__tile--locked .menu__tile-tag {
+    color: var(--color-gold);
 }
 
 .menu__note {
-    margin-bottom: var(--space-4);
+    margin-top: var(--space-2);
+    margin-bottom: var(--space-3);
+}
+
+.menu__play-row {
+    width: 1000;
+}
+
+.menu__play {
+    flex-grow: 2;
+    flex-basis: 0;
+    padding-left: 20;
+    padding-right: 20;
+}
+
+.menu__random {
+    flex-grow: 1;
+    flex-basis: 0;
+    margin-left: var(--space-3);
+    -unity-font-style: bold;
 }
 
 .menu__options {
     margin-top: var(--space-4);
-}
-
-.menu__settings {
-    margin-top: var(--space-3);
 }
 
 .menu__hint {
@@ -1131,120 +1256,6 @@
 
 .menu__hint.is-shown {
     opacity: 1;
-}
-
-.menu__empty {
-    font-size: var(--font-xs);
-    color: var(--color-text-muted);
-    -unity-text-align: middle-center;
-    margin-top: 34;
-}
-
-/* ------------------------------------------------------------ squad slot - */
-
-/*
- * One filled squad position. Built in C# because the count is data, styled here
- * because the look is not. `.slot--compact` is the >5-a-side variant: the card
- * narrows and the step count is dropped rather than every line shrinking below
- * the 12sp legibility floor the type scale documents.
- */
-.slot {
-    width: 250;
-    height: 174;
-    margin-left: 5;
-    margin-right: 5;
-    margin-bottom: var(--space-2);
-    padding-top: 4;
-    padding-bottom: 4;
-    padding-left: 2;
-    padding-right: 2;
-    align-items: center;
-    justify-content: center;
-    border-top-width: 3;
-    border-bottom-width: 3;
-    border-left-width: 3;
-    border-right-width: 3;
-}
-
-.slot--compact {
-    width: 182;
-    height: 150;
-}
-
-.slot--blue {
-    border-top-color: var(--color-team-blue);
-    border-bottom-color: var(--color-team-blue);
-    border-left-color: var(--color-team-blue);
-    border-right-color: var(--color-team-blue);
-}
-
-.slot--red {
-    border-top-color: var(--color-team-red);
-    border-bottom-color: var(--color-team-red);
-    border-left-color: var(--color-team-red);
-    border-right-color: var(--color-team-red);
-}
-
-/* Black on the profile colour, which is always a light tint - the roster is
-   authored that way and Agent_EditMode_Palette pins it. */
-.slot__name {
-    font-size: var(--font-m);
-    -unity-font-style: bold;
-    color: rgb(0, 0, 0);
-    -unity-text-align: middle-center;
-}
-
-.slot__driver {
-    font-size: var(--font-xs);
-    color: rgb(0, 0, 0);
-    opacity: 0.8;
-    -unity-text-align: middle-center;
-}
-
-.slot__steps {
-    font-size: var(--font-xs);
-    -unity-font-style: bold;
-    color: rgb(0, 0, 0);
-    opacity: 0.85;
-    -unity-text-align: middle-center;
-}
-
-.slot--compact .slot__name { font-size: var(--font-xs); }
-.slot--compact .slot__driver { font-size: 30px; }
-
-/* --------------------------------------------------------- roster button - */
-
-.menu__pick {
-    height: 78;
-    font-size: var(--font-s);
-    color: rgb(0, 0, 0);
-    -unity-font-style: bold;
-    padding-left: 26;
-    padding-right: 26;
-    margin-left: var(--space-1);
-    margin-right: var(--space-1);
-    border-top-width: 2;
-    border-bottom-width: 2;
-    border-left-width: 2;
-    border-right-width: 2;
-    border-top-left-radius: var(--radius-m);
-    border-top-right-radius: var(--radius-m);
-    border-bottom-left-radius: var(--radius-m);
-    border-bottom-right-radius: var(--radius-m);
-}
-
-.menu__pick--blue {
-    border-top-color: var(--color-team-blue);
-    border-bottom-color: var(--color-team-blue);
-    border-left-color: var(--color-team-blue);
-    border-right-color: var(--color-team-blue);
-}
-
-.menu__pick--red {
-    border-top-color: var(--color-team-red);
-    border-bottom-color: var(--color-team-red);
-    border-left-color: var(--color-team-red);
-    border-right-color: var(--color-team-red);
 }
 
 /* ------------------------------------------------------- volume sliders - */

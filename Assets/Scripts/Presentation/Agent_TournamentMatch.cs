@@ -60,7 +60,11 @@ namespace PoSoccer
             _hud.AddEndPanelSection(BuildResultCard, Agent_HUD.EndTab.Summary);
             if (_tournament)
             {
-                _hud.Toast($"{Agent_Bracket.RoundName(Agent_Tournament.MatchRound)}", Agent_UIStyle.TextPrimary, 2.2f);
+                var bracket = Agent_Tournament.Bracket;
+                if (bracket != null)
+                {
+                    _hud.Toast(bracket.RoundName(Agent_Tournament.MatchRound), Agent_UIStyle.TextPrimary, 2.2f);
+                }
             }
         }
 
@@ -114,7 +118,7 @@ namespace PoSoccer
             Agent_UIStyle.Round(card, Agent_UIStyle.RadiusM);
             Agent_UIStyle.PadAll(card, Agent_UIStyle.Pad);
 
-            var heading = new Label(_tournament ? $"TOURNAMENT #{Agent_Tournament.Number}" : "ELO");
+            var heading = new Label(_tournament ? $"{Agent_Tournament.CupName} #{Agent_Tournament.Number}" : "ELO");
             heading.style.fontSize = Agent_UIStyle.FontS;
             heading.style.unityFontStyleAndWeight = FontStyle.Bold;
             heading.style.color = Agent_UIStyle.TextMuted;

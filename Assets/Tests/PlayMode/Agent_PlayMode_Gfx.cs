@@ -281,32 +281,34 @@ namespace PoSoccer.Tests
 
             var play = root.Q<Button>("play");
             Assert.IsNotNull(play, "No PLAY button.");
-            // The menu applies the 2v2 preset on load, so PLAY must be live
-            // immediately: both sides have players.
-            Assert.IsTrue(play.enabledSelf,
-                "PLAY is disabled on a freshly loaded menu, so the default 2v2 preset " +
-                "did not reach the squads.");
+            // A forgotten lineup opens on a filled 1v1 (2026-11-09 menu), so PLAY
+            // must be live immediately whenever two characters are trained.
+            int trained = 0;
+            var grid = root.Q<VisualElement>("grid");
+            Assert.IsNotNull(grid, "No character grid.");
+            Assert.AreEqual(menu.characters.Length, grid.childCount,
+                "The grid should hold one tile per character, trained or not.");
+            for (int tileIndex = 0; tileIndex < grid.childCount; tileIndex++)
+            {
+                if (grid[tileIndex].enabledSelf) trained++;
+            }
+            if (trained >= 2)
+            {
+                Assert.IsTrue(play.enabledSelf, "PLAY is disabled on a fresh menu with " + trained + " trained characters.");
+                Assert.AreEqual(1, root.Q<VisualElement>("seats-blue").childCount, "1v1 shows one blue seat.");
+            }
 
-            var strip = root.Q<VisualElement>("strip-blue");
-            Assert.IsNotNull(strip);
-            Assert.AreEqual(2, strip.childCount,
-                "The blue strip does not hold the 2v2 preset's two squad cards.");
+            // Four modes, exactly one on.
+            int on = 0;
+            foreach (string mode in new[] { "mode-1v1", "mode-4v4", "mode-cup1", "mode-cup4" })
+            {
+                var button = root.Q<Button>(mode);
+                Assert.IsNotNull(button, "No " + mode + " button.");
+                if (button.ClassListContains("is-on")) on++;
+            }
+            Assert.AreEqual(1, on, "Exactly one mode should be selected.");
 
-            var roster = root.Q<VisualElement>("roster-blue");
-            Assert.IsNotNull(roster);
-            Assert.Greater(roster.childCount, 0, "The roster picker was never filled.");
-
-            // Settings are ONE button on the first screen (2026-10-10). The
-            // three-button accessibility shelf moved into Agent_SettingsSheet, so
-            // its container is still in the template but empty and collapsed -
-            // and the way in must exist, or palette, type scale and haptics are
-            // unreachable from the menu.
-            var settings = root.Q<VisualElement>("settings");
-            Assert.IsNotNull(settings);
-            Assert.AreEqual(0, settings.childCount,
-                "The old accessibility shelf should be empty; its controls live in the settings sheet.");
-            Assert.AreEqual(DisplayStyle.None, settings.resolvedStyle.display,
-                "The emptied shelf still takes a row of a portrait column that has none to spare.");
+            // SETTINGS lives on the chrome, not the menu (2026-11-07).
             // The way in moved to Agent_Chrome's upper-right corner on 2026-11-07
             // (same element name): the same place on every screen.
             var chrome = Object.FindAnyObjectByType<Agent_Chrome>();

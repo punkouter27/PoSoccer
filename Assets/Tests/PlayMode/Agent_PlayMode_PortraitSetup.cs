@@ -35,6 +35,9 @@ namespace PoSoccer.Tests
                 Debug.LogWarning("Agent_PlayMode_PortraitSetup: could not set the Game view to portrait: " + exception.Message);
             }
 #endif
+            // Every flow test that clicks PLAY expects a match, not a cup bracket: start
+            // from the menu's default (a filled 1v1), not whatever was last played here.
+            Agent_MainMenu.ForgetLineup();
             Debug.Log($"Agent_PlayMode_PortraitSetup: Screen {Screen.width}x{Screen.height}");
         }
     }
