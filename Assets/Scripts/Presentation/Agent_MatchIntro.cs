@@ -105,6 +105,28 @@ namespace PoSoccer
             versus.style.marginRight = Agent_UIStyle.Pad;
             panel.Add(versus);
             panel.Add(Side(red, Agent_UIStyle.RedTeam));
+
+            if (!Agent_MatchSetup.HumanControl)
+            {
+                float blueElo = blue.Count > 0 ? Agent_Elo.RatingOf(blue[0].playerName) : Agent_Elo.START_RATING;
+                float redElo = red.Count > 0 ? Agent_Elo.RatingOf(red[0].playerName) : Agent_Elo.START_RATING;
+                var (blueOdds, redOdds) = Agent_Wager.ComputeOdds(blueElo, redElo);
+                if (!Agent_Wager.CurrentPick.HasValue)
+                {
+                    Agent_Wager.CurrentPick = blueElo >= redElo ? Agent_Soccer.Team.Blue : Agent_Soccer.Team.Red;
+                }
+                var oddsPill = new Label(
+                    $"ODDS  BLUE {blueOdds:0.00}x  ·  RED {redOdds:0.00}x   |   BANK {Agent_Wager.Coins} PoCoins  (STREAK {Agent_Wager.Streak})")
+                {
+                    name = "match-intro-odds",
+                    pickingMode = PickingMode.Ignore,
+                };
+                oddsPill.style.fontSize = Agent_UIStyle.FontXS;
+                oddsPill.style.color = Agent_UIStyle.TextMuted;
+                oddsPill.style.marginTop = 8;
+                card.Add(oddsPill);
+            }
+
             return card;
         }
 
@@ -136,7 +158,8 @@ namespace PoSoccer
                     skills.style.unityTextAlign = TextAnchor.MiddleCenter;
                     column.Add(skills);
 
-                    var elo = new Label($"ELO {Agent_Elo.RatingOf(profile.playerName):0}") { pickingMode = PickingMode.Ignore };
+                    bool isHuman = string.Equals(profile.playerName, Agent_HumanController.HUMAN_PLAYER_NAME, System.StringComparison.OrdinalIgnoreCase);
+                    var elo = new Label(isHuman ? "1P HUMAN" : $"ELO {Agent_Elo.RatingOf(profile.playerName):0}") { pickingMode = PickingMode.Ignore };
                     elo.style.fontSize = Agent_UIStyle.FontXS;
                     elo.style.color = Agent_UIStyle.TextPrimary;
                     column.Add(elo);

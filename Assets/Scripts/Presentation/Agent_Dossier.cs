@@ -79,6 +79,8 @@ namespace PoSoccer
 
             public float Advancement => Seconds > 0.01f ? AdvanceSum / Seconds : 0f;
 
+            public float MeanLateral => Seconds > 0.01f ? LateralSum / Seconds : 0f;
+
             public float AttackingShare => Seconds > 0.01f ? AttackingSeconds / Seconds : 0f;
 
             /// <summary>Standard deviation of normalised lateral position, 0 (a rail) .. ~0.58 (uniform).</summary>
@@ -98,6 +100,7 @@ namespace PoSoccer
         Agent_HUD _hud;
 
         readonly Dictionary<Agent_Soccer, Track> _tracks = new();
+        readonly Dictionary<(Agent_Soccer, Agent_Soccer), int> _passes = new();
         readonly List<Texture2D> _textures = new();
         Color32[] _pixels;
 
@@ -107,6 +110,26 @@ namespace PoSoccer
         /// <summary>Mean attack-relative position, -1 (own goal line) to +1 (target goal line).</summary>
         public float AdvancementOf(Agent_Soccer agent) =>
             agent != null && _tracks.TryGetValue(agent, out var track) ? track.Advancement : 0f;
+
+        /// <summary>Mean normalised pitch position (lateral in [-1, 1], attack-forward in [-1, 1]).</summary>
+        public Vector2 MeanPositionOf(Agent_Soccer agent) =>
+            agent != null && _tracks.TryGetValue(agent, out var track)
+                ? new Vector2(track.MeanLateral, track.Advancement)
+                : Vector2.zero;
+
+        /// <summary>Completed passes recorded between two teammates (undirected sum).</summary>
+        public int PassCountBetween(Agent_Soccer a, Agent_Soccer b)
+        {
+            if (a == null || b == null || a == b) return 0;
+            int total = 0;
+            if (_passes.TryGetValue((a, b), out int ab)) total += ab;
+            if (_passes.TryGetValue((b, a), out int ba)) total += ba;
+            return total;
+        }
+
+        /// <summary>Pure recorder for a possession touch, incrementing teammate pass counts when applicable.</summary>
+        public static bool ShouldCountPass(Agent_Soccer previous, Agent_Soccer current)
+            => previous != null && current != null && previous != current && previous.team == current.team;
 
         /// <summary>Fraction of the match spent in the attacking half.</summary>
         public float AttackingShareOf(Agent_Soccer agent) =>
@@ -131,11 +154,13 @@ namespace PoSoccer
             _rows = Mathf.Max(2, _rows);
             _pixels = new Color32[_columns * _rows];
 
+            _env.BallTouched += OnBallTouched;
             if (_hud != null) _hud.AddEndPanelSection(BuildDossierCard);
         }
 
         void OnDestroy()
         {
+            if (_env != null) _env.BallTouched -= OnBallTouched;
             if (_hud != null) _hud.RemoveEndPanelSection(BuildDossierCard);
             // The card's tiles are runtime textures with no asset behind them, so
             // nothing else will ever collect them.
@@ -237,12 +262,56 @@ namespace PoSoccer
             }
             if (drawn == 0) return null;
 
+            var passSummary = BuildPassNetworkSummary(roster);
+            if (passSummary != null) card.Add(passSummary);
+
             var caption = new Label("occupancy integrated at the physics rate  ·  " +
                                     "each map is drawn attacking upward  ·  measured, not modelled");
             caption.AddToClassList("card__tile-caption");
             card.Add(caption);
 
             return card;
+        }
+
+        void OnBallTouched(Agent_Soccer toucher)
+        {
+            if (_env == null) return;
+            var prev = _env.PreviousToucher;
+            if (!ShouldCountPass(prev, toucher)) return;
+            var key = (prev, toucher);
+            _passes.TryGetValue(key, out int count);
+            _passes[key] = count + 1;
+        }
+
+        VisualElement BuildPassNetworkSummary(List<Agent_Soccer> roster)
+        {
+            if (roster == null || roster.Count < 2) return null;
+            var lines = new List<string>();
+            for (int i = 0; i < roster.Count; i++)
+            {
+                for (int j = i + 1; j < roster.Count; j++)
+                {
+                    var a = roster[i];
+                    var b = roster[j];
+                    if (a == null || b == null || a.team != b.team) continue;
+                    int passes = PassCountBetween(a, b);
+                    if (passes > 0)
+                    {
+                        lines.Add($"{NameOf(a)} ↔ {NameOf(b)}: {passes} pass{(passes == 1 ? "" : "es")}");
+                    }
+                }
+            }
+            if (lines.Count == 0) return null;
+
+            var label = new Label("PASS NETWORK:  " + string.Join("   ·   ", lines))
+            {
+                name = "dossier-pass-network",
+            };
+            label.style.fontSize = Agent_UIStyle.FontXS;
+            label.style.color = Agent_UIStyle.TextPrimary;
+            label.style.unityTextAlign = TextAnchor.MiddleCenter;
+            label.style.marginTop = 8;
+            return label;
         }
 
         VisualElement BuildTile(Agent_Soccer agent, Track track)

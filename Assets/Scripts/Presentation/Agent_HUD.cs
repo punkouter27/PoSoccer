@@ -156,13 +156,15 @@ namespace PoSoccer
         {
             var broadcast = _showBroadcastStrip ? DisplayStyle.Flex : DisplayStyle.None;
             var probability = _showBroadcastStrip && enableMatchFlow ? DisplayStyle.Flex : DisplayStyle.None;
+            var agentStream = (_showBroadcastStrip || Agent_MatchSetup.HumanControl) && enableMatchFlow
+                ? DisplayStyle.Flex : DisplayStyle.None;
             var meter = _showBroadcastStrip || !enableMatchFlow ? DisplayStyle.Flex : DisplayStyle.None;
 
             if (_winProbBar != null) _winProbBar.style.display = probability;
             if (_winProbLabel != null) _winProbLabel.style.display = probability;
-            // The agent stream describes a player in a MATCH; the training scene's
-            // clock line already carries its own telemetry.
-            if (_agentStream != null) _agentStream.style.display = probability;
+            // The agent stream describes a player in a MATCH; in 1P mode it stays
+            // visible regardless of the STATS toggle so you always see your stamina/boost.
+            if (_agentStream != null) _agentStream.style.display = agentStream;
             if (_ticker != null) _ticker.style.display = broadcast;
             if (_broadcastTag != null) _broadcastTag.style.display = broadcast;
             if (_meter != null) _meter.style.display = meter;
@@ -583,10 +585,22 @@ namespace PoSoccer
         /// </summary>
         void RefreshAgentStream()
         {
-            if (_agentStream == null || !_showBroadcastStrip || !enableMatchFlow || env == null) return;
+            if (_agentStream == null || (!_showBroadcastStrip && !Agent_MatchSetup.HumanControl) || !enableMatchFlow || env == null) return;
 
             if (_spectator == null) _spectator = env.GetComponent<Agent_SpectatorInput>();
             Agent_Soccer subject = _spectator != null ? _spectator.FocusedAgent : null;
+            if (subject == null && Agent_MatchSetup.HumanControl)
+            {
+                for (int i = 0; i < env.agents.Count; i++)
+                {
+                    var candidate = env.agents[i];
+                    if (candidate != null && candidate.HumanControlled)
+                    {
+                        subject = candidate;
+                        break;
+                    }
+                }
+            }
             if (subject == null) subject = env.LastToucher;
             if (subject == null && env.agents.Count > 0) subject = env.agents[0];
             if (subject == null || subject.Body == null) return;
@@ -944,7 +958,7 @@ namespace PoSoccer
             bool anyBot = false;
             foreach (var agent in env.agents)
             {
-                if (agent != null && agent.rewards != null && agent.RuleBased) { anyBot = true; break; }
+                if (agent != null && agent.rewards != null && (agent.RuleBased || agent.HumanControlled)) { anyBot = true; break; }
             }
 
             foreach (var agent in env.agents)
@@ -969,10 +983,10 @@ namespace PoSoccer
                 // trained brain - see anyBot above.
                 if (anyBot)
                 {
-                    var driver = new Label(agent.RuleBased ? "BOT" : "AI");
+                    var driver = new Label(agent.HumanControlled ? "1P" : agent.RuleBased ? "BOT" : "AI");
                     driver.AddToClassList("chip__driver");
-                    driver.style.color = agent.RuleBased
-                        ? Agent_UIStyle.TextMuted : Agent_UIStyle.Accent;
+                    driver.style.color = agent.HumanControlled || !agent.RuleBased
+                        ? Agent_UIStyle.Accent : Agent_UIStyle.TextMuted;
                     chip.Add(driver);
                 }
 
@@ -1251,13 +1265,15 @@ namespace PoSoccer
                     ? Agent_UIStyle.BlueTeam : Agent_UIStyle.RedTeam;
                 row.Add(name);
 
-                var driver = new Label(agent.RuleBased ? "BOT" : "AI");
+                var driver = new Label(agent.HumanControlled ? "1P" : agent.RuleBased ? "BOT" : "AI");
                 driver.AddToClassList("endpanel__player-driver");
                 row.Add(driver);
 
-                string run = agent.RuleBased
-                    ? "scripted"
-                    : string.IsNullOrEmpty(agent.rewards.trainingRunId) ? "run unknown" : agent.rewards.trainingRunId;
+                string run = agent.HumanControlled
+                    ? "human"
+                    : agent.RuleBased
+                        ? "scripted"
+                        : string.IsNullOrEmpty(agent.rewards.trainingRunId) ? "run unknown" : agent.rewards.trainingRunId;
                 var provenance = new Label(run);
                 provenance.AddToClassList("endpanel__player-run");
                 row.Add(provenance);

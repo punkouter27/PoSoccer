@@ -130,9 +130,11 @@ namespace PoSoccer
 
             for (int slot = 0; slot < squad.Count; slot++)
             {
-                var profile = Agent_MatchSetup.Get(team, slot)
-                    ?? (slot == 1 ? default1 : default0);
-                Apply(squad[slot], profile);
+                bool isHuman = Agent_MatchSetup.IsHumanSlot(team, slot);
+                var profile = isHuman
+                    ? Agent_HumanController.GetOrCreateProfile()
+                    : (Agent_MatchSetup.Get(team, slot) ?? (slot == 1 ? default1 : default0));
+                Apply(squad[slot], profile, isHuman);
                 Place(squad[slot], team, slot, size, half);
                 // Clones are built inactive so their policy initializes only once
                 // the profile, brain and team are all in place.
@@ -185,7 +187,7 @@ namespace PoSoccer
             t.localRotation = Quaternion.Euler(0f, 0f, team == Agent_Soccer.Team.Blue ? 0f : 180f);
         }
 
-        static void Apply(Agent_Soccer agent, Reward_Settings profile)
+        static void Apply(Agent_Soccer agent, Reward_Settings profile, bool isHuman = false)
         {
             if (agent == null) return;
 
@@ -212,6 +214,14 @@ namespace PoSoccer
 
             agent.rewards = profile;
             agent.brainName = profile.playerName;
+
+            if (isHuman)
+            {
+                Agent_HumanController.Configure(agent, true);
+                return;
+            }
+
+            Agent_HumanController.Configure(agent, false);
 
             var behavior = agent.GetComponent<BehaviorParameters>();
             if (behavior == null) return;

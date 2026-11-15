@@ -62,7 +62,14 @@ namespace PoSoccer
         public static List<Entry> Table()
         {
             Load();
-            var table = new List<Entry>(_book.entries);
+            var table = new List<Entry>(_book.entries.Count);
+            for (int i = 0; i < _book.entries.Count; i++)
+            {
+                var entry = _book.entries[i];
+                if (entry == null || string.Equals(entry.name, Agent_HumanController.HUMAN_PLAYER_NAME, System.StringComparison.OrdinalIgnoreCase))
+                    continue;
+                table.Add(entry);
+            }
             table.Sort((x, y) => y.rating.CompareTo(x.rating));
             return table;
         }
@@ -71,6 +78,9 @@ namespace PoSoccer
         public static float Record(string nameA, string nameB, float scoreA)
         {
             if (string.IsNullOrEmpty(nameA) || string.IsNullOrEmpty(nameB) || nameA == nameB) return 0f;
+            if (string.Equals(nameA, Agent_HumanController.HUMAN_PLAYER_NAME, System.StringComparison.OrdinalIgnoreCase)
+                || string.Equals(nameB, Agent_HumanController.HUMAN_PLAYER_NAME, System.StringComparison.OrdinalIgnoreCase))
+                return 0f;
             var a = Find(nameA, create: true);
             var b = Find(nameB, create: true);
             float before = a.rating;

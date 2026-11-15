@@ -79,12 +79,14 @@ namespace PoSoccer
 
         readonly List<Caster> _casters = new();
         Agent_EnvController _env;
+        Agent_BallHeight _ballHeight;
         Material _material;
         Transform _root;
 
         void Start()
         {
             _env = GetComponent<Agent_EnvController>();
+            _ballHeight = GetComponent<Agent_BallHeight>();
             var hud = FindAnyObjectByType<Agent_HUD>();
             if (!_enableShadows || !Agent_Presentation.IsVisualScene(hud))
             {
@@ -184,12 +186,30 @@ namespace PoSoccer
                 Vector2 fromCentre = (position - centre) / halfSpan;
                 Vector2 offset = fromCentre * _spread + _bias;
 
+                bool isBall = _env.Ball != null && caster.Body == _env.Ball;
+                float height = 0f;
+                if (isBall)
+                {
+                    if (_ballHeight == null) _ballHeight = GetComponent<Agent_BallHeight>();
+                    if (_ballHeight != null) height = _ballHeight.Height;
+                    if (height > 0.01f)
+                    {
+                        offset += new Vector2(0.08f * height, -0.45f * height);
+                    }
+                    float scale = 1f / (1f + height * 0.25f);
+                    caster.Shadow.localScale = new Vector3(scale, scale, 1f);
+                }
+
                 caster.Shadow.position = new Vector3(
                     position.x + offset.x, position.y + offset.y, caster.Source.position.z);
 
                 if (caster.Body == null) continue;
                 float speed01 = Mathf.Clamp01(caster.Body.linearVelocity.magnitude / _sprintSpeed);
                 float alpha = _opacity * Mathf.Lerp(1f, _motionFade, speed01);
+                if (isBall && height > 0.01f)
+                {
+                    alpha *= Mathf.Clamp01(1f - height * 0.22f);
+                }
                 var color = caster.Renderer.color;
                 if (!Mathf.Approximately(color.a, alpha))
                 {

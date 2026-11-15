@@ -49,7 +49,7 @@ namespace PoSoccer
             }
 
             _tournament = Agent_Tournament.InMatch;
-            bool exhibitionOneVsOne = !_tournament && Agent_MatchSetup.Applied
+            bool exhibitionOneVsOne = !_tournament && Agent_MatchSetup.Applied && !Agent_MatchSetup.HumanControl
                                       && Agent_MatchSetup.BlueSize == 1 && Agent_MatchSetup.RedSize == 1;
             if (!_tournament && !exhibitionOneVsOne)
             {

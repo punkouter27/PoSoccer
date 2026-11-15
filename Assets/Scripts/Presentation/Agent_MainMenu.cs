@@ -62,6 +62,7 @@ namespace PoSoccer
         const string LINEUP_BLUE_KEY = "posoccer_lineup_blue";
         const string LINEUP_RED_KEY = "posoccer_lineup_red";
         const string MODE_KEY = "posoccer_menu_mode";
+        const string HUMAN_MODE_KEY = "posoccer_menu_1p";
         const char LINEUP_SEPARATOR = '|';
         const int TEAM_SIZE = Agent_Tournament.TEAM_SIZE;
 
@@ -74,13 +75,17 @@ namespace PoSoccer
         readonly List<Reward_Settings> _blue = new();
         readonly List<Reward_Settings> _red = new();
         Mode _mode = Mode.OneVsOne;
+        bool _humanMode;
 
         VisualElement _root, _grid, _seatsBlue, _seatsRed, _lineup;
         Label _pitchNote, _cupInfo, _brainNote, _backHint;
-        Button _play, _random, _soundButton;
+        Button _play, _random, _humanToggle, _soundButton;
         readonly Button[] _modeButtons = new Button[4];
         Agent_BracketView _bracket;
         VisualElement _eloPanel;
+
+        /// <summary>True when 1-Player human mode is active (Blue Slot 0 is controlled by the player).</summary>
+        public bool HumanMode => _humanMode;
 
         /// <summary>Squad size of the current mode (cups: the size they field).</summary>
         int Capacity => _mode == Mode.FourVsFour || _mode == Mode.TeamCup ? TEAM_SIZE : 1;
@@ -135,6 +140,7 @@ namespace PoSoccer
             if (Agent_Tournament.InMatch) Agent_Tournament.CancelMatch();
 
             _mode = SavedMode();
+            _humanMode = PlayerPrefs.GetInt(HUMAN_MODE_KEY, 0) == 1;
             if (fromResult) _mode = Agent_Tournament.IsTeamCup ? Mode.TeamCup : Mode.SoloCup;
             if (!RestoreLineup()) FillDefault();
 
@@ -299,13 +305,26 @@ namespace PoSoccer
         {
             if (string.IsNullOrEmpty(saved)) return;
             string[] names = saved.Split(LINEUP_SEPARATOR);
+            var humanProfile = Agent_HumanController.GetOrCreateProfile();
             for (int nameIndex = 0; nameIndex < names.Length; nameIndex++)
             {
+                if (_humanMode && ReferenceEquals(squad, _blue) && squad.Count == 0
+                    && string.Equals(names[nameIndex], Agent_HumanController.HUMAN_PLAYER_NAME, System.StringComparison.Ordinal))
+                {
+                    squad.Add(humanProfile);
+                    continue;
+                }
                 var profile = FindCharacter(names[nameIndex]);
                 if (profile != null && IsPickable(profile) && !_blue.Contains(profile) && !_red.Contains(profile))
                 {
                     squad.Add(profile);
                 }
+            }
+            if (_humanMode && ReferenceEquals(squad, _blue))
+            {
+                squad.Remove(humanProfile);
+                squad.Insert(0, humanProfile);
+                while (squad.Count > Capacity) squad.RemoveAt(squad.Count - 1);
             }
         }
 
@@ -319,6 +338,7 @@ namespace PoSoccer
             PlayerPrefs.DeleteKey(LINEUP_BLUE_KEY);
             PlayerPrefs.DeleteKey(LINEUP_RED_KEY);
             PlayerPrefs.DeleteKey(MODE_KEY);
+            PlayerPrefs.DeleteKey(HUMAN_MODE_KEY);
         }
 
         /// <summary>Both sides filled in grid order, so PLAY works on arrival.</summary>
@@ -326,10 +346,14 @@ namespace PoSoccer
         {
             _blue.Clear();
             _red.Clear();
-            var pool = Pickable;
-            for (int pick = 0; pick < pool.Length && pick < Capacity * 2; pick++)
+            if (_humanMode)
             {
-                (pick < Capacity ? _blue : _red).Add(pool[pick]);
+                _blue.Add(Agent_HumanController.GetOrCreateProfile());
+            }
+            var pool = Pickable;
+            for (int pick = 0; pick < pool.Length && (_blue.Count < Capacity || _red.Count < Capacity); pick++)
+            {
+                (_blue.Count < Capacity ? _blue : _red).Add(pool[pick]);
             }
         }
 
@@ -392,6 +416,19 @@ namespace PoSoccer
             }
             _play.clicked += OnPlay;
             _random.clicked += RandomLineup;
+
+            var playRow = _root.Q<VisualElement>("play-row");
+            if (playRow != null)
+            {
+                _humanToggle = new Button(() => SetHumanMode(!_humanMode))
+                {
+                    name = "toggle-1p",
+                    text = _humanMode ? "1P: YOU" : "1P: OFF",
+                };
+                _humanToggle.AddToClassList("btn");
+                _humanToggle.AddToClassList("menu__random");
+                playRow.Add(_humanToggle);
+            }
 
             _bracket = new Agent_BracketView(_root, FindCharacter, TournamentEntrants, LaunchTournamentMatch);
 
@@ -485,6 +522,36 @@ namespace PoSoccer
         }
 
         /// <summary>
+        /// Toggles 1-Player human control mode: when enabled, Blue Slot 0 is occupied
+        /// by the human-controlled generic Blue box ("YOU").
+        /// </summary>
+        public void SetHumanMode(bool on)
+        {
+            if (_humanMode == on) return;
+            _humanMode = on;
+            PlayerPrefs.SetInt(HUMAN_MODE_KEY, _humanMode ? 1 : 0);
+            PlayerPrefs.Save();
+
+            var humanProfile = Agent_HumanController.GetOrCreateProfile();
+            if (_humanMode)
+            {
+                _blue.Remove(humanProfile);
+                _blue.Insert(0, humanProfile);
+                while (_blue.Count > Capacity) _blue.RemoveAt(_blue.Count - 1);
+            }
+            else
+            {
+                _blue.Remove(humanProfile);
+                var pool = Pickable;
+                for (int i = 0; i < pool.Length && _blue.Count < Capacity; i++)
+                {
+                    if (!_blue.Contains(pool[i]) && !_red.Contains(pool[i])) _blue.Add(pool[i]);
+                }
+            }
+            RefreshAll();
+        }
+
+        /// <summary>
         /// A tap on a face: removes it if it is already playing, otherwise fills the
         /// first empty place, Blue before Red. Cups ignore taps (the bracket fields
         /// everyone).
@@ -508,7 +575,11 @@ namespace PoSoccer
             var pool = new List<Reward_Settings>(Pickable);
             _blue.Clear();
             _red.Clear();
-            for (int pick = 0; pick < Capacity * 2 && pool.Count > 0; pick++)
+            if (_humanMode)
+            {
+                _blue.Add(Agent_HumanController.GetOrCreateProfile());
+            }
+            while ((_blue.Count < Capacity || _red.Count < Capacity) && pool.Count > 0)
             {
                 int index = Random.Range(0, pool.Count);
                 (_blue.Count < Capacity ? _blue : _red).Add(pool[index]);
@@ -533,6 +604,7 @@ namespace PoSoccer
             // Statics outlive a scene load in a player build: clear before setting.
             Agent_MatchSetup.Clear();
             Agent_MatchSetup.Applied = true;
+            Agent_MatchSetup.HumanControl = _humanMode;
             Agent_MatchSetup.BlueSquad = _blue.ToArray();
             Agent_MatchSetup.RedSquad = _red.ToArray();
             SaveLineup();
@@ -614,6 +686,12 @@ namespace PoSoccer
             _lineup.style.display = cup ? DisplayStyle.None : DisplayStyle.Flex;
             _cupInfo.style.display = cup ? DisplayStyle.Flex : DisplayStyle.None;
             _random.style.display = cup ? DisplayStyle.None : DisplayStyle.Flex;
+            if (_humanToggle != null)
+            {
+                _humanToggle.style.display = cup ? DisplayStyle.None : DisplayStyle.Flex;
+                _humanToggle.text = _humanMode ? "1P: YOU" : "1P: OFF";
+                _humanToggle.EnableInClassList(Agent_UIStyle.ON, _humanMode);
+            }
 
             RenderSeats(_seatsBlue, _blue, "menu__seat--blue");
             RenderSeats(_seatsRed, _red, "menu__seat--red");
@@ -646,16 +724,21 @@ namespace PoSoccer
 
             _play.text = "PLAY";
             bool full = _blue.Count == Capacity && _red.Count == Capacity;
+            int neededAi = _humanMode ? Capacity * 2 - 1 : Capacity * 2;
             _play.SetEnabled(full);
-            _random.SetEnabled(Pickable.Length >= Capacity * 2);
+            _random.SetEnabled(Pickable.Length >= neededAi);
 
-            if (Pickable.Length < Capacity * 2)
+            if (Pickable.Length < neededAi)
             {
-                _pitchNote.text = $"{Capacity}v{Capacity} needs {Capacity * 2} trained players · {Pickable.Length} ready";
+                _pitchNote.text = $"{Capacity}v{Capacity} needs {neededAi} trained players · {Pickable.Length} ready";
             }
             else if (!full)
             {
                 _pitchNote.text = _blue.Count < Capacity ? "tap a face to add it to BLUE" : "tap a face to add it to RED";
+            }
+            else if (_humanMode)
+            {
+                _pitchNote.text = $"1P ({Capacity}v{Capacity})  ·  WASD/Arrows move  ·  Shift sprint  ·  Space kick";
             }
             else
             {
@@ -687,12 +770,18 @@ namespace PoSoccer
         void RenderSeats(VisualElement host, List<Reward_Settings> squad, string teamClass)
         {
             host.Clear();
+            var humanProfile = Agent_HumanController.GetOrCreateProfile();
             for (int seat = 0; seat < Capacity; seat++)
             {
                 var profile = seat < squad.Count ? squad[seat] : null;
                 var button = new Button(() =>
                 {
                     if (profile == null) return;
+                    if (profile == humanProfile)
+                    {
+                        SetHumanMode(false);
+                        return;
+                    }
                     squad.Remove(profile);
                     RefreshAll();
                 }) { name = "seat" };
@@ -702,6 +791,14 @@ namespace PoSoccer
                 {
                     button.AddToClassList("menu__seat--empty");
                     button.text = "?";
+                }
+                else if (profile == humanProfile)
+                {
+                    button.tooltip = "1P Human (YOU) — tap to switch back to AI";
+                    button.text = "YOU";
+                    button.style.fontSize = Agent_UIStyle.FontXS;
+                    button.style.color = Color.white;
+                    button.style.backgroundColor = profile.playerColor;
                 }
                 else
                 {

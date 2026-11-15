@@ -208,5 +208,166 @@ namespace PoSoccer.Tests
 
             File.WriteAllText(Path.Combine(_dir, "walkthrough.txt"), _log.ToString());
         }
+
+        [UnityTest]
+        public IEnumerator Walkthrough_OnePlayerMode_1v1And4v4()
+        {
+            _dir = System.Environment.GetEnvironmentVariable(CAPTURE_DIR_VAR);
+            if (string.IsNullOrEmpty(_dir)) Assert.Ignore($"Capture tool: set {CAPTURE_DIR_VAR} to run it.");
+            Directory.CreateDirectory(_dir);
+
+            Agent_MainMenu.ForgetLineup();
+            Agent_MatchSetup.Clear();
+            try
+            {
+                // --- 1. Menu: Enable 1P Mode in 1v1 ---
+                SceneManager.LoadScene("SCN_Menu");
+                yield return Frames(10);
+                yield return Realtime(0.5f);
+
+                Click(FindButton("1P: OFF"), "enable 1P mode");
+                yield return Frames(3);
+                yield return Capture("1p_menu_1v1");
+
+                // --- 2. 1v1 Match in 1P Mode ---
+                Click(FindButton("PLAY"), "start 1P 1v1 match");
+                yield return Frames(6);
+                yield return Capture("1p_1v1_match_open");
+
+                var hud = Object.FindAnyObjectByType<Agent_HUD>();
+                var env = Object.FindAnyObjectByType<Agent_EnvController>();
+                Assert.IsNotNull(hud, "1v1: no HUD");
+                Assert.IsNotNull(env, "1v1: no env");
+                hud.matchGoals = 1;
+
+                Agent_Soccer human = null;
+                foreach (var agent in env.agents)
+                {
+                    if (agent != null && agent.HumanControlled) human = agent;
+                }
+                Assert.IsNotNull(human, "1v1: no human-controlled Blue agent found");
+                var ctrl = human.GetComponent<Agent_HumanController>();
+                Assert.IsNotNull(ctrl, "1v1: no Agent_HumanController on human agent");
+
+                yield return WaitUntilRealtime(() => !Agent_TimeFreeze.IsFrozen, 20f);
+
+                // Drive human toward the ball and kick it for ~3 seconds of physics ticks.
+                int kicksTriggered = 0;
+                float startDist = Vector2.Distance(human.Body.position, env.Ball.position);
+                for (int step = 0; step < 150; step++)
+                {
+                    Vector2 toBall = env.Ball.position - human.Body.position;
+                    ctrl.InjectedMoveInput = toBall.sqrMagnitude > 0.001f ? toBall.normalized : Vector2.up;
+                    ctrl.InjectedBoost = step % 2 == 0;
+                    if (toBall.magnitude < Agent_HumanController.KICK_RADIUS)
+                    {
+                        ctrl.InjectedKickPressed = true;
+                        kicksTriggered++;
+                    }
+                    yield return new WaitForFixedUpdate();
+                }
+                ctrl.InjectedMoveInput = Vector2.zero;
+                ctrl.InjectedBoost = false;
+
+                _log.AppendLine($"[1v1 Telemetry] humanPos={human.Body.position} vel={human.Body.linearVelocity} stamina={human.Stamina:F2} startBallDist={startDist:F2} kicksTriggered={kicksTriggered}");
+                yield return Capture("1p_1v1_live_play");
+
+                // Credit human with touch and score winning goal into Red net.
+                env.NotifyBallTouch(human);
+                yield return ScoreInto(env, blueNet: false);
+
+                yield return WaitUntilRealtime(() => EndPanelVisible(hud), 40f);
+                Assert.IsTrue(EndPanelVisible(hud), "1v1: end panel never appeared");
+                yield return Realtime(0.8f);
+                yield return Capture("1p_1v1_end_summary");
+
+                foreach (string tab in new[] { "STATS", "PLAYERS" })
+                {
+                    Click(FindButton(tab), $"1v1 tab {tab}");
+                    yield return Frames(3);
+                    yield return Realtime(0.2f);
+                    yield return Capture($"1p_1v1_end_{tab.ToLowerInvariant()}");
+                }
+
+                // Return to Menu and switch to 4v4 while 1P: YOU stays active.
+                Click(FindButton(Agent_HUD.LINEUP_TEXT), "1v1 back to menu");
+                yield return Frames(10);
+                yield return Realtime(0.5f);
+                Assert.AreEqual("SCN_Menu", SceneManager.GetActiveScene().name);
+
+                Click(FindButton("4v4"), "switch to 4v4");
+                yield return Frames(3);
+                yield return Capture("1p_menu_4v4");
+
+                // --- 3. 4v4 Match in 1P Mode (1 Human + 3 AI Blue vs 4 AI Red) ---
+                Click(FindButton("PLAY"), "start 1P 4v4 match");
+                yield return Frames(6);
+
+                hud = Object.FindAnyObjectByType<Agent_HUD>();
+                env = Object.FindAnyObjectByType<Agent_EnvController>();
+                Assert.IsNotNull(hud, "4v4: no HUD");
+                Assert.IsNotNull(env, "4v4: no env");
+                hud.matchGoals = 1;
+
+                int blueTotal = 0, blueHuman = 0, blueAi = 0, redAi = 0;
+                human = null;
+                foreach (var agent in env.agents)
+                {
+                    if (agent == null) continue;
+                    if (agent.team == Agent_Soccer.Team.Blue)
+                    {
+                        blueTotal++;
+                        if (agent.HumanControlled) { blueHuman++; human = agent; }
+                        else blueAi++;
+                    }
+                    else
+                    {
+                        redAi++;
+                    }
+                }
+                Assert.AreEqual(4, blueTotal, "4v4: expected 4 Blue players");
+                Assert.AreEqual(1, blueHuman, "4v4: expected 1 human Blue player");
+                Assert.AreEqual(3, blueAi, "4v4: expected 3 AI Blue teammates");
+                Assert.AreEqual(4, redAi, "4v4: expected 4 AI Red opponents");
+
+                ctrl = human.GetComponent<Agent_HumanController>();
+                yield return WaitUntilRealtime(() => !Agent_TimeFreeze.IsFrozen, 20f);
+
+                for (int step = 0; step < 120; step++)
+                {
+                    Vector2 toBall = env.Ball.position - human.Body.position;
+                    ctrl.InjectedMoveInput = toBall.sqrMagnitude > 0.001f ? toBall.normalized : Vector2.up;
+                    ctrl.InjectedBoost = true;
+                    if (toBall.magnitude < Agent_HumanController.KICK_RADIUS)
+                        ctrl.InjectedKickPressed = true;
+                    yield return new WaitForFixedUpdate();
+                }
+                ctrl.InjectedMoveInput = Vector2.zero;
+                ctrl.InjectedBoost = false;
+
+                _log.AppendLine($"[4v4 Telemetry] blueTotal={blueTotal} blueHuman={blueHuman} blueAi={blueAi} redAi={redAi} humanPos={human.Body.position}");
+                yield return Capture("1p_4v4_live_play");
+
+                env.NotifyBallTouch(human);
+                yield return ScoreInto(env, blueNet: false);
+
+                yield return WaitUntilRealtime(() => EndPanelVisible(hud), 40f);
+                Assert.IsTrue(EndPanelVisible(hud), "4v4: end panel never appeared");
+                yield return Realtime(0.8f);
+                yield return Capture("1p_4v4_end_summary");
+
+                Click(FindButton("PLAYERS"), "4v4 tab PLAYERS");
+                yield return Frames(3);
+                yield return Realtime(0.2f);
+                yield return Capture("1p_4v4_end_players");
+
+                File.WriteAllText(Path.Combine(_dir, "walkthrough_1p.txt"), _log.ToString());
+            }
+            finally
+            {
+                Agent_MainMenu.ForgetLineup();
+                Agent_MatchSetup.Clear();
+            }
+        }
     }
 }

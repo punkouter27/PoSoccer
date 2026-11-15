@@ -71,6 +71,8 @@ namespace PoSoccer.Tests
             "Agent_Momentum",
             // 2026-11-08: one voice pool for the match; one tournament result per match.
             "Agent_Voices", "Agent_TournamentMatch", "Agent_MatchIntro",
+            // 2026-11-15: weather mutator, sideline actors, and wager/leaderboard card.
+            "Agent_Weather", "Agent_Sidelines", "Agent_Wager",
         };
 
         static System.Type Resolve(string typeName)

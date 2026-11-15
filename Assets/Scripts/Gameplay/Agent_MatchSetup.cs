@@ -15,6 +15,16 @@ namespace PoSoccer
 
         public static bool Applied;
 
+        /// <summary>
+        /// True when 1-Player human mode is enabled: Blue Slot 0 is replaced by the
+        /// player-controlled generic Blue box (<see cref="Agent_HumanController"/>).
+        /// </summary>
+        public static bool HumanControl;
+
+        /// <summary>True when <paramref name="team"/> / <paramref name="slot"/> is the human-controlled slot.</summary>
+        public static bool IsHumanSlot(Agent_Soccer.Team team, int slot) =>
+            HumanControl && !GalleryMode && team == Agent_Soccer.Team.Blue && slot == 0;
+
         /// <summary>Profile per slot, index 0 first. Null/empty = fall back to scene defaults.</summary>
         public static Reward_Settings[] BlueSquad;
         public static Reward_Settings[] RedSquad;
@@ -60,6 +70,7 @@ namespace PoSoccer
         public static void Clear()
         {
             Applied = false;
+            HumanControl = false;
             BlueSquad = null;
             RedSquad = null;
             GalleryMode = false;

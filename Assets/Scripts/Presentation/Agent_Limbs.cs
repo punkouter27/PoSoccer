@@ -5,43 +5,27 @@ namespace PoSoccer
 {
     /// <summary>
     /// Gives every player a pair of legs that stride with the locomotion model,
-    /// so four identical discs read as four moving characters.
+    /// wind up and follow through on kicks, lunge into tackles, and (for the
+    /// assigned Goalie in 3v3+) wear goalkeeper gloves that reach and dive
+    /// laterally toward incoming shots.
     ///
-    /// This is the 2D reading of "detailed meshes". The bodies are sprites and
-    /// will stay sprites - a skeletal rig would mean per-agent prefabs, which
-    /// means scene authoring, which is MCP-only per UNITY_RULES and would have to
-    /// be redone for every squad size. Two extra quads per player, both off the
-    /// Agent_Art atlas page and both on one shared material, buy most of the
-    /// legibility for none of that.
+    /// NOTHING HERE INVENTS ITS OWN MOTION.
+    ///  - Stride phase is integrated from the body's FORWARD speed (velocity dot
+    ///    transform.up).
+    ///  - Kick wind-up reads the closing speed and proximity to the ball; follow-
+    ///    through fires on actual BallTouched / WallKicked events.
+    ///  - Goalkeeper gloves activate only when Agent_EnvController.RoleOf reports
+    ///    Agent_TeamRoles.Role.Goalie, and reach/dive from real lateral slip and
+    ///    shot velocity.
     ///
-    /// NOTHING HERE INVENTS ITS OWN MOTION. The stride phase is integrated from
-    /// the body's FORWARD speed - the component of velocity along transform.up,
-    /// not the raw magnitude - so a player being shoved sideways does not
-    /// moonwalk, a reversing player's legs run backwards, and a stationary player
-    /// stands still instead of jogging on the spot. That is the whole reason this
-    /// reads as walking rather than as an animation playing nearby.
-    ///
-    /// One component on the pitch root rather than one per agent: a single shared
-    /// material is what keeps every leg in the same batch, and a per-agent
-    /// component would need its own copy or a static with a reference count.
-    ///
+    /// One component on the pitch root, one shared material and one shared
+    /// Agent_Art atlas page, so every leg and glove stays in the same batch.
     /// Presentation only. Self-disables in training and evaluation.
     /// </summary>
     [RequireComponent(typeof(Agent_EnvController))]
     [DefaultExecutionOrder(55)]
     public sealed class Agent_Limbs : MonoBehaviour
     {
-        // 2026-09-05: the first version of these numbers produced legs that
-        // animated correctly and were INVISIBLE, every frame, in every match.
-        // Measured live: body world half-width 0.400, leg centre at world x 0.120
-        // with half-width 0.080, so the leg's outer edge reached 0.200 - entirely
-        // inside the torso silhouette - while sorting BEHIND it. The tell is in
-        // Agent_Limbs' own diagnostic: visibleOutsideBody = False.
-        //
-        // Two changes fix it and both are needed. The hips are wide enough that
-        // the legs straddle the body edge, and they now draw IN FRONT of the
-        // torso rather than behind it - which is also just correct for a top-down
-        // camera, where you look down ON the limbs.
         [Tooltip("Leg length as a fraction of body width.")]
         [Range(0.1f, 1.5f)] [SerializeField] private float _legLength = 0.62f;
         [Tooltip("Leg thickness as a fraction of body width.")]
@@ -61,23 +45,38 @@ namespace PoSoccer
         [Range(0f, 1f)] [SerializeField] private float _shade = 0.45f;
         [SerializeField] private bool _enableLimbs = true;
 
+        /// <summary>Duration (seconds) of the post-contact kick follow-through swing.</summary>
+        public const float KICK_FOLLOW_DURATION = 0.24f;
+        /// <summary>Distance (metres) inside which an approaching player winds up its kicking leg.</summary>
+        public const float KICK_WINDUP_RADIUS = 1.25f;
+
         sealed class Rig
         {
             public Agent_Soccer Agent;
             public Rigidbody2D Body;
             public Transform Left;
             public Transform Right;
+            public Transform GloveLeft;
+            public Transform GloveRight;
+            public SpriteRenderer GloveLeftRenderer;
+            public SpriteRenderer GloveRightRenderer;
             public float Phase;
             public float BodyWidth;
+            public float KickTimer;
+            public float DiveTimer;
+            public float DiveSign;
+            public System.Action<Vector2, Vector2> WallKickHandler;
         }
 
         readonly List<Rig> _rigs = new();
+        Agent_EnvController _env;
         Material _material;
 
         void Start()
         {
+            _env = GetComponent<Agent_EnvController>();
             var hud = FindAnyObjectByType<Agent_HUD>();
-            if (!_enableLimbs || !Agent_Presentation.IsVisualScene(hud))
+            if (!_enableLimbs || !Agent_Presentation.IsVisualScene(hud) || Agent_Presentation.IsHeadless)
             {
                 enabled = false;
                 return;
@@ -96,12 +95,40 @@ namespace PoSoccer
 
             var agents = GetComponentsInChildren<Agent_Soccer>();
             for (int i = 0; i < agents.Length; i++) Build(agents[i]);
-            if (_rigs.Count == 0) enabled = false;
+            if (_rigs.Count == 0)
+            {
+                enabled = false;
+                return;
+            }
+
+            if (_env != null) _env.BallTouched += OnBallTouched;
         }
 
         void OnDestroy()
         {
+            if (_env != null) _env.BallTouched -= OnBallTouched;
+            for (int i = 0; i < _rigs.Count; i++)
+            {
+                var rig = _rigs[i];
+                if (rig.Agent != null && rig.WallKickHandler != null)
+                {
+                    rig.Agent.WallKicked -= rig.WallKickHandler;
+                }
+            }
             if (_material != null) Destroy(_material);
+        }
+
+        void OnBallTouched(Agent_Soccer toucher)
+        {
+            if (toucher == null) return;
+            for (int i = 0; i < _rigs.Count; i++)
+            {
+                if (_rigs[i].Agent == toucher)
+                {
+                    _rigs[i].KickTimer = KICK_FOLLOW_DURATION;
+                    break;
+                }
+            }
         }
 
         void Build(Agent_Soccer agent)
@@ -110,10 +137,6 @@ namespace PoSoccer
             if (!agent.TryGetComponent(out SpriteRenderer body) || body.sprite == null) return;
             if (agent.transform.Find("Leg_L") != null) return;
 
-            // Body-local width, not world bounds: the legs are children of the
-            // agent and so already inherit the physique scale Agent_Soccer applies
-            // from Reward_Settings.bodyScale. Using world bounds would apply it
-            // twice and give the heaviest player comically long legs.
             float width = body.sprite.bounds.size.x;
 
             Color tint = agent.rewards != null ? agent.rewards.playerColor : Color.white;
@@ -125,11 +148,21 @@ namespace PoSoccer
                 Agent = agent,
                 Body = agent.GetComponent<Rigidbody2D>(),
                 BodyWidth = width,
-                // Half a cycle apart, which is what makes it a gait rather than a hop.
                 Phase = Random.Range(0f, Mathf.PI * 2f),
             };
             rig.Left = BuildLeg(agent.transform, body, "Leg_L", tint, width);
             rig.Right = BuildLeg(agent.transform, body, "Leg_R", tint, width);
+
+            // Goalkeeper gloves: bright team-tinted pads on the front corners, active
+            // only while the player holds the Goalie role.
+            Color gloveTint = Color.Lerp(Agent_SoccerView.TeamColor(agent.team), Color.white, 0.35f);
+            gloveTint.a = 1f;
+            rig.GloveLeft = BuildGlove(agent.transform, body, "Glove_L", gloveTint, width, out rig.GloveLeftRenderer);
+            rig.GloveRight = BuildGlove(agent.transform, body, "Glove_R", gloveTint, width, out rig.GloveRightRenderer);
+
+            rig.WallKickHandler = (_, _) => rig.KickTimer = KICK_FOLLOW_DURATION;
+            agent.WallKicked += rig.WallKickHandler;
+
             _rigs.Add(rig);
         }
 
@@ -137,37 +170,51 @@ namespace PoSoccer
         {
             var go = new GameObject(label);
             go.transform.SetParent(parent, false);
-            // A disc squashed into an oval: a capsule shape without a second
-            // entry on the atlas page, and it keeps the rounded foot.
             go.transform.localScale = new Vector3(width * _legWidth, width * _legLength, 1f);
 
             var renderer = go.AddComponent<SpriteRenderer>();
-            renderer.sprite = Agent_Art.Disc(1f);
+            renderer.sprite = Agent_Art.Cleat(1f);
             renderer.sharedMaterial = _material;
             renderer.color = tint;
             renderer.sortingLayerName = body.sortingLayerName;
-            // IN FRONT of the torso. Behind it (body - 1) is where these started
-            // and it made them permanently invisible - see the note on _hipWidth.
-            // Drawing limbs over the body is also the physically right answer for
-            // a top-down view: you are looking down at them, not through the torso.
             renderer.sortingOrder = body.sortingOrder + 1;
+            return go.transform;
+        }
+
+        Transform BuildGlove(Transform parent, SpriteRenderer body, string label, Color tint, float width,
+            out SpriteRenderer renderer)
+        {
+            var go = new GameObject(label);
+            go.transform.SetParent(parent, false);
+            float pad = width * 0.28f;
+            go.transform.localScale = new Vector3(pad, pad * 1.15f, 1f);
+
+            renderer = go.AddComponent<SpriteRenderer>();
+            renderer.sprite = Agent_Art.Glove(1f);
+            renderer.sharedMaterial = _material;
+            renderer.color = tint;
+            renderer.sortingLayerName = body.sortingLayerName;
+            renderer.sortingOrder = body.sortingOrder + 2;
+            renderer.enabled = false;
             return go.transform;
         }
 
         void Update()
         {
             float dt = Time.deltaTime;
+            bool haveBall = _env != null && _env.Ball != null;
+            Vector2 ballPos = haveBall ? _env.Ball.position : Vector2.zero;
+            Vector2 ballVel = haveBall ? _env.Ball.linearVelocity : Vector2.zero;
 
             for (int i = 0; i < _rigs.Count; i++)
             {
                 var rig = _rigs[i];
                 if (rig.Agent == null || rig.Left == null || rig.Right == null) continue;
 
-                // Signed forward speed. The sign is the point: it is what makes a
-                // backpedalling player's legs run the other way.
-                float forwardSpeed = rig.Body != null
-                    ? Vector2.Dot(rig.Body.linearVelocity, rig.Agent.transform.up)
-                    : 0f;
+                Vector2 vel = rig.Body != null ? rig.Body.linearVelocity : Vector2.zero;
+                Vector2 up = rig.Agent.transform.up;
+                Vector2 right = rig.Agent.transform.right;
+                float forwardSpeed = Vector2.Dot(vel, up);
 
                 rig.Phase += forwardSpeed * _cadence * Mathf.PI * 2f * dt;
 
@@ -178,12 +225,111 @@ namespace PoSoccer
                 float swing = Mathf.Sin(rig.Phase) * amplitude;
                 float hip = rig.BodyWidth * _hipWidth * 0.5f;
 
-                // Local space, so the legs follow the body's heading for free -
-                // and this is exactly why the legs are children of the agent while
-                // Agent_Shadows' blobs deliberately are not.
-                rig.Left.localPosition = new Vector3(-hip, swing, 0f);
-                rig.Right.localPosition = new Vector3(hip, -swing, 0f);
+                if (rig.KickTimer > 0f) rig.KickTimer = Mathf.Max(0f, rig.KickTimer - dt);
+
+                // Kick wind-up & follow-through + tackle lunge on the striking (right) leg.
+                float kickOffset = 0f;
+                float kickScaleY = 1f;
+                if (haveBall)
+                {
+                    Vector2 toBall = ballPos - (Vector2)rig.Agent.transform.position;
+                    float dist = toBall.magnitude;
+                    float closingSpeed = dist > 0.01f ? Vector2.Dot(vel - ballVel, toBall / dist) : 0f;
+                    kickOffset = ComputeKickSwingOffset(
+                        rig.BodyWidth, dist, closingSpeed, rig.KickTimer, rig.Agent.IsBoosting, out kickScaleY);
+                }
+
+                rig.Left.localPosition = new Vector3(-hip, swing - kickOffset * 0.25f, 0f);
+                rig.Right.localPosition = new Vector3(hip, -swing + kickOffset, 0f);
+                rig.Right.localScale = new Vector3(
+                    rig.BodyWidth * _legWidth,
+                    rig.BodyWidth * _legLength * kickScaleY,
+                    1f);
+
+                // Goalkeeper gloves & lateral dive stretch (#16).
+                bool isGoalie = _env != null && _env.RoleOf(rig.Agent) == Agent_TeamRoles.Role.Goalie;
+                if (rig.GloveLeftRenderer != null && rig.GloveLeftRenderer.enabled != isGoalie)
+                {
+                    rig.GloveLeftRenderer.enabled = isGoalie;
+                    rig.GloveRightRenderer.enabled = isGoalie;
+                }
+                if (isGoalie && rig.GloveLeft != null && rig.GloveRight != null)
+                {
+                    Vector2 dive = haveBall
+                        ? ComputeGoalieDiveOffset(
+                            rig.Agent.transform.position, up, right, ballPos, ballVel,
+                            rig.Agent.LateralSlipSpeed, rig.BodyWidth)
+                        : Vector2.zero;
+                    float gloveX = rig.BodyWidth * 0.54f;
+                    float gloveY = rig.BodyWidth * 0.42f + Mathf.Abs(swing) * 0.25f;
+                    rig.GloveLeft.localPosition = new Vector3(-gloveX + dive.x, gloveY + dive.y, 0f);
+                    rig.GloveRight.localPosition = new Vector3(gloveX + dive.x, gloveY + dive.y, 0f);
+                }
             }
+        }
+
+        /// <summary>
+        /// Pure solver for the kicking leg's fore-aft offset and stretch.
+        /// Winds back negatively when closing on the ball within <see cref="KICK_WINDUP_RADIUS"/>,
+        /// snaps forward positively during <paramref name="kickFollowTimer"/>, and lunges
+        /// forward when boosting into a challenge.
+        /// </summary>
+        public static float ComputeKickSwingOffset(float bodyWidth, float ballDist, float closingSpeed,
+            float kickFollowTimer, bool isBoosting, out float legStretchMultiplier)
+        {
+            legStretchMultiplier = 1f;
+
+            // Active post-contact follow-through: high forward snap with leg extension.
+            if (kickFollowTimer > 0f)
+            {
+                float progress = 1f - Mathf.Clamp01(kickFollowTimer / KICK_FOLLOW_DURATION);
+                float snap = Mathf.Sin(progress * Mathf.PI);
+                legStretchMultiplier = 1f + snap * 0.32f;
+                return bodyWidth * 0.48f * snap;
+            }
+
+            // Pre-contact wind-up when closing on the ball.
+            if (ballDist < KICK_WINDUP_RADIUS && closingSpeed > 0.6f)
+            {
+                float proximity01 = 1f - Mathf.Clamp01(ballDist / KICK_WINDUP_RADIUS);
+                float speed01 = Mathf.Clamp01((closingSpeed - 0.6f) / 5f);
+                // If boosting hard right at the ball edge, transition into a tackle lunge.
+                if (isBoosting && ballDist < 0.65f)
+                {
+                    legStretchMultiplier = 1.24f;
+                    return bodyWidth * 0.36f * proximity01;
+                }
+                legStretchMultiplier = 1f + proximity01 * 0.1f;
+                return -bodyWidth * 0.32f * proximity01 * speed01;
+            }
+
+            return 0f;
+        }
+
+        /// <summary>
+        /// Pure solver for the goalkeeper's local glove reach/dive offset (x = lateral, y = forward)
+        /// when tracking or diving across the goal mouth toward an incoming ball.
+        /// </summary>
+        public static Vector2 ComputeGoalieDiveOffset(Vector2 goaliePos, Vector2 forwardAxis, Vector2 rightAxis,
+            Vector2 ballPos, Vector2 ballVel, float lateralSlipSpeed, float bodyWidth)
+        {
+            Vector2 toBall = ballPos - goaliePos;
+            float dist = toBall.magnitude;
+            if (dist < 0.001f) return Vector2.zero;
+
+            // Lateral component of the ball relative to the keeper's body frame.
+            float ballLat = Vector2.Dot(toBall / dist, rightAxis);
+            float ballFwd = Vector2.Dot(toBall / dist, forwardAxis);
+
+            // Incoming shot speed toward the keeper.
+            float incomingSpeed = Mathf.Max(0f, -Vector2.Dot(ballVel, toBall / dist));
+            float urgency = Mathf.Clamp01(incomingSpeed / 8f) * Mathf.Clamp01((6f - dist) / 5f);
+
+            // Combine active lateral slip (diving across the line) with shot-tracking reach.
+            float slipDive = Mathf.Clamp(lateralSlipSpeed / 4f, -1f, 1f) * 0.28f;
+            float reachX = Mathf.Clamp(ballLat * (0.18f + urgency * 0.32f) + slipDive, -0.45f, 0.45f) * bodyWidth;
+            float reachY = Mathf.Clamp(Mathf.Max(0f, ballFwd) * (0.12f + urgency * 0.26f), 0f, 0.38f) * bodyWidth;
+            return new Vector2(reachX, reachY);
         }
     }
 }

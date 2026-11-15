@@ -87,9 +87,19 @@ namespace PoSoccer
             "Someone needs to take a risk here.",
         };
 
+        static readonly string[] HeaderLines =
+        {
+            "TOWERING HEADER!",
+            "Climbs high for the header!",
+            "Up above them to nod it on!",
+        };
+
+        static readonly System.Collections.Generic.Dictionary<string, AudioClip> CommentaryClips = new();
+
         Agent_EnvController _env;
         Agent_HUD _hud;
         Agent_Audio _audio;
+        AudioSource _announcerSource;
 
         Vector2 _ballVelocityLastStep;
         Vector2 _possessionStartBall;
@@ -111,11 +121,18 @@ namespace PoSoccer
             }
 
             _audio = GetComponent<Agent_Audio>();
+            if (!Agent_Presentation.IsHeadless)
+            {
+                _announcerSource = gameObject.AddComponent<AudioSource>();
+                _announcerSource.playOnAwake = false;
+                _announcerSource.spatialBlend = 0f;
+            }
             _lastTouchTime = Time.unscaledTime;
 
             _env.EpisodeEnded += OnEpisodeEnded;
             _env.BallTouched += OnBallTouched;
             Agent_MatchFX.BallContact.Hit += OnBallHit;
+            Agent_BallHeight.HeaderStruck += OnHeaderStruck;
         }
 
         void OnDestroy()
@@ -126,6 +143,7 @@ namespace PoSoccer
                 _env.BallTouched -= OnBallTouched;
             }
             Agent_MatchFX.BallContact.Hit -= OnBallHit;
+            Agent_BallHeight.HeaderStruck -= OnHeaderStruck;
         }
 
         void FixedUpdate()
@@ -267,6 +285,13 @@ namespace PoSoccer
             return lines[_cursor % lines.Length];
         }
 
+        void OnHeaderStruck(Agent_Soccer toucher, float height)
+        {
+            if (toucher == null) return;
+            Say(Pick(HeaderLines), Agent_SoccerView.TeamColor(toucher.team), 2.2f);
+            if (_audio != null) _audio.Cheer(0.65f);
+        }
+
         /// <summary>Rate-limited line - drops silently if something was just said.</summary>
         void Say(string text, Color color, float seconds)
         {
@@ -280,6 +305,24 @@ namespace PoSoccer
             if (_hud == null) return;
             _hud.Say(text, color, seconds);
             _nextLineTime = Time.unscaledTime + _cooldownSeconds;
+            SpeakLine(text);
+        }
+
+        void SpeakLine(string text)
+        {
+            if (_announcerSource == null || Agent_Audio.Muted || string.IsNullOrEmpty(text)) return;
+            if (!CommentaryClips.TryGetValue(text, out var clip) || clip == null)
+            {
+                string resPath = $"Voices/COMMENTARY_{Agent_VoiceSynth.NameSeed(text)}";
+                clip = Resources.Load<AudioClip>(resPath);
+                if (clip == null) clip = Agent_VoiceSynth.ToCommentaryClip(text, 0.92f);
+                CommentaryClips[text] = clip;
+            }
+            if (clip == null) return;
+            _announcerSource.Stop();
+            _announcerSource.clip = clip;
+            _announcerSource.volume = Agent_Audio.MasterVolume * Agent_Audio.SfxVolume * 0.65f;
+            _announcerSource.Play();
         }
     }
 }

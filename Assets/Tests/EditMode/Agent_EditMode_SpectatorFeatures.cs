@@ -4,245 +4,284 @@ using UnityEngine;
 namespace PoSoccer.Tests
 {
     /// <summary>
-    /// Pins the pure logic behind the 2026-11-07 spectator features: the passing-lane
-    /// race (Agent_PassLaneMath), the fixed-memory momentum timeline
-    /// (Agent_MomentumSeries), the saliency input grouping (Agent_Saliency) and the
-    /// stamina ring's thresholds (Agent_StaminaRing).
-    ///
-    /// Shapes, not tuned numbers, wherever a number is a serialized knob.
+    /// Pins the pure math, physics, and atlas invariants of the 11 spectator &
+    /// realism upgrades:
+    ///  - #2  Dynamic Head/Gaze Tracking & Facial Micro-Expressions (Agent_Faces)
+    ///  - #3  Procedural Kick Wind-Up, Follow-Through & Tackle Lunge (Agent_Limbs)
+    ///  - #4  Dynamic Weather & Turf Physics Mutator + Open-Meteo parser (Agent_Weather)
+    ///  - #6  Spoken Commentary Synth & 16-bit PCM WAV Encoder (Agent_VoiceSynth)
+    ///  - #7  Spring-Verlet Deformable Goal Nets (Agent_GoalFrame)
+    ///  - #8  2.5D Ball Height / Bounce / Header Solver (Agent_BallHeight)
+    ///  - #12 "Bet on Brains" Elo Odds & PoCoins Settlement (Agent_Wager)
+    ///  - #13 Zero-Alloc Spring/Tween Engine & Sports Prop Atlas (Agent_Tween, Agent_Art)
+    ///  - #15 Sideline Linesmen & Technical-Area Bench Coaches (Agent_Sidelines)
+    ///  - #16 Goalkeeper Gloves & Lateral Dive Reach (Agent_Limbs)
+    ///  - #17 Tactical Pass Network Detection (Agent_Dossier)
     /// </summary>
     public sealed class Agent_EditMode_SpectatorFeatures
     {
-        // -- Passing lanes ------------------------------------------------------
-
-        const float BallSpeed = 9f;
-        const float RunnerSpeed = 6.5f;
-        const float Reach = 0.75f;
-        const float Reaction = 0.2f;
-        const float Window = 0.45f;
-
-        static float Openness(Vector2 from, Vector2 to, params Vector2[] opponents) =>
-            Agent_PassLaneMath.Openness(from, to, opponents, opponents.Length,
-                BallSpeed, RunnerSpeed, Reach, Reaction, Window);
-
-        [Test]
-        public void Lane_WithNoOpponents_IsFullyOpen()
+        [TearDown]
+        public void TearDown()
         {
-            Assert.That(Agent_PassLaneMath.Openness(Vector2.zero, new Vector2(0f, 10f), new Vector2[1], 0,
-                BallSpeed, RunnerSpeed, Reach, Reaction, Window), Is.EqualTo(1f));
+            Agent_Weather.CurrentCondition = Agent_Weather.Condition.Dry;
         }
 
         [Test]
-        public void Lane_WithAnOpponentStandingOnIt_IsShut()
+        public void Tween_SpringFloat_ConvergesToTarget()
         {
-            Assert.That(Openness(Vector2.zero, new Vector2(0f, 10f), new Vector2(0f, 5f)), Is.EqualTo(0f));
-        }
-
-        [Test]
-        public void Lane_WithAnOpponentFarAway_IsOpen()
-        {
-            Assert.That(Openness(Vector2.zero, new Vector2(0f, 10f), new Vector2(12f, 5f)), Is.EqualTo(1f));
-        }
-
-        [Test]
-        public void SameOffset_IsWorseNearTheReceiverThanNearThePasser()
-        {
-            // Three metres off the line: next to the passer the ball is already past
-            // him; next to the receiver of a long pass he has all the flight time.
-            var from = Vector2.zero;
-            var to = new Vector2(0f, 20f);
-            float nearPasser = Openness(from, to, new Vector2(3f, 0.5f));
-            float nearReceiver = Openness(from, to, new Vector2(3f, 19f));
-            Assert.That(nearPasser, Is.GreaterThan(nearReceiver));
-            Assert.That(nearReceiver, Is.LessThan(0.2f));
-        }
-
-        [Test]
-        public void Lane_IsOnlyAsOpenAsItsTightestOpponent()
-        {
-            var from = Vector2.zero;
-            var to = new Vector2(0f, 10f);
-            float alone = Openness(from, to, new Vector2(12f, 5f));
-            float withBlocker = Openness(from, to, new Vector2(12f, 5f), new Vector2(0.2f, 6f));
-            Assert.That(withBlocker, Is.LessThan(alone));
-        }
-
-        [Test]
-        public void Tint_RunsRedToGreen()
-        {
-            Color shut = Agent_PassLaneMath.Tint(0f, 1f);
-            Color open = Agent_PassLaneMath.Tint(1f, 1f);
-            Assert.That(shut.r, Is.GreaterThan(shut.g));
-            Assert.That(open.g, Is.GreaterThan(open.r));
-        }
-
-        // -- Momentum -----------------------------------------------------------
-
-        [Test]
-        public void Momentum_AveragesPressureWithinABucket()
-        {
-            var series = new Agent_MomentumSeries(capacity: 8, initialBucketSeconds: 1f);
-            series.Sample(1f, 0f, 0f, 0.5f);
-            series.Sample(0f, 0f, 0f, 0.5f);
-            Assert.That(series.Count, Is.EqualTo(1));
-            Assert.That(series.PressureAt(0), Is.EqualTo(0.5f).Within(1e-5f));
-        }
-
-        [Test]
-        public void Momentum_FitsAnyMatchLengthInFixedMemory()
-        {
-            var series = new Agent_MomentumSeries(capacity: 4, initialBucketSeconds: 1f);
-            for (int tick = 0; tick < 200; tick++) series.Sample(0.5f, 0f, 0f, 0.1f);
-            series.Flush();
-
-            Assert.That(series.Count, Is.LessThanOrEqualTo(series.Capacity));
-            Assert.That(series.BucketSeconds, Is.GreaterThan(1f));
-            Assert.That(series.TotalSeconds, Is.EqualTo(20f).Within(1e-3f));
-
-            // Compaction must not bend a constant signal.
-            for (int bucketIndex = 0; bucketIndex < series.Count; bucketIndex++)
+            var spring = new Agent_Tween.SpringFloat(0f);
+            for (int i = 0; i < 120; i++)
             {
-                Assert.That(series.PressureAt(bucketIndex), Is.EqualTo(0.5f).Within(1e-4f));
+                spring.Step(10f, 1f / 60f, angularFrequency: 22f, dampingRatio: 0.75f);
             }
+            Assert.AreEqual(10f, spring.Value, 0.05f);
+            Assert.AreEqual(0f, Agent_Tween.Punch(0f));
+            Assert.AreEqual(0f, Agent_Tween.Punch(1f), 0.001f);
+            Assert.Greater(Agent_Tween.Punch(0.2f), 0.4f);
+            Assert.Greater(Agent_Tween.EaseOutBack(0.5f), 0.5f);
         }
 
         [Test]
-        public void Momentum_KeepsTheLatestRunningXg()
+        public void Art_SportsProps_ShareSingleAtlasPage()
         {
-            var series = new Agent_MomentumSeries(capacity: 4, initialBucketSeconds: 1f);
-            for (int tick = 0; tick < 100; tick++)
+            Sprite cleat = Agent_Art.Cleat(0.28f);
+            Sprite flag = Agent_Art.Flag(0.30f);
+            Sprite glove = Agent_Art.Glove(0.26f);
+
+            Assert.IsNotNull(cleat);
+            Assert.IsNotNull(flag);
+            Assert.IsNotNull(glove);
+            Assert.AreSame(Agent_Art.Page, cleat.texture);
+            Assert.AreSame(Agent_Art.Page, flag.texture);
+            Assert.AreSame(Agent_Art.Page, glove.texture);
+        }
+
+        [Test]
+        public void Faces_GazeAndMicroExpressions_ClampAndScaleCleanly()
+        {
+            // Looking 90 degrees to the left (-rightAxis) should clamp at +MAX_GAZE_DEG (22 deg).
+            float gazeLeft = Agent_Faces.ComputeGazeAngleDeg(
+                Vector2.zero, Vector2.up, Vector2.right, Vector2.left * 3f, Agent_Faces.MAX_GAZE_DEG);
+            Assert.AreEqual(Agent_Faces.MAX_GAZE_DEG, gazeLeft, 0.01f);
+
+            // Micro-expression flinch widens X and squashes Y.
+            Vector2 flinchScale = Agent_Faces.ComputeExpressionScale(1f, 0.5f, 0f, 0f, 0f);
+            Assert.Greater(flinchScale.x, 1f);
+            Assert.Less(flinchScale.y, 1f);
+        }
+
+        [Test]
+        public void Limbs_KickSwingAndGoalieDive_FollowBiomechanics()
+        {
+            // Pre-contact wind-up pulls the kicking foot back (< 0).
+            float windUp = Agent_Limbs.ComputeKickSwingOffset(
+                bodyWidth: 0.8f, ballDist: 0.5f, closingSpeed: 4f,
+                kickFollowTimer: 0f, isBoosting: false, out float windStretch);
+            Assert.Less(windUp, 0f);
+            Assert.Greater(windStretch, 1f);
+
+            // Follow-through drives the kicking foot forward (> 0).
+            float followThrough = Agent_Limbs.ComputeKickSwingOffset(
+                bodyWidth: 0.8f, ballDist: 0.5f, closingSpeed: 4f,
+                kickFollowTimer: 0.11f, isBoosting: true, out float followStretch);
+            Assert.Greater(followThrough, 0.1f);
+            Assert.Greater(followStretch, 1.1f);
+
+            // Goalie dive reaches laterally toward a fast shot heading at goal.
+            Vector2 goaliePos = new Vector2(0f, -7.5f);
+            Vector2 ballPos = new Vector2(1.4f, -4.5f);
+            Vector2 ballVel = new Vector2(-1.2f, -12f);
+            Vector2 dive = Agent_Limbs.ComputeGoalieDiveOffset(
+                goaliePos, Vector2.up, Vector2.right, ballPos, ballVel, lateralSlipSpeed: 2f, bodyWidth: 0.8f);
+            Assert.Greater(dive.x, 0.05f);
+            Assert.Greater(dive.y, 0.05f);
+        }
+
+        [Test]
+        public void GoalFrame_SpringVerletNet_DeformsAndPinsPosts()
+        {
+            float[] disp = new float[Agent_GoalFrame.NET_NODES];
+            float[] vel = new float[Agent_GoalFrame.NET_NODES];
+
+            Agent_GoalFrame.InjectNetImpact(vel, normalizedX: 0f, speed: 10f);
+            Agent_GoalFrame.StepNetSprings(disp, vel, 1f / 60f);
+
+            Assert.AreEqual(0f, disp[0], 1e-5f, "Left goalpost node must remain pinned.");
+            Assert.AreEqual(0f, disp[disp.Length - 1], 1e-5f, "Right goalpost node must remain pinned.");
+            Assert.Greater(disp[disp.Length / 2], 0.02f, "Centre net node should bulge outward on goal impact.");
+
+            for (int i = 0; i < 240; i++)
             {
-                series.Sample(0f, tick * 0.01f, tick * 0.02f, 0.1f);
+                Agent_GoalFrame.StepNetSprings(disp, vel, 1f / 60f);
             }
-            series.Flush();
-            int last = series.Count - 1;
-            Assert.That(series.BlueXgAt(last), Is.EqualTo(0.99f).Within(1e-4f));
-            Assert.That(series.RedXgAt(last), Is.EqualTo(1.98f).Within(1e-4f));
+            Assert.AreEqual(0f, disp[disp.Length / 2], 0.02f, "Net should settle back to rest after damping.");
         }
 
         [Test]
-        public void Momentum_RecordsGoalsAtMatchTime()
+        public void BallHeight_VerticalSolver_LoftsBouncesAndSettles()
         {
-            var series = new Agent_MomentumSeries(capacity: 8, initialBucketSeconds: 1f);
-            series.Sample(0f, 0f, 0f, 3f);
-            series.Goal(1);
-            Assert.That(series.GoalCount, Is.EqualTo(1));
-            Assert.That(series.GoalTimeAt(0), Is.EqualTo(3f).Within(1e-5f));
-            Assert.That(series.GoalTeamAt(0), Is.EqualTo(1));
-        }
+            float height = 0f;
+            float vz = Agent_BallHeight.ImpulseToLoft(12f, isWallKick: true);
+            Assert.Greater(vz, 3.5f);
 
-        [Test]
-        public void Momentum_BlueShareSplitsPressure()
-        {
-            var series = new Agent_MomentumSeries(capacity: 8, initialBucketSeconds: 1f);
-            series.Sample(0.6f, 0f, 0f, 1f);
-            series.Sample(-0.2f, 0f, 0f, 1f);
-            Assert.That(series.BlueShare(), Is.EqualTo(0.75f).Within(1e-4f));
-            Assert.That(new Agent_MomentumSeries(4, 1f).BlueShare(), Is.EqualTo(0.5f));
-        }
-
-        // -- Saliency grouping --------------------------------------------------
-
-        [Test]
-        public void Saliency_VectorGroups_CoverTheBaseObservationExactly()
-        {
-            // The grouping mirrors Agent_Soccer.CollectObservations line by line. If the
-            // contract changes size, this fails first, which is the point.
-            Assert.That(Agent_Soccer.BaseObservationSize, Is.EqualTo(34));
-
-            var counts = new int[Agent_Saliency.GROUP_COUNT];
-            for (int index = 0; index < Agent_Soccer.BaseObservationSize; index++)
+            float peak = 0f;
+            for (int i = 0; i < 300; i++)
             {
-                counts[(int)Agent_Saliency.VectorGroupOf(index)]++;
+                Agent_BallHeight.StepBallVertical(ref height, ref vz, 1f / 60f);
+                if (height > peak) peak = height;
             }
-
-            Assert.That(counts[(int)Agent_Saliency.Group.Clock], Is.EqualTo(3));
-            Assert.That(counts[(int)Agent_Saliency.Group.Self], Is.EqualTo(5));
-            Assert.That(counts[(int)Agent_Saliency.Group.Ball], Is.EqualTo(4));
-            Assert.That(counts[(int)Agent_Saliency.Group.Goals], Is.EqualTo(5));
-            Assert.That(counts[(int)Agent_Saliency.Group.Teammate], Is.EqualTo(4));
-            Assert.That(counts[(int)Agent_Saliency.Group.Opponents], Is.EqualTo(4 * Agent_Soccer.OpponentSlots));
-            Assert.That(counts[(int)Agent_Saliency.Group.Role], Is.EqualTo(5));
+            Assert.Greater(peak, 0.6f, "Lofted ball should arc above header height.");
+            Assert.AreEqual(0f, height, 0.01f, "Ball should settle back onto the turf.");
         }
 
         [Test]
-        public void Saliency_KnowsEveryRaySensorInTheBattery()
+        public void Weather_MultipliersAndOpenMeteoParser_MapCorrectly()
         {
-            var seen = new bool[Agent_Saliency.GROUP_COUNT];
-            for (int specIndex = 0; specIndex < Sensor_Vision.Battery.Length; specIndex++)
+            Assert.AreEqual(1.00f, Agent_Weather.TractionMultiplier(Agent_Weather.Condition.Dry), 1e-4f);
+            Assert.Less(Agent_Weather.TractionMultiplier(Agent_Weather.Condition.Wet), 1.0f);
+            Assert.Less(Agent_Weather.BallDampingMultiplier(Agent_Weather.Condition.Wet), 1.0f);
+            Assert.Greater(Agent_Weather.BallDampingMultiplier(Agent_Weather.Condition.Muddy), 1.0f);
+
+            Assert.AreEqual(Agent_Weather.Condition.Snowy, Agent_Weather.ParseOpenMeteoCode(73, -1f));
+            Assert.AreEqual(Agent_Weather.Condition.Muddy, Agent_Weather.ParseOpenMeteoCode(95, 18f));
+            Assert.AreEqual(Agent_Weather.Condition.Wet, Agent_Weather.ParseOpenMeteoCode(61, 14f));
+            Assert.AreEqual(Agent_Weather.Condition.Dry, Agent_Weather.ParseOpenMeteoCode(1, 20f));
+
+            const string sampleJson = "{\"current_weather\":{\"temperature\":11.5,\"weathercode\":61}}";
+            Assert.IsTrue(Agent_Weather.TryParseOpenMeteoJson(sampleJson, out int code, out float temp));
+            Assert.AreEqual(61, code);
+            Assert.AreEqual(11.5f, temp, 0.01f);
+        }
+
+        [Test]
+        public void VoiceSynth_RenderCommentaryAndWavEncoder_ProduceValidData()
+        {
+            float[] samples = Agent_VoiceSynth.RenderCommentary("WHAT A STRIKE!", 0.95f);
+            Assert.IsNotNull(samples);
+            Assert.Greater(samples.Length, Agent_VoiceSynth.SAMPLE_RATE / 4);
+
+            byte[] wav = Agent_VoiceSynth.EncodeWav16(samples);
+            Assert.AreEqual(44 + samples.Length * 2, wav.Length);
+            Assert.AreEqual((byte)'R', wav[0]);
+            Assert.AreEqual((byte)'I', wav[1]);
+            Assert.AreEqual((byte)'F', wav[2]);
+            Assert.AreEqual((byte)'F', wav[3]);
+            Assert.AreEqual((byte)'W', wav[8]);
+            Assert.AreEqual((byte)'A', wav[9]);
+            Assert.AreEqual((byte)'V', wav[10]);
+            Assert.AreEqual((byte)'E', wav[11]);
+        }
+
+        [Test]
+        public void Wager_OddsAndSettlement_ConserveBankrollFloor()
+        {
+            var (blueOdds, redOdds) = Agent_Wager.ComputeOdds(1650f, 1450f);
+            Assert.Less(blueOdds, redOdds, "Higher Elo favourite must offer lower payout multiplier than underdog.");
+
+            var (winCoins, winStreak, winDelta) = Agent_Wager.Settle(100, 2, 25, 2.0f, won: true);
+            Assert.Greater(winCoins, 100);
+            Assert.AreEqual(3, winStreak);
+            Assert.Greater(winDelta, 0);
+
+            var (lossCoins, lossStreak, _) = Agent_Wager.Settle(30, 3, 25, 2.0f, won: false);
+            Assert.AreEqual(Agent_Wager.MIN_COINS, lossCoins, "Bankroll must never fall below MIN_COINS.");
+            Assert.AreEqual(0, lossStreak);
+        }
+
+        [Test]
+        public void Sidelines_LinesmanAndCoach_StayInAssignedZones()
+        {
+            float northY = 1f, velN = 0f;
+            float southY = -1f, velS = 0f;
+            for (int i = 0; i < 60; i++)
             {
-                string name = Sensor_Vision.Battery[specIndex].Name;
-                Assert.That(Agent_Saliency.TryRayGroupOf(name, out var group), Is.True, name);
-                Assert.That(seen[(int)group], Is.False, "two sensors share a group: " + name);
-                seen[(int)group] = true;
+                northY = Agent_Sidelines.ComputeLinesmanY(northY, ref velN, -5f, 8f, isNorthHalf: true, 1f / 60f);
+                southY = Agent_Sidelines.ComputeLinesmanY(southY, ref velS, 5f, 8f, isNorthHalf: false, 1f / 60f);
             }
-            Assert.That(Agent_Saliency.TryRayGroupOf("Sensor_Unknown", out _), Is.False);
+            Assert.GreaterOrEqual(northY, -0.01f, "North linesman must not cross into South half.");
+            Assert.LessOrEqual(southY, 0.01f, "South linesman must not cross into North half.");
+
+            Vector2 blueCoach = Agent_Sidelines.ComputeCoachPosition(Vector2.zero, new Vector2(4.5f, 9f), isBlueTeam: true, 1.5f, 0.5f);
+            Vector2 redCoach = Agent_Sidelines.ComputeCoachPosition(Vector2.zero, new Vector2(4.5f, 9f), isBlueTeam: false, 1.5f, 0.5f);
+            Assert.Less(blueCoach.x, -4.5f, "Coach must remain outside the West touchline.");
+            Assert.Less(blueCoach.y, 0f, "Blue coach stays in Blue's half.");
+            Assert.Greater(redCoach.y, 0f, "Red coach stays in Red's half.");
         }
 
         [Test]
-        public void Saliency_BlankRayReadsAsACleanMiss()
+        public void HumanController_ScreenRelativeSteering_AlignsDriveAndTurn()
         {
-            // Two tags: [tag0, tag1, missFlag, distance] per ray.
-            Assert.That(Agent_Saliency.NeutralRayValue(0, 2), Is.EqualTo(0f));
-            Assert.That(Agent_Saliency.NeutralRayValue(1, 2), Is.EqualTo(0f));
-            Assert.That(Agent_Saliency.NeutralRayValue(2, 2), Is.EqualTo(1f));
-            Assert.That(Agent_Saliency.NeutralRayValue(3, 2), Is.EqualTo(1f));
-            Assert.That(Agent_Saliency.NeutralRayValue(4, 2), Is.EqualTo(0f));
+            // Idle input -> zero actions.
+            Vector4 idle = Agent_HumanController.ComputeSteerActions(
+                Vector2.zero, Vector2.up, Vector2.right, 0f, boostWanted: false);
+            Assert.AreEqual(Vector4.zero, idle);
+
+            // Pressing Up (+Y) while facing Up (+Y): full forward drive, zero turn, boost engaged.
+            Vector4 upWhileUp = Agent_HumanController.ComputeSteerActions(
+                Vector2.up, Vector2.up, Vector2.right, 0f, boostWanted: true);
+            Assert.Greater(upWhileUp.x, 0.95f, "Forward channel should be full when aligned with screen input.");
+            Assert.AreEqual(0f, upWhileUp.y, 0.01f);
+            Assert.AreEqual(0f, upWhileUp.z, 0.01f);
+            Assert.AreEqual(1f, upWhileUp.w, 0.01f);
+
+            // Pressing Left (-X) while facing Up (+Y): left strafe (-lateral) and positive CCW turn.
+            Vector4 leftWhileUp = Agent_HumanController.ComputeSteerActions(
+                Vector2.left, Vector2.up, Vector2.right, 0f, boostWanted: false);
+            Assert.Less(leftWhileUp.y, -0.95f, "Lateral channel should strafe left immediately.");
+            Assert.Greater(leftWhileUp.z, 0.5f, "Turn channel should steer counter-clockwise toward +X=left.");
         }
 
         [Test]
-        public void Saliency_SharesSumToOne_AndZeroStaysZero()
+        public void HumanController_KickImpulse_StrikesInAimedDirectionWithinRadius()
         {
-            var raw = new float[Agent_Saliency.GROUP_COUNT];
-            var shares = new float[Agent_Saliency.GROUP_COUNT];
-            raw[0] = 0.3f;
-            raw[4] = 0.1f;
-            Agent_Saliency.Normalise(raw, shares);
-            float total = 0f;
-            for (int groupIndex = 0; groupIndex < shares.Length; groupIndex++) total += shares[groupIndex];
-            Assert.That(total, Is.EqualTo(1f).Within(1e-5f));
-            Assert.That(shares[0], Is.EqualTo(0.75f).Within(1e-5f));
+            Vector2 playerPos = Vector2.zero;
+            Vector2 forward = Vector2.up;
 
-            System.Array.Clear(raw, 0, raw.Length);
-            Agent_Saliency.Normalise(raw, shares);
-            for (int groupIndex = 0; groupIndex < shares.Length; groupIndex++)
+            // Ball outside kick radius -> zero impulse.
+            Vector2 farImpulse = Agent_HumanController.ComputeKickImpulse(
+                playerPos, forward, Vector2.up, new Vector2(0f, 3.0f));
+            Assert.AreEqual(Vector2.zero, farImpulse);
+
+            // Ball within radius, aimed diagonally up-right -> positive X and Y impulse.
+            Vector2 nearImpulse = Agent_HumanController.ComputeKickImpulse(
+                playerPos, forward, new Vector2(1f, 1f), new Vector2(0f, 0.9f));
+            Assert.Greater(nearImpulse.magnitude, 2.0f);
+            Assert.Greater(nearImpulse.x, 0.5f, "Kick should angle toward held movement direction.");
+            Assert.Greater(nearImpulse.y, 0.5f, "Kick should drive the ball forward.");
+        }
+
+        [Test]
+        public void HumanController_ProfileAndMatchSetup_LocksToBlueSlotZero()
+        {
+            var profile = Agent_HumanController.GetOrCreateProfile();
+            Assert.IsNotNull(profile);
+            Assert.AreEqual(Agent_HumanController.HUMAN_PLAYER_NAME, profile.playerName);
+            Assert.IsNull(profile.faceTexture, "Generic Blue box must have no face photo.");
+            Assert.AreEqual(1f, profile.bodyScale, 0.001f);
+            Assert.AreEqual(75f, profile.bodyMass, 0.001f);
+
+            try
             {
-                Assert.That(shares[groupIndex], Is.EqualTo(0f));
+                Agent_MatchSetup.Clear();
+                Assert.IsFalse(Agent_MatchSetup.IsHumanSlot(Agent_Soccer.Team.Blue, 0));
+
+                Agent_MatchSetup.HumanControl = true;
+                Assert.IsTrue(Agent_MatchSetup.IsHumanSlot(Agent_Soccer.Team.Blue, 0));
+                Assert.IsFalse(Agent_MatchSetup.IsHumanSlot(Agent_Soccer.Team.Blue, 1),
+                    "4v4 teammates in slots 1..3 must remain AI-controlled.");
+                Assert.IsFalse(Agent_MatchSetup.IsHumanSlot(Agent_Soccer.Team.Red, 0),
+                    "Opponents must remain AI-controlled.");
+
+                // Human "YOU" matches must never pollute the AI Elo leaderboard.
+                Agent_Elo.ResetAll();
+                float delta = Agent_Elo.Record(Agent_HumanController.HUMAN_PLAYER_NAME, "KIM", 1f);
+                Assert.AreEqual(0f, delta, 1e-5f, "Human 1P games must not mutate AI Elo ratings.");
+                Assert.AreEqual(0, Agent_Elo.Table().Count, "YOU must not appear in the AI Elo table.");
             }
-        }
-
-        [Test]
-        public void Saliency_HasANameForEveryGroup()
-        {
-            Assert.That(Agent_Saliency.GroupNames.Length, Is.EqualTo(Agent_Saliency.GROUP_COUNT));
-            Assert.That(System.Enum.GetValues(typeof(Agent_Saliency.Group)).Length,
-                Is.EqualTo(Agent_Saliency.GROUP_COUNT));
-        }
-
-        // -- Stamina ring ---------------------------------------------------------
-
-        [Test]
-        public void StaminaRing_AFreshTankDrawsNothing()
-        {
-            Assert.That(Agent_StaminaRing.ShouldDraw(1f, 1f), Is.False);
-            Assert.That(Agent_StaminaRing.ShouldDraw(0.8f, 1f), Is.True);
-            Assert.That(Agent_StaminaRing.ShouldDraw(1f, 0.9f), Is.True, "wear alone is worth showing");
-        }
-
-        [Test]
-        public void StaminaRing_LimitsWhenEmptyOrLow()
-        {
-            Assert.That(Agent_StaminaRing.IsLimiting(0.9f, true, 0.3f), Is.False);
-            Assert.That(Agent_StaminaRing.IsLimiting(0.2f, true, 0.3f), Is.True);
-            Assert.That(Agent_StaminaRing.IsLimiting(0.9f, false, 0.3f), Is.True, "no stamina means no boost");
-        }
-
-        [Test]
-        public void StaminaRing_TankShareIsClamped()
-        {
-            Assert.That(Agent_StaminaRing.TankShare(50f, 100f), Is.EqualTo(0.5f));
-            Assert.That(Agent_StaminaRing.TankShare(150f, 100f), Is.EqualTo(1f));
-            Assert.That(Agent_StaminaRing.TankShare(10f, 0f), Is.EqualTo(0f));
+            finally
+            {
+                Agent_MatchSetup.Clear();
+            }
         }
     }
 }

@@ -92,6 +92,32 @@ namespace PoSoccer
         }
 
         /// <summary>
+        /// Rounded-capsule cleat/boot silhouette on the shared atlas page, oriented
+        /// along +Y (toe at the top, heel at the bottom) with subtle stud notches.
+        /// </summary>
+        public static Sprite Cleat(float worldSize)
+        {
+            return GetSprite("cleat", worldSize, 64, WriteCleat, 0f);
+        }
+
+        /// <summary>
+        /// Triangular linesman/corner flag on the shared atlas page, pointing +X from
+        /// the hoist on the left edge.
+        /// </summary>
+        public static Sprite Flag(float worldSize)
+        {
+            return GetSprite("flag", worldSize, 64, WriteFlag, 0f);
+        }
+
+        /// <summary>
+        /// Wide goalkeeper glove pad on the shared atlas page.
+        /// </summary>
+        public static Sprite Glove(float worldSize)
+        {
+            return GetSprite("glove", worldSize, 64, WriteGlove, 0f);
+        }
+
+        /// <summary>
         /// A white square on its OWN texture, deliberately NOT on the shared atlas
         /// page - the single documented exception to everything this class exists
         /// to do.
@@ -321,6 +347,65 @@ namespace PoSoccer
                     // 1 at the centre, 0 at the rim, with a shoulder that keeps
                     // the core dark and the edge genuinely soft.
                     float a = Mathf.Pow(Mathf.Clamp01(1f - d), power);
+                    pixels[y * resolution + x] = new Color32(255, 255, 255, (byte)(a * 255f));
+                }
+            }
+        }
+
+        static void WriteCleat(Color32[] pixels, int resolution, float unused)
+        {
+            float centre = (resolution - 1) * 0.5f;
+            for (int y = 0; y < resolution; y++)
+            {
+                float ny = (y - centre) / centre; // -1 heel .. +1 toe
+                // Slightly wider at the forefoot than the midfoot/heel.
+                float halfW = ny > 0f
+                    ? Mathf.Lerp(0.52f, 0.44f, ny * ny)
+                    : Mathf.Lerp(0.52f, 0.38f, Mathf.Abs(ny));
+                for (int x = 0; x < resolution; x++)
+                {
+                    float nx = (x - centre) / (centre * Mathf.Max(0.1f, halfW));
+                    float dy = Mathf.Max(0f, Mathf.Abs(ny) - 0.55f) / 0.42f;
+                    float dist = Mathf.Sqrt(nx * nx + dy * dy);
+                    float a = Mathf.Clamp01((1f - dist) * 14f);
+                    // Bright toe-cap accent so forward orientation reads at a glance.
+                    byte shade = ny > 0.35f ? (byte)255 : (byte)228;
+                    pixels[y * resolution + x] = new Color32(shade, shade, shade, (byte)(a * 255f));
+                }
+            }
+        }
+
+        static void WriteFlag(Color32[] pixels, int resolution, float unused)
+        {
+            for (int y = 0; y < resolution; y++)
+            {
+                float ny = (y / (float)(resolution - 1)) * 2f - 1f;
+                for (int x = 0; x < resolution; x++)
+                {
+                    float nx = x / (float)(resolution - 1); // 0 hoist .. 1 tip
+                    float maxAbsY = Mathf.Lerp(0.85f, 0.08f, nx);
+                    float a = Mathf.Clamp01((maxAbsY - Mathf.Abs(ny)) * 16f);
+                    // Two-tone diagonal chequer like an assistant referee's flag.
+                    bool stripe = (nx + ny * 0.5f) > 0.45f;
+                    byte c = stripe ? (byte)255 : (byte)215;
+                    pixels[y * resolution + x] = new Color32(255, c, (byte)(stripe ? 90 : 255), (byte)(a * 255f));
+                }
+            }
+        }
+
+        static void WriteGlove(Color32[] pixels, int resolution, float unused)
+        {
+            float centre = (resolution - 1) * 0.5f;
+            for (int y = 0; y < resolution; y++)
+            {
+                float ny = (y - centre) / centre;
+                for (int x = 0; x < resolution; x++)
+                {
+                    float nx = (x - centre) / centre;
+                    // Rounded palm pad with subtle finger ridges at the top (+Y).
+                    float fingerWave = ny > 0f ? 0.06f * Mathf.Cos(nx * Mathf.PI * 3.5f) : 0f;
+                    float d = Mathf.Sqrt(nx * nx * 0.85f + (ny - fingerWave) * (ny - fingerWave) * 1.15f);
+                    float a = Mathf.Clamp01((0.88f - d) * 14f);
                     pixels[y * resolution + x] = new Color32(255, 255, 255, (byte)(a * 255f));
                 }
             }

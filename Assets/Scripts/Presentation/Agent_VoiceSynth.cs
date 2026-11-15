@@ -58,6 +58,136 @@ namespace PoSoccer
             return clip;
         }
 
+        /// <summary>
+        /// Renders a spoken broadcast commentary cadence from the words/vowels in <paramref name="text"/>.
+        /// Exclamation marks and ALL-CAPS lines raise announcer pitch, projection, and excitement.
+        /// </summary>
+        public static float[] RenderCommentary(string text, float basePitch = 0.92f)
+        {
+            if (string.IsNullOrEmpty(text)) return new float[SAMPLE_RATE / 10];
+            uint state = NameSeed(text);
+            if (state == 0) state = 1u;
+
+            bool excited = text.IndexOf('!') >= 0 || string.Equals(text, text.ToUpperInvariant(), System.StringComparison.Ordinal);
+            float intensity = excited ? 0.82f : 0.45f;
+            int wordCount = 1;
+            for (int i = 0; i < text.Length; i++)
+            {
+                if (text[i] == ' ') wordCount++;
+            }
+            int syllables = Mathf.Clamp(wordCount + 1, 2, 8);
+            float syllableSec = excited ? 0.11f : 0.13f;
+            float gapSec = 0.032f;
+            float totalSec = 0.03f + syllables * (syllableSec + gapSec);
+            int length = Mathf.CeilToInt(totalSec * SAMPLE_RATE);
+            var output = new float[length];
+
+            float f0Base = 122f * Mathf.Clamp(basePitch, 0.6f, 1.6f) * (excited ? 1.24f : 1.0f);
+            float formantScale = Mathf.Pow(Mathf.Clamp(basePitch, 0.6f, 1.6f), 0.35f);
+            float dt = 1f / SAMPLE_RATE;
+            float phase = 0f, glottalLow = 0f;
+            int cursor = Mathf.RoundToInt(0.015f * SAMPLE_RATE);
+
+            for (int s = 0; s < syllables; s++)
+            {
+                int vowel = (int)(Next(ref state) * 5f) % 5;
+                int count = Mathf.RoundToInt(syllableSec * (0.9f + Next(ref state) * 0.2f) * SAMPLE_RATE);
+                float contour = excited
+                    ? 1f + 0.18f * Mathf.Sin((s / (float)Mathf.Max(1, syllables - 1)) * Mathf.PI)
+                    : 1f - 0.04f * s;
+                float syllableF0 = f0Base * contour;
+
+                var r1 = new Resonator(Formants[vowel, 0] * formantScale, 9f);
+                var r2 = new Resonator(Formants[vowel, 1] * formantScale, 12f);
+                var r3 = new Resonator(Formants[vowel, 2] * formantScale, 15f);
+
+                for (int i = 0; i < count && cursor + i < length; i++)
+                {
+                    float u = i / (float)count;
+                    float bend = Mathf.Lerp(1.03f, excited ? 1.12f : 0.94f, u);
+                    float f0 = syllableF0 * bend * (1f + (Next(ref state) - 0.5f) * 0.018f);
+                    phase += f0 * dt;
+                    if (phase >= 1f) phase -= 1f;
+                    float saw = 2f * phase - 1f;
+                    glottalLow += 0.35f * (saw - glottalLow);
+                    float noise = (Next(ref state) * 2f - 1f) * 0.1f;
+                    float src = glottalLow * 0.9f + noise;
+                    float voiced = r1.Process(src) + r2.Process(src) * 0.6f + r3.Process(src) * 0.3f;
+                    float env = Mathf.Clamp01(u / 0.08f) * Mathf.Clamp01((1f - u) / 0.25f);
+                    output[cursor + i] += voiced * env;
+                }
+                cursor += count + Mathf.RoundToInt(gapSec * SAMPLE_RATE);
+            }
+
+            float peak = 0f;
+            for (int i = 0; i < length; i++) peak = Mathf.Max(peak, Mathf.Abs(output[i]));
+            float gain = peak > 1e-6f ? Mathf.Lerp(0.42f, 0.85f, intensity) / peak : 0f;
+            for (int i = 0; i < length; i++) output[i] *= gain;
+            return output;
+        }
+
+        /// <summary>Builds a Unity <see cref="AudioClip"/> for a broadcast commentary line.</summary>
+        public static AudioClip ToCommentaryClip(string text, float basePitch = 0.92f)
+        {
+            float[] samples = RenderCommentary(text, basePitch);
+            var clip = AudioClip.Create($"commentary_{NameSeed(text)}", samples.Length, 1, SAMPLE_RATE, false);
+            clip.SetData(samples, 0);
+            return clip;
+        }
+
+        /// <summary>
+        /// Encodes mono [-1, 1] samples into a standard 44-byte header 16-bit PCM RIFF WAVE byte array.
+        /// Used by <c>Editor_VoicePack</c> to bake offline WAV files into <c>Assets/Resources/Voices/</c>.
+        /// </summary>
+        public static byte[] EncodeWav16(float[] samples, int sampleRate = SAMPLE_RATE)
+        {
+            int count = samples != null ? samples.Length : 0;
+            int dataBytes = count * 2;
+            byte[] wav = new byte[44 + dataBytes];
+
+            WriteAscii(wav, 0, "RIFF");
+            WriteInt32LE(wav, 4, 36 + dataBytes);
+            WriteAscii(wav, 8, "WAVE");
+            WriteAscii(wav, 12, "fmt ");
+            WriteInt32LE(wav, 16, 16);              // PCM chunk size
+            WriteInt16LE(wav, 20, 1);               // AudioFormat = 1 (PCM)
+            WriteInt16LE(wav, 22, 1);               // NumChannels = 1 (Mono)
+            WriteInt32LE(wav, 24, sampleRate);      // SampleRate
+            WriteInt32LE(wav, 28, sampleRate * 2);  // ByteRate
+            WriteInt16LE(wav, 32, 2);               // BlockAlign
+            WriteInt16LE(wav, 34, 16);              // BitsPerSample
+            WriteAscii(wav, 36, "data");
+            WriteInt32LE(wav, 40, dataBytes);
+
+            int offset = 44;
+            for (int i = 0; i < count; i++)
+            {
+                short pcm = (short)Mathf.RoundToInt(Mathf.Clamp(samples[i], -1f, 1f) * 32767f);
+                wav[offset++] = (byte)(pcm & 0xFF);
+                wav[offset++] = (byte)((pcm >> 8) & 0xFF);
+            }
+            return wav;
+        }
+
+        static void WriteAscii(byte[] buf, int offset, string s)
+        {
+            for (int i = 0; i < s.Length; i++) buf[offset + i] = (byte)s[i];
+        }
+
+        static void WriteInt16LE(byte[] buf, int offset, short value)
+        {
+            buf[offset] = (byte)(value & 0xFF);
+            buf[offset + 1] = (byte)((value >> 8) & 0xFF);
+        }
+
+        static void WriteInt32LE(byte[] buf, int offset, int value)
+        {
+            buf[offset] = (byte)(value & 0xFF);
+            buf[offset + 1] = (byte)((value >> 8) & 0xFF);
+            buf[offset + 2] = (byte)((value >> 16) & 0xFF);
+            buf[offset + 3] = (byte)((value >> 24) & 0xFF);
+        }
+
         /// <summary>Renders one utterance as mono samples in [-1, 1].</summary>
         public static float[] Render(string character, Agent_VoiceMood mood, int line, int level, float voicePitch)
         {

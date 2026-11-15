@@ -157,6 +157,9 @@ namespace PoSoccer
             if (go.GetComponent<Agent_Voices>() == null) go.AddComponent<Agent_Voices>();
             if (go.GetComponent<Agent_TournamentMatch>() == null) go.AddComponent<Agent_TournamentMatch>();
             if (go.GetComponent<Agent_MatchIntro>() == null) go.AddComponent<Agent_MatchIntro>();
+            if (go.GetComponent<Agent_Weather>() == null) go.AddComponent<Agent_Weather>();
+            if (go.GetComponent<Agent_Sidelines>() == null) go.AddComponent<Agent_Sidelines>();
+            if (go.GetComponent<Agent_Wager>() == null) go.AddComponent<Agent_Wager>();
 
             // Screen-space and device-wide owners. All three are singular by
             // nature - one framebuffer, one vibrator, one frame budget - so they
@@ -244,6 +247,8 @@ namespace PoSoccer
             if (go.GetComponent<Agent_BallSpin>() == null) go.AddComponent<Agent_BallSpin>();
             // Per-pitch (2026-11-08): face photos on THIS pitch's players.
             if (go.GetComponent<Agent_Faces>() == null) go.AddComponent<Agent_Faces>();
+            // Per-pitch 2.5D ball loft & header detection on THIS pitch's ball.
+            if (go.GetComponent<Agent_BallHeight>() == null) go.AddComponent<Agent_BallHeight>();
         }
     }
 }

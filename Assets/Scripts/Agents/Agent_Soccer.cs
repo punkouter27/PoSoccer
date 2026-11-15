@@ -119,9 +119,13 @@ namespace PoSoccer
         /// brainModel and silently falls back to the bot. Valid from Awake onward.
         /// </summary>
         public bool RuleBased =>
-            _behavior == null || _behavior.BehaviorType != BehaviorType.InferenceOnly;
+            !HumanControlled && (_behavior == null || _behavior.BehaviorType != BehaviorType.InferenceOnly);
+
+        /// <summary>True when this agent is driven live by <see cref="Agent_HumanController"/>.</summary>
+        public bool HumanControlled => _human != null && _human.enabled;
 
         Agent_HeuristicBot _bot;
+        Agent_HumanController _human;
         BehaviorParameters _behavior;
         Transform _label;                              // identity letter, kept upright
         Vector2 _driveVec;                             // slew-limited foot force (N), world space
@@ -514,6 +518,7 @@ namespace PoSoccer
             Body = GetComponent<Rigidbody2D>();
             Stamina = GetComponent<Agent_Stamina>();
             _bot = GetComponent<Agent_HeuristicBot>();
+            _human = GetComponent<Agent_HumanController>();
         }
 
         // Runs after Agent_EnvController.Start (execution order -50) has assigned
@@ -1034,7 +1039,7 @@ namespace PoSoccer
             // Traction budget: everything the feet do - launching, cutting, braking -
             // shares one friction circle of mu * m * g. This is what makes hard
             // direction changes cost speed instead of being free.
-            float tractionBudget = _tractionMu * Body.mass * Gravity;
+            float tractionBudget = _tractionMu * Agent_Weather.ActiveTractionMultiplier(env) * Body.mass * Gravity;
             Vector2 applied = Vector2.ClampMagnitude(_driveVec, tractionBudget);
             Body.AddForce(applied);
 
@@ -1379,6 +1384,13 @@ namespace PoSoccer
         public override void Heuristic(in ActionBuffers actionsOut)
         {
             var continuous = actionsOut.ContinuousActions;
+
+            if (_human == null) _human = GetComponent<Agent_HumanController>();
+            if (_human != null && _human.enabled)
+            {
+                _human.WriteHeuristicActions(continuous);
+                return;
+            }
 
             // Disable the bot component to reclaim keyboard control for play-testing.
             if (_bot != null && _bot.enabled && env != null && env.Ball != null)
