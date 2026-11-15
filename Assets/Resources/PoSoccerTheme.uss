@@ -105,8 +105,8 @@
     background-color: var(--color-bg);
     align-items: center;
     justify-content: space-evenly;
-    padding-top: var(--space-5);
-    padding-bottom: var(--space-5);
+    padding-top: var(--space-2);
+    padding-bottom: var(--space-2);
 }
 
 .band {
@@ -260,13 +260,13 @@
 }
 
 .btn--play {
-    font-size: 74;
+    font-size: 60;
     -unity-font-style: bold;
     background-color: var(--color-accent);
-    padding-left: 150;
-    padding-right: 150;
-    padding-top: 26;
-    padding-bottom: 26;
+    padding-left: 80;
+    padding-right: 80;
+    padding-top: 14;
+    padding-bottom: 14;
 }
 
 .btn--ghost {
@@ -1020,6 +1020,7 @@
  */
 
 .menu__title {
+    display: none;
     font-size: var(--font-xl);
 }
 
@@ -1028,7 +1029,7 @@
     flex-direction: row;
     justify-content: center;
     width: 1000;
-    margin-top: var(--space-3);
+    margin-top: var(--space-1);
 }
 
 .menu__mode {
@@ -1045,13 +1046,13 @@
     background-color: var(--color-accent);
 }
 
-/* Lineup row: Blue seats VS Red seats. */
+/* Lineup row: Blue seats VS Red seats in one compact horizontal row. */
 .menu__lineup {
     flex-direction: row;
     align-items: center;
     justify-content: center;
     width: 1000;
-    margin-top: var(--space-4);
+    margin-top: var(--space-2);
 }
 
 .menu__side {
@@ -1061,9 +1062,9 @@
 }
 
 .menu__side-name {
-    font-size: var(--font-s);
+    font-size: var(--font-xs);
     -unity-font-style: bold;
-    margin-bottom: var(--space-2);
+    margin-bottom: var(--space-1);
 }
 
 .menu__team-name--blue { color: var(--color-team-blue); }
@@ -1071,28 +1072,27 @@
 
 .menu__seats {
     flex-direction: row;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     justify-content: center;
-    /* Two seats a row: a 4v4 side is a 2 x 2 block, so both sides fit across. */
-    max-width: 264;
+    max-width: 460;
 }
 
 .menu__versus {
-    font-size: var(--font-m);
+    font-size: var(--font-s);
     -unity-font-style: bold;
     color: var(--color-text-muted);
-    width: 80;
+    width: 56;
     -unity-text-align: middle-center;
 }
 
 /* One squad place: a face (or an empty dashed box), tap to clear it. */
 .menu__seat {
-    width: var(--touch-min);
+    width: 102;
     height: var(--touch-min);
     min-height: var(--touch-min);
-    margin-left: 4;
-    margin-right: 4;
-    margin-bottom: 8;
+    margin-left: 3;
+    margin-right: 3;
+    margin-bottom: 0;
     padding-left: 0;
     padding-right: 0;
     padding-top: 0;
@@ -1133,7 +1133,7 @@
 
 .menu__cup-info {
     width: 1000;
-    margin-top: var(--space-4);
+    margin-top: var(--space-2);
     white-space: normal;
     -unity-text-align: middle-center;
 }
@@ -1144,25 +1144,25 @@
     flex-wrap: wrap;
     justify-content: center;
     width: 1000;
-    margin-top: var(--space-4);
+    margin-top: var(--space-2);
 }
 
 .menu__tile {
     width: 236;
-    height: 212;
-    margin-left: 7;
-    margin-right: 7;
-    margin-bottom: 12;
+    height: 176;
+    margin-left: 6;
+    margin-right: 6;
+    margin-bottom: 6;
     padding-left: 0;
     padding-right: 0;
-    padding-top: 8;
-    padding-bottom: 6;
+    padding-top: 4;
+    padding-bottom: 2;
     align-items: center;
     justify-content: flex-start;
-    border-top-width: 5;
-    border-bottom-width: 5;
-    border-left-width: 5;
-    border-right-width: 5;
+    border-top-width: 4;
+    border-bottom-width: 4;
+    border-left-width: 4;
+    border-right-width: 4;
     border-top-color: rgba(255, 255, 255, 0);
     border-bottom-color: rgba(255, 255, 255, 0);
     border-left-color: rgba(255, 255, 255, 0);
@@ -1170,8 +1170,8 @@
 }
 
 .menu__tile-face {
-    width: 128;
-    height: 128;
+    width: 90;
+    height: 90;
     border-top-left-radius: var(--radius-m);
     border-top-right-radius: var(--radius-m);
     border-bottom-left-radius: var(--radius-m);
@@ -1184,17 +1184,18 @@
 }
 
 .menu__tile-name {
-    font-size: var(--font-xs);
+    font-size: 26px;
     -unity-font-style: bold;
     color: var(--color-text);
     -unity-text-align: middle-center;
-    margin-top: 4;
+    margin-top: 2;
 }
 
 .menu__tile-tag {
-    font-size: 24px;
+    font-size: 18px;
     color: var(--color-text-muted);
     -unity-text-align: middle-center;
+    margin-top: -2;
 }
 
 .menu__tile--blue {
@@ -1221,8 +1222,9 @@
 }
 
 .menu__note {
-    margin-top: var(--space-2);
-    margin-bottom: var(--space-3);
+    font-size: var(--font-xs);
+    margin-top: var(--space-1);
+    margin-bottom: var(--space-2);
 }
 
 .menu__play-row {
@@ -1244,17 +1246,30 @@
 }
 
 .menu__options {
-    margin-top: var(--space-4);
+    width: 1000;
+    margin-top: var(--space-2);
+}
+
+.menu__options > .btn {
+    flex-grow: 1;
+    flex-basis: 0;
+    margin-left: 5;
+    margin-right: 5;
+    padding-left: 8;
+    padding-right: 8;
+    -unity-font-style: bold;
 }
 
 .menu__hint {
-    margin-top: var(--space-3);
+    display: none;
+    margin-top: var(--space-1);
     opacity: 0;
     transition-property: opacity;
     transition-duration: 0.15s;
 }
 
 .menu__hint.is-shown {
+    display: flex;
     opacity: 1;
 }
 
