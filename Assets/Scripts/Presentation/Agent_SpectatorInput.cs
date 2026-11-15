@@ -117,11 +117,93 @@ namespace PoSoccer
                 if (keyboard.rightBracketKey.wasPressedThisFrame) StepSpeed(1);
                 // The one overlay switch, same as the HUD's VIEW button.
                 if (keyboard.oKey.wasPressedThisFrame) Agent_Overlays.CycleSolo();
+
+                // Standardized Profile B controls: F1 Mode, F2 Camera, F3 Health (Agent_Telemetry),
+                // F4 Hot-swap Policy, Space Pause (when spectator), R Reset episode/pitch.
+                if (keyboard.f1Key.wasPressedThisFrame) CyclePlayMode();
+                if (keyboard.f2Key.wasPressedThisFrame) CycleCameraMode();
+                if (keyboard.f4Key.wasPressedThisFrame) CyclePolicy();
+                if (keyboard.rKey.wasPressedThisFrame) ResetEpisode();
+                if (keyboard.spaceKey.wasPressedThisFrame && !Agent_MatchSetup.HumanControl &&
+                    _hud != null && (_hud.IsPaused || !Agent_TimeFreeze.IsFrozen))
+                {
+                    _hud.TogglePause();
+                }
+
+                if (_follow != null && _follow.Mode == Agent_CameraFollow.CameraMode.Free &&
+                    !Agent_MatchSetup.HumanControl)
+                {
+                    Vector2 pan = Vector2.zero;
+                    if (keyboard.wKey.isPressed || keyboard.upArrowKey.isPressed) pan.y += 1f;
+                    if (keyboard.sKey.isPressed || keyboard.downArrowKey.isPressed) pan.y -= 1f;
+                    if (keyboard.aKey.isPressed || keyboard.leftArrowKey.isPressed) pan.x -= 1f;
+                    if (keyboard.dKey.isPressed || keyboard.rightArrowKey.isPressed) pan.x += 1f;
+                    if (pan.sqrMagnitude > 0f)
+                        _follow.AddFreePan(pan.normalized * (8f * Time.unscaledDeltaTime));
+                }
             }
 
             int touchesDown = UpdatePinch();
             UpdateScroll();
             UpdateTap(touchesDown);
+        }
+
+        void CyclePlayMode()
+        {
+            if (Agent_MatchSetup.TestbedMode)
+            {
+                Agent_MatchSetup.TestbedMode = false;
+                Agent_MatchSetup.HumanControl = true;
+            }
+            else if (Agent_MatchSetup.HumanControl)
+            {
+                Agent_MatchSetup.HumanControl = false;
+                Agent_MatchSetup.TestbedMode = false;
+            }
+            else
+            {
+                Agent_MatchSetup.HumanControl = false;
+                Agent_MatchSetup.TestbedMode = true;
+            }
+
+            if (_env != null)
+            {
+                for (int i = 0; i < _env.agents.Count; i++)
+                {
+                    var agent = _env.agents[i];
+                    if (agent != null && agent.team == Agent_Soccer.Team.Blue)
+                    {
+                        Agent_HumanController.Configure(agent, Agent_MatchSetup.HumanControl);
+                        break;
+                    }
+                }
+            }
+            if (_hud != null)
+                _hud.Toast($"MODE · {Agent_MatchSetup.CurrentMode.ToString().ToUpperInvariant()}", Agent_UIStyle.Accent, 1.2f);
+        }
+
+        void CycleCameraMode()
+        {
+            if (_follow == null) return;
+            var next = _follow.CycleCameraMode();
+            if (_hud != null)
+                _hud.Toast($"CAM · {next.ToString().ToUpperInvariant()}", Agent_UIStyle.BlueTeam, 1.0f);
+        }
+
+        void CyclePolicy()
+        {
+            if (_env == null) return;
+            string swapped = _env.TryCyclePolicy(FocusedAgent);
+            if (!string.IsNullOrEmpty(swapped) && _hud != null)
+                _hud.Toast($"POLICY · {swapped.ToUpperInvariant()}", Agent_UIStyle.Gold, 1.2f);
+        }
+
+        void ResetEpisode()
+        {
+            if (_env == null) return;
+            _env.RestartMatchOrEpisode();
+            if (_hud != null)
+                _hud.Toast("RESET", Agent_UIStyle.TextMuted, 1.0f);
         }
 
         // -- Speed -------------------------------------------------------------

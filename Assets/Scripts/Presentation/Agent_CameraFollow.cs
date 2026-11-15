@@ -32,6 +32,9 @@ namespace PoSoccer
     [DefaultExecutionOrder(-50)]
     public sealed class Agent_CameraFollow : MonoBehaviour
     {
+        /// <summary>Standard camera rig modes cycled via F2.</summary>
+        public enum CameraMode { Broadcast, Follow, Orbit, Free }
+
         [Tooltip("Start wide + zoom to tight delay after kickoff (seconds).")]
         [SerializeField] private float _kickoffHoldSeconds = 2.0f;
         [Tooltip("Wide linger after each goal (seconds).")]
@@ -84,6 +87,37 @@ namespace PoSoccer
         Transform _focus;
         Vector2 _lookAhead;
         float _spectatorZoom = 1f;
+        CameraMode _mode = CameraMode.Broadcast;
+        Vector2 _freePosition;
+        float _orbitAngleRad;
+
+        /// <summary>Active camera mode (Broadcast, Follow, Orbit, Free).</summary>
+        public CameraMode Mode => _mode;
+
+        /// <summary>Sets the active camera mode.</summary>
+        public void SetCameraMode(CameraMode mode)
+        {
+            if (_mode == mode) return;
+            _mode = mode;
+            if (mode == CameraMode.Free && _cam != null)
+            {
+                _freePosition = _cam.transform.position;
+            }
+        }
+
+        /// <summary>Cycles Broadcast -> Follow -> Orbit -> Free and returns the new mode.</summary>
+        public CameraMode CycleCameraMode()
+        {
+            var next = (CameraMode)(((int)_mode + 1) % 4);
+            SetCameraMode(next);
+            return next;
+        }
+
+        /// <summary>Translates the Free camera target in world metres.</summary>
+        public void AddFreePan(Vector2 worldDelta)
+        {
+            _freePosition += worldDelta;
+        }
 
         /// <summary>
         /// Point the camera at something other than the live ball, at a fixed
@@ -393,33 +427,41 @@ namespace PoSoccer
             float wideOrtho = PitchWideOrthoSize(pitchHalf);
             float tightestOrtho = wideOrtho * _tightestFraction;
 
-            // The replay override retargets the camera; everything downstream
-            // (smoothing, pan clamp) is shared with the live shot.
             bool overriding = _overrideTarget != null;
-            // A focused player that has been destroyed (scene teardown, a squad
-            // rebuilt under the camera) releases the lock by itself. Unity's ==
-            // is what detects it; the assignment drops the dead reference.
             if (_focus == null) _focus = null;
             bool focused = !overriding && _focus != null;
-            // Override outranks a director shot outright, so a replay taking the
-            // camera mid-cut is never a tug of war. A stale shot is dropped.
-            bool directed = !overriding && !focused && ShotActive;
-            // Plain ball follow: the only mode the speed look-ahead applies to.
-            // A shot already carries its own lead (Agent_Director adds one), a
-            // focus is on a body rather than the ball, and an override is authored.
-            bool following = !overriding && !focused && !directed;
-            Vector2 ballPos = overriding
+            bool broadcast = _mode == CameraMode.Broadcast;
+            bool directed = !overriding && !focused && broadcast && ShotActive;
+            bool following = !overriding && _mode != CameraMode.Free && !focused && !directed;
+
+            Vector2 anchorPos = _overrideTarget != null
                 ? (Vector2)_overrideTarget.position
                 : focused ? (Vector2)_focus.position
                 : directed ? _shotFocus
+                : _mode == CameraMode.Free ? _freePosition
                 : _env.Ball.position;
+
+            if (_mode == CameraMode.Orbit && !overriding)
+            {
+                _orbitAngleRad += Time.unscaledDeltaTime * 0.6f;
+                anchorPos += new Vector2(Mathf.Cos(_orbitAngleRad), Mathf.Sin(_orbitAngleRad)) * 1.5f;
+            }
+
+            Vector2 ballPos = anchorPos;
             float targetOrtho;
 
             if (overriding)
             {
                 targetOrtho = Mathf.Clamp(_overrideOrtho, wideOrtho * 0.18f, wideOrtho);
             }
-            else if (focused)
+            else if (_mode == CameraMode.Free)
+            {
+                _freePosition.x = Mathf.Clamp(_freePosition.x, -pitchHalf.x, pitchHalf.x);
+                _freePosition.y = Mathf.Clamp(_freePosition.y, -pitchHalf.y, pitchHalf.y);
+                ballPos = _freePosition;
+                targetOrtho = wideOrtho * _focusFraction;
+            }
+            else if (focused || _mode == CameraMode.Follow || _mode == CameraMode.Orbit)
             {
                 targetOrtho = Mathf.Clamp(wideOrtho * _focusFraction, tightestOrtho, wideOrtho);
             }

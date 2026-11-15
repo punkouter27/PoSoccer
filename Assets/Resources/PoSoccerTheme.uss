@@ -34,6 +34,9 @@
     --color-team-red: rgb(255, 64, 51);
     --color-accent: rgb(41, 140, 71);
     --color-gold: rgb(255, 214, 51);
+    --color-policy-bot: rgb(255, 64, 51);
+    --color-policy-ref: rgb(41, 140, 71);
+    --color-policy-custom: rgb(51, 128, 255);
     --color-edge-light: rgba(255, 255, 255, 0.16);
     --color-edge-dark: rgba(0, 0, 0, 0.35);
 

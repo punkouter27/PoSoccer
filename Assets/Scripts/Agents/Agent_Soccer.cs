@@ -614,6 +614,7 @@ namespace PoSoccer
 
         public override void OnEpisodeBegin()
         {
+            LastEpisodeReward = GetCumulativeReward();
             TouchedBallThisEpisode = false;
             IsBoosting = false;
             _driveVec = Vector2.zero;
@@ -959,11 +960,74 @@ namespace PoSoccer
         /// <summary>Gained, clamped turn command from the last decision (-1..1).</summary>
         public float TurnCommand { get; private set; }
 
+        /// <summary>Total NaN/Inf action or reward anomalies caught across all agents this session.</summary>
+        public static int TotalNanInfCount { get; private set; }
+
+        /// <summary>NaN/Inf anomalies caught on this agent instance.</summary>
+        public int NanInfCount { get; private set; }
+
+        /// <summary>Last episode's cumulative reward recorded before reset.</summary>
+        public float LastEpisodeReward { get; private set; }
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetTelemetryStatics()
+        {
+            TotalNanInfCount = 0;
+        }
+
+        float SanitizeFinite(float value)
+        {
+            if (!float.IsNaN(value) && !float.IsInfinity(value)) return value;
+            NanInfCount++;
+            TotalNanInfCount++;
+            return 0f;
+        }
+
+        /// <summary>
+        /// Appends <paramref name="count"/> zero-initialized observation floats after the
+        /// base contract without reordering existing observation slots.
+        /// </summary>
+        public static void AppendZeroInitObservations(VectorSensor sensor, int count)
+        {
+            if (sensor == null) return;
+            for (int i = 0; i < count; i++) sensor.AddObservation(0f);
+        }
+
+        /// <summary>
+        /// Hot-swaps this agent's active profile/policy at runtime without reloading the scene.
+        /// Falls back to the rule-based bot when the profile carries no compatible ONNX brain.
+        /// </summary>
+        public void HotSwapPolicy(Reward_Settings profile)
+        {
+            if (profile == null) return;
+            rewards = profile;
+            brainName = profile.playerName;
+            if (_behavior == null) _behavior = GetComponent<BehaviorParameters>();
+            if (_bot == null) _bot = GetComponent<Agent_HeuristicBot>();
+            if (_behavior == null) return;
+
+            _behavior.BehaviorName = string.IsNullOrEmpty(brainName) ? "STANDARD" : brainName;
+            if (profile.brainModel != null && ModelFitsContract(profile.brainModel))
+            {
+                _behavior.Model = profile.brainModel;
+                _behavior.BehaviorType = BehaviorType.InferenceOnly;
+                if (_bot != null) _bot.enabled = false;
+            }
+            else
+            {
+                _behavior.Model = null;
+                _behavior.BehaviorType = BehaviorType.HeuristicOnly;
+                if (_bot != null) _bot.enabled = true;
+            }
+        }
+
         public override void OnActionReceived(ActionBuffers actions)
         {
             LastRawActions = new Vector4(
-                actions.ContinuousActions[0], actions.ContinuousActions[1],
-                actions.ContinuousActions[2], actions.ContinuousActions[3]);
+                SanitizeFinite(actions.ContinuousActions[0]),
+                SanitizeFinite(actions.ContinuousActions[1]),
+                SanitizeFinite(actions.ContinuousActions[2]),
+                SanitizeFinite(actions.ContinuousActions[3]));
 
             // What the feet act on this tick. Identical to the policy output unless reaction
             // latency is on (Agent_Realism), in which case it is the output from that many
@@ -1132,8 +1196,9 @@ namespace PoSoccer
 
         void Account(int term, float value)
         {
-            _rewardAccounting[term] += value;
-            AddReward(value);
+            float clean = SanitizeFinite(value);
+            _rewardAccounting[term] += clean;
+            AddReward(clean);
         }
 
         /// <summary>

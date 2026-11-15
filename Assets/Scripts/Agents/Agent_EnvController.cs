@@ -210,10 +210,15 @@ namespace PoSoccer
         float[] _mateGapSum;
         int[] _mateGapSamples;
 
+        public static int? ActiveSeed { get; private set; }
+
+        static bool s_seedApplied;
+
         // Execution order (-50) puts this before Agent_Soccer.Awake, which is where
         // the brain contract is frozen - the profile swap must land before that.
         void Awake()
         {
+            ApplyConfiguredSeed();
             // Squad first, so the players it clones are on the pitch when the profile
             // override below walks the children.
             ApplyTrainingSquad();
@@ -221,6 +226,21 @@ namespace PoSoccer
             // Ball and pitch colliders onto their physics layers before any sensor
             // casts. Players stamp their own (team-dependent) layer in their Awake.
             Agent_Layers.StampPitch(this);
+        }
+
+        static void ApplyConfiguredSeed()
+        {
+            if (s_seedApplied) return;
+            if (Agent_RunConfig.TryGetInt(Agent_RunConfig.SEED, out int seed))
+            {
+                UnityEngine.Random.InitState(seed);
+                ActiveSeed = seed;
+                s_seedApplied = true;
+            }
+            else
+            {
+                ActiveSeed = null;
+            }
         }
 
         // ── Team training (2026-09-28) ──────────────────────────────────────
@@ -249,6 +269,51 @@ namespace PoSoccer
         static void ResetPitchOrdinal()
         {
             s_pitchOrdinal = 0;
+            s_seedApplied = false;
+            ActiveSeed = null;
+        }
+
+        /// <summary>Resets the live pitch/episode safely for manual R resets and Testbed drills.</summary>
+        public void RestartMatchOrEpisode()
+        {
+            ResetPitch();
+        }
+
+        /// <summary>
+        /// Cycles the active <see cref="Reward_Settings"/> policy on <paramref name="target"/>
+        /// (or the first Blue agent if null) through <see cref="profileRoster"/> at runtime.
+        /// Returns the newly active profile name, or null if no roster is configured.
+        /// </summary>
+        public string TryCyclePolicy(Agent_Soccer target = null)
+        {
+            if (profileRoster == null || profileRoster.Length == 0) return null;
+            if (target == null)
+            {
+                for (int i = 0; i < agents.Count; i++)
+                {
+                    if (agents[i] != null && agents[i].team == Agent_Soccer.Team.Blue)
+                    {
+                        target = agents[i];
+                        break;
+                    }
+                }
+            }
+            if (target == null && agents.Count > 0) target = agents[0];
+            if (target == null) return null;
+
+            int currentIndex = -1;
+            for (int i = 0; i < profileRoster.Length; i++)
+            {
+                if (profileRoster[i] == target.rewards)
+                {
+                    currentIndex = i;
+                    break;
+                }
+            }
+            var next = profileRoster[(currentIndex + 1) % profileRoster.Length];
+            if (next == null) return null;
+            target.HotSwapPolicy(next);
+            return next.playerName;
         }
 
         // League training (POSOCCER_OPPONENT=league: self-play pitches mixed with bot

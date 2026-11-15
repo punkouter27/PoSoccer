@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace PoSoccer
@@ -30,6 +30,10 @@ namespace PoSoccer
         public static Color BlueTeam => Agent_Palette.Blue;
         public static Color RedTeam => Agent_Palette.Red;
         public static readonly Color Accent = new(0.16f, 0.55f, 0.28f);
+        public static readonly Color Gold = new(1f, 0.84f, 0.2f);
+        public static readonly Color PolicyBot = new(1f, 0.25f, 0.2f);
+        public static readonly Color PolicyRef = new(0.16f, 0.55f, 0.28f);
+        public static readonly Color PolicyCustom = new(0.2f, 0.5f, 1f);
         public static readonly Color StaminaLow = new(0.9f, 0.3f, 0.2f);
         public static readonly Color StaminaHigh = new(0.3f, 0.9f, 0.4f);
 
@@ -74,7 +78,8 @@ namespace PoSoccer
         /// <summary>USS class supplying a one-frame entrance offset.</summary>
         public const string ENTERING = "is-entering";
 
-        const string THEME_RESOURCE = "PoSoccerTheme";
+        const string THEME_RESOURCE = "Theme";
+        const string THEME_FALLBACK_RESOURCE = "PoSoccerTheme";
         static StyleSheet _theme;
         static bool _themeMissingLogged;
 
@@ -86,13 +91,17 @@ namespace PoSoccer
         public static void ApplyTheme(VisualElement root)
         {
             if (root == null) return;
-            if (_theme == null) _theme = Resources.Load<StyleSheet>(THEME_RESOURCE);
+            if (_theme == null)
+            {
+                _theme = Resources.Load<StyleSheet>(THEME_RESOURCE);
+                if (_theme == null) _theme = Resources.Load<StyleSheet>(THEME_FALLBACK_RESOURCE);
+            }
             if (_theme == null)
             {
                 if (!_themeMissingLogged)
                 {
                     _themeMissingLogged = true;
-                    Debug.LogWarning($"Agent_UIStyle: '{THEME_RESOURCE}' not found in Resources; " +
+                    Debug.LogWarning($"Agent_UIStyle: '{THEME_RESOURCE}' / '{THEME_FALLBACK_RESOURCE}' not found in Resources; " +
                                      "UI falls back to inline styling.");
                 }
                 return;

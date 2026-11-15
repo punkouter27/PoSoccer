@@ -182,6 +182,7 @@ namespace PoSoccer
         System.Text.StringBuilder _builder;
 
         Row _frameRow, _qualityRow, _drawRow, _errorRow, _clockRow, _physicsRow, _ballRow;
+        Row _modeSeedRow, _rlTelemetryRow;
         readonly Row[] _playerRows = new Row[MAX_PLAYER_ROWS];
         Row _morePlayersRow;
         // One button per Agent_Overlays entry, rebuilt when the registry changes.
@@ -448,6 +449,8 @@ namespace PoSoccer
             _clockRow = AddRow("Game clock");
             _physicsRow = AddRow("Physics step");
             _ballRow = AddRow("Ball · last touch");
+            _modeSeedRow = AddRow("Mode · Seed · Camera");
+            _rlTelemetryRow = AddRow("Reward · NaN/Inf");
 
             _panel.Add(Section("PLAYERS"));
             for (int i = 0; i < _playerRows.Length; i++) _playerRows[i] = AddRow(string.Empty);
@@ -815,6 +818,47 @@ namespace PoSoccer
                         .Append(" m/s");
             }
             Set(_ballRow, _builder.ToString(), STATE_NONE);
+
+            RenderModeAndReward();
+        }
+
+        void RenderModeAndReward()
+        {
+            if (_modeSeedRow != null)
+            {
+                var cam = Camera.main;
+                var follow = cam != null ? cam.GetComponent<Agent_CameraFollow>() : null;
+                string camMode = follow != null ? follow.Mode.ToString() : "Broadcast";
+                _builder.Clear();
+                _builder.Append(Agent_MatchSetup.CurrentMode.ToString())
+                        .Append(" · seed ")
+                        .Append(Agent_EnvController.ActiveSeed.HasValue ? Agent_EnvController.ActiveSeed.Value.ToString() : "auto")
+                        .Append(" · ")
+                        .Append(camMode);
+                Set(_modeSeedRow, _builder.ToString(), STATE_NONE);
+            }
+
+            if (_rlTelemetryRow != null)
+            {
+                float blueReward = 0f;
+                if (_env != null)
+                {
+                    for (int i = 0; i < _env.agents.Count; i++)
+                    {
+                        var a = _env.agents[i];
+                        if (a != null && a.team == Agent_Soccer.Team.Blue)
+                        {
+                            blueReward += a.GetCumulativeReward();
+                            break;
+                        }
+                    }
+                }
+                int nanCount = Agent_Soccer.TotalNanInfCount;
+                _builder.Clear();
+                _builder.Append("rew ").Append(blueReward.ToString("0.00"))
+                        .Append(" · NaN/Inf ").Append(nanCount);
+                Set(_rlTelemetryRow, _builder.ToString(), nanCount == 0 ? STATE_OK : STATE_BAD);
+            }
         }
 
         // -- Players -----------------------------------------------------------

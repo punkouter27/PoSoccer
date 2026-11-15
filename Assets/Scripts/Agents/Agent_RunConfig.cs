@@ -70,12 +70,14 @@ namespace PoSoccer
         public const string DEMO_DIR = "POSOCCER_DEMO_DIR";
         public const string DEMO_STEPS = "POSOCCER_DEMO_STEPS";
 
-        // ── Diagnostics ─────────────────────────────────────────────────────
+        // ── Diagnostics & Reproducibility ───────────────────────────────────
         /// <summary>
         /// Read by Agent_Telemetry, which keeps its own ENV_TELEMETRY constant.
         /// Listed so this file is the complete inventory.
         /// </summary>
         public const string TELEMETRY = "POSOCCER_TELEMETRY";
+        /// <summary>Optional deterministic RNG seed applied at pitch startup.</summary>
+        public const string SEED = "POSOCCER_SEED";
 
         /// <summary>The raw value, or null when the variable is not set.</summary>
         public static string GetString(string name) => Environment.GetEnvironmentVariable(name);

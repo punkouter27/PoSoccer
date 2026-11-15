@@ -13,6 +13,9 @@ namespace PoSoccer
         /// <summary>Hard cap per side. The menu's stepper clamps to this.</summary>
         public const int MAX_SQUAD = 10;
 
+        /// <summary>Standard runtime interaction mode cycled via F1.</summary>
+        public enum PlayMode { Watch, Play, Testbed }
+
         public static bool Applied;
 
         /// <summary>
@@ -20,6 +23,19 @@ namespace PoSoccer
         /// player-controlled generic Blue box (<see cref="Agent_HumanController"/>).
         /// </summary>
         public static bool HumanControl;
+
+        /// <summary>True when Testbed sandbox mode is active (quick reset & telemetry inspection).</summary>
+        public static bool TestbedMode;
+
+        /// <summary>Current interaction mode (Play, Watch, or Testbed).</summary>
+        public static PlayMode CurrentMode =>
+            TestbedMode ? PlayMode.Testbed : (HumanControl ? PlayMode.Play : PlayMode.Watch);
+
+        [UnityEngine.RuntimeInitializeOnLoadMethod(UnityEngine.RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetStatics()
+        {
+            Clear();
+        }
 
         /// <summary>True when <paramref name="team"/> / <paramref name="slot"/> is the human-controlled slot.</summary>
         public static bool IsHumanSlot(Agent_Soccer.Team team, int slot) =>
@@ -71,6 +87,7 @@ namespace PoSoccer
         {
             Applied = false;
             HumanControl = false;
+            TestbedMode = false;
             BlueSquad = null;
             RedSquad = null;
             GalleryMode = false;
