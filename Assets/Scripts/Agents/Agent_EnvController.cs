@@ -820,7 +820,7 @@ namespace PoSoccer
         {
             StepCount++;
             _physicsTick++;
-            SampleLocomotion();
+            if (Academy.Instance.IsCommunicatorOn) SampleLocomotion();
 
             // RESET POLICY, SPLIT BY WHO IS WATCHING (2026-09-07, user request).
             //

@@ -32,7 +32,7 @@ namespace PoSoccer.Tests
         };
 
         static readonly Regex ScriptPrefix = new Regex(@"^(Agent_|Sensor_|Reward_)[A-Z]\w*\.cs$");
-        static readonly Regex EditorScriptPrefix = new Regex(@"^(Editor_|Agent_)[A-Z]\w*\.cs$");
+        static readonly Regex EditorScriptPrefix = new Regex(@"^Editor_[A-Z]\w*\.cs$");
         static readonly Regex PascalFolder = new Regex(@"^[A-Z][A-Za-z0-9]*$");
         static readonly Regex AgentFolder = new Regex(@"^[A-Z][a-z]+_v\d{2}$");
 
@@ -63,7 +63,7 @@ namespace PoSoccer.Tests
                 string name = Path.GetFileName(file);
                 if (!EditorScriptPrefix.IsMatch(name)) bad.Add(Relative(file));
             }
-            Assert.That(bad, Is.Empty, "Editor scripts must be Editor_ (or Agent_) + PascalCase:\n" + string.Join("\n", bad));
+            Assert.That(bad, Is.Empty, "Editor scripts must be Editor_ + PascalCase:\n" + string.Join("\n", bad));
         }
 
         [Test]

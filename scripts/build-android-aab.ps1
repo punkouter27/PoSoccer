@@ -103,7 +103,7 @@ $proc = Start-Process -FilePath $UnityExe `
         '-batchmode', '-quit', '-nographics',
         '-projectPath', $ProjectRoot,
         '-buildTarget', 'Android',
-        '-executeMethod', 'Agent_BuildAabCommand.Build',
+        '-executeMethod', 'Editor_BuildAabCommand.Build',
         '-logFile', $LogPath
     ) -NoNewWindow -PassThru -Wait
 
@@ -128,7 +128,7 @@ Write-Host "[2/3] Built $AabPath ($sizeMb MB)" -ForegroundColor Green
 
 # 4. Report what Play will actually see, from the log the build just wrote.
 Write-Host "[3/3] Manifest values baked into this bundle:" -ForegroundColor Cyan
-Select-String -Path $LogPath -Pattern '\[Agent_BuildAabCommand\] (appId|Result|Size)=?' |
+Select-String -Path $LogPath -Pattern '\[Editor_BuildAabCommand\] (appId|Result|Size)=?' |
     ForEach-Object { "  $($_.Line.Trim())" }
 
 Write-Host ""

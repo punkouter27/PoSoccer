@@ -39,17 +39,12 @@ namespace PoSoccer
 
         static PhysicsMaterial2D _slickWall;
         static PhysicsMaterial2D _bouncyCorner;
+        static Material _arcMaterial;
 
         public static void Build(Agent_EnvController env)
         {
             if (env == null || env.transform.Find("PitchGuard") != null) return;
 
-            // Box2D combines friction as sqrt(a*b) and bounciness as max(a,b):
-            // friction 0 on the wall wins regardless of the ball's material.
-            // Bounciness was raised so a slammed ball reflects back into play
-            // instead of depenetrating through the wall (which used to trigger
-            // the OOB reset in the env controller). 0.85 sides + 0.95 corners
-            // covers every realistic shot/trap speed.
             _slickWall ??= new PhysicsMaterial2D("SlickWall") { friction = 0f, bounciness = SideBounciness };
             _bouncyCorner ??= new PhysicsMaterial2D("BouncyCorner") { friction = 0f, bounciness = CornerBounciness };
 
@@ -59,11 +54,6 @@ namespace PoSoccer
 
             var go = new GameObject("PitchGuard") { tag = "Wall" };
             go.transform.SetParent(env.transform, false);
-            // The Wall tag buys arc-bounce audio, but Agent_Stadium also gives every
-            // Wall a ShadowCaster2D. The guard has no sprite shape, so pre-occupy the
-            // slot with a disabled caster to avoid a stray square shadow at midfield.
-            var caster = go.AddComponent<UnityEngine.Rendering.Universal.ShadowCaster2D>();
-            caster.enabled = false;
 
             Vector2 half = env.PitchHalfExtents;
             BuildCornerArc(go, half, new Vector2(1f, 1f));
@@ -95,7 +85,15 @@ namespace PoSoccer
             edge.edgeRadius = 0.04f;
             edge.sharedMaterial = _bouncyCorner;
 
-            // Faint line so the physical curve reads on screen.
+            // Faint line so the physical curve reads on screen (skipped in headless training/eval).
+            if (Agent_Presentation.IsHeadless) return;
+
+            if (_arcMaterial == null)
+            {
+                var shader = Shader.Find("Sprites/Default");
+                if (shader != null) _arcMaterial = new Material(shader) { name = "PoSoccer_CornerArc" };
+            }
+
             var lineGo = new GameObject("CornerArc");
             lineGo.transform.SetParent(host.transform, false);
             var line = lineGo.AddComponent<LineRenderer>();
@@ -104,7 +102,7 @@ namespace PoSoccer
             for (int i = 0; i < points.Count; i++)
                 line.SetPosition(i, points[i]);
             line.startWidth = line.endWidth = 0.06f;
-            line.material = new Material(Shader.Find("Sprites/Default"));
+            if (_arcMaterial != null) line.sharedMaterial = _arcMaterial;
             line.startColor = line.endColor = new Color(1f, 1f, 1f, 0.35f);
             line.sortingOrder = 1;
         }

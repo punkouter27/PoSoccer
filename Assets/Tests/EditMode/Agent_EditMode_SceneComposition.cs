@@ -49,7 +49,7 @@ namespace PoSoccer.Tests
         static readonly string[] BakeableVisuals =
         {
             "Agent_Surfaces", "Agent_ParticleFX", "Agent_ImpactFX", "Agent_Shadows",
-            "Agent_Wear", "Agent_Limbs", "Agent_Intent", "Agent_VisionView", "Agent_ShotTracer",
+            "Agent_Limbs", "Agent_Intent", "Agent_VisionView", "Agent_ShotTracer",
         };
 
         /// <summary>
@@ -71,8 +71,8 @@ namespace PoSoccer.Tests
             "Agent_Momentum",
             // 2026-11-08: one voice pool for the match; one tournament result per match.
             "Agent_Voices", "Agent_TournamentMatch", "Agent_MatchIntro",
-            // 2026-11-15: weather mutator, sideline actors, and wager/leaderboard card.
-            "Agent_Weather", "Agent_Sidelines", "Agent_Wager",
+            // 2026-11-15: weather mutator and sideline actors.
+            "Agent_Weather", "Agent_Sidelines",
         };
 
         static System.Type Resolve(string typeName)

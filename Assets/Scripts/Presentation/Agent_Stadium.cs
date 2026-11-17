@@ -38,25 +38,11 @@ namespace PoSoccer
         [Header("Follow spot")]
         [Tooltip("One spot that eases toward whoever touched the ball last. Match scene only.")]
         [SerializeField] private bool _followSpot = true;
-        [Tooltip("Resting intensity. Low on purpose: it is an accent on top of four " +
-                 "floodlights, and anything stronger washes out the body colour it sits on.")]
         [Range(0f, 2f)] [SerializeField] private float _spotIntensity = 0.45f;
-        [Tooltip("Outer radius in metres - a little over two body widths.")]
         [SerializeField] private float _spotRadius = 3.2f;
-        [Tooltip("How quickly the spot closes on its target, per second. 6 = most of the " +
-                 "way there in about a third of a second, so it trails a pass instead of teleporting.")]
         [SerializeField] private float _spotFollowRate = 6f;
-        [Tooltip("Extra intensity at the peak of a goal pulse.")]
         [Range(0f, 4f)] [SerializeField] private float _spotGoalBoost = 1.5f;
-        [Tooltip("Seconds a goal pulse takes to die away.")]
         [SerializeField] private float _spotGoalSeconds = 0.7f;
-
-        [Header("Ultra cast shadows (desktop only)")]
-        [Tooltip("Darkness of the floodlight shadows when Agent_Quality's Ultra tier is on.")]
-        [Range(0f, 1f)] [SerializeField] private float _castShadowIntensity = 0.45f;
-
-        readonly List<ShadowCaster2D> _casters = new();
-        bool _castersBuilt;
 
         Bloom _bloom;
         ChromaticAberration _chroma;
@@ -110,20 +96,12 @@ namespace PoSoccer
                 foreach (var sr in FindObjectsByType<SpriteRenderer>())
                     sr.sharedMaterial = litMaterial;
 
-            // Lights
+            // Lights: GlobalFill + 2 opposing Floodlights (reduced from 7 permanent lights for mobile/WebGL fill-rate).
             MakeLight("GlobalFill", Light2D.LightType.Global, Vector2.zero,
                 new Color(0.8f, 0.85f, 0.95f), globalFill, 0f);
-            foreach (var c in new[]
-            {
-                new Vector2(-5.5f, -8.5f), new Vector2(5.5f, -8.5f),
-                new Vector2(-5.5f, 8.5f), new Vector2(5.5f, 8.5f),
-            })
+            foreach (var c in new[] { new Vector2(0f, -8.5f), new Vector2(0f, 8.5f) })
                 MakeLight("Floodlight", Light2D.LightType.Point, c,
-                    new Color(1f, 0.96f, 0.82f), 1.1f, 11f);
-            MakeLight("GoalGlowN", Light2D.LightType.Point, new Vector2(0f, 8.9f),
-                new Color(1f, 0.45f, 0.4f), 0.8f, 4.5f);
-            MakeLight("GoalGlowS", Light2D.LightType.Point, new Vector2(0f, -8.9f),
-                new Color(0.4f, 0.6f, 1f), 0.8f, 4.5f);
+                    new Color(1f, 0.96f, 0.82f), 1.05f, 15f);
 
             BuildPostVolume();
         }
@@ -291,74 +269,8 @@ namespace PoSoccer
             _bloom.active = enabled;
         }
 
-        /// <summary>
-        /// Floodlight cast shadows - DESKTOP ULTRA ONLY (2026-11-07).
-        ///
-        /// The 2026-08-05 removal in the class docstring still stands for every
-        /// device the game ships to: six shadow-casting lights and a caster per wall
-        /// and agent was the largest GPU cost in the scene. What changed is that a
-        /// desktop tier now exists ABOVE tier 0, with its own 30 fps floor, so the
-        /// cost can be bought back where it is affordable and shed first where it is
-        /// not. Only the four corner floodlights cast - the goal glows and the follow
-        /// spot stay shadowless - so a body throws the four-tower fan a real stadium
-        /// shows.
-        ///
-        /// Casters are created lazily the first time the tier switches on and are
-        /// only ever toggled after that, so dropping out of Ultra and back in does not
-        /// churn components. Agent_Shadows' contact blobs stay on underneath: they
-        /// are the grounding cue, these are the floodlight fan.
-        /// </summary>
-        public void SetCastShadows(bool enabled)
-        {
-            if (enabled && !_castersBuilt) BuildShadowCasters();
-
-            for (int i = 0; i < _floodlights.Count; i++)
-            {
-                var light = _floodlights[i];
-                if (light == null) continue;
-                light.shadowsEnabled = enabled;
-                light.shadowIntensity = _castShadowIntensity;
-            }
-
-            for (int i = 0; i < _casters.Count; i++)
-            {
-                if (_casters[i] != null) _casters[i].enabled = enabled;
-            }
-        }
-
-        void BuildShadowCasters()
-        {
-            _castersBuilt = true;
-            var env = _env != null ? _env : FindAnyObjectByType<Agent_EnvController>();
-            if (env == null) return;
-
-            var agents = env.GetComponentsInChildren<Agent_Soccer>();
-            for (int i = 0; i < agents.Length; i++)
-            {
-                if (agents[i] != null) AddCaster(agents[i].gameObject);
-            }
-
-            var colliders = env.GetComponentsInChildren<Collider2D>();
-            for (int i = 0; i < colliders.Length; i++)
-            {
-                var collider = colliders[i];
-                if (collider == null || collider.isTrigger) continue;
-                if (collider.CompareTag("Wall")) AddCaster(collider.gameObject);
-            }
-        }
-
-        void AddCaster(GameObject target)
-        {
-            var caster = target.GetComponent<ShadowCaster2D>();
-            if (caster == null)
-            {
-                caster = target.AddComponent<ShadowCaster2D>();
-                // A body shading itself darkens its own team colour - the one thing
-                // a top-down viewer reads it by.
-                caster.selfShadows = false;
-            }
-            _casters.Add(caster);
-        }
+        /// <summary>Retained for API compatibility; 2D shadow casters stay disabled for fill-rate budget.</summary>
+        public void SetCastShadows(bool enabled) { }
 
         void Update()
         {

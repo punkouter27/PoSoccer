@@ -1155,7 +1155,8 @@ namespace PoSoccer
 
             Stamina.Tick(IsBoosting, dt);
 
-            ApplyDenseRewards(move, lateral, turn, boost);
+            if (Academy.Instance.IsCommunicatorOn)
+                ApplyDenseRewards(move, lateral, turn, boost);
         }
 
         /// <summary>

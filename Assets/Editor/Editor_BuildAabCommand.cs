@@ -1,0 +1,169 @@
+// Editor_BuildAabCommand.cs
+// Editor-only entry point for a Play-uploadable Android App Bundle.
+//
+// Separate from Editor_BuildPlayerCommand.Build (which produces the side-load APK)
+// because the Play artifact differs in three ways that all matter:
+//   1. .aab, not .apk        - Play requires App Bundles for apps created
+//                              after August 2021, internal testing included.
+//   2. Target API 36         - new apps must target Android 16 from
+//                              2026-08-31; the APK path leaves this at 34.
+//   3. Real upload keystore  - the APK path uses Unity's debug keystore, which
+//                              Play rejects.
+//
+// Invoke from CLI:
+//   Unity.exe -batchmode -quit -nographics -projectPath <root> \
+//             -buildTarget Android -executeMethod Editor_BuildAabCommand.Build \
+//             -logFile <log>
+//
+// Signing credentials are read from the ENVIRONMENT, never from this file or
+// any tracked config, so the keystore password never enters the repo:
+//   POSOCCER_KEYSTORE        full path to the .keystore
+//   POSOCCER_KEYSTORE_PASS   keystore password
+//   POSOCCER_KEYALIAS        key alias
+//   POSOCCER_KEYALIAS_PASS   key alias password
+//   POSOCCER_VERSION_CODE    optional integer; overrides bundleVersionCode
+//   POSOCCER_VERSION_NAME    optional string;  overrides bundleVersion
+//
+// Output: <projectRoot>/Builds/PoSoccer/PoSoccer.aab
+//
+// Exit codes: 0 success | 1 build failed | 2 scene missing | 3 signing config missing
+
+using System;
+using System.Collections.Generic;
+using System.IO;
+using PoSoccer.EditorTools;
+using UnityEditor;
+using UnityEngine;
+
+public static class Editor_BuildAabCommand
+{
+    // Play's requirement for new apps from 2026-08-31. Written as a cast rather
+    // than AndroidSdkVersions.AndroidApiLevel36 so this still compiles on an
+    // editor whose enum predates API 36 - the underlying value is just the int.
+    private const int TargetApiLevel = 36;
+
+    public static void Build()
+    {
+        // THE SHIPPING SCENE LIST HAS ONE OWNER: Editor_BuildAndroidAAB.SHIP_SCENES.
+        // This file and Agent_BuildPlayerCommand each used to carry a private copy,
+        // so three lists had to agree by hand and nothing would have reported it if
+        // they drifted - the bundle would simply have contained a different set of
+        // scenes depending on which entry point ran. ResolveShipScenes performs the
+        // same exists-on-disk check this block used to do and logs the missing path.
+        //
+        // SCN_Training is excluded from Android builds by that list: it is the
+        // headless training/eval scene, is unreachable from the game's UI, and
+        // shipping it only bloats the download. The "SCN_Training must stay index 0"
+        // rule applies to the Windows player that mlagents-learn and evaluate.ps1
+        // boot, not to the store build.
+        List<string> shipScenes = Editor_BuildAndroidAAB.ResolveShipScenes();
+        if (shipScenes == null)
+        {
+            EditorApplication.Exit(2);
+            return;
+        }
+        string[] scenes = shipScenes.ToArray();
+
+        // ---- signing -------------------------------------------------------
+        string keystore = Environment.GetEnvironmentVariable("POSOCCER_KEYSTORE");
+        string keystorePass = Environment.GetEnvironmentVariable("POSOCCER_KEYSTORE_PASS");
+        string keyAlias = Environment.GetEnvironmentVariable("POSOCCER_KEYALIAS");
+        string keyAliasPass = Environment.GetEnvironmentVariable("POSOCCER_KEYALIAS_PASS");
+
+        // One signing source for both AAB entry points. Unset variables fall back to
+        // what the menu builder uses (the release folder outside the repo), so a CLI
+        // build no longer needs four variables the menu build never asked for. The
+        // environment still wins, and nothing here can reach the debug keystore.
+        if (string.IsNullOrEmpty(keystore)) { keystore = Editor_BuildAndroidAAB.KEYSTORE_PATH; }
+        if (string.IsNullOrEmpty(keyAlias)) { keyAlias = Editor_BuildAndroidAAB.KEYALIAS; }
+        if (string.IsNullOrEmpty(keystorePass)) { keystorePass = Editor_BuildAndroidAAB.ResolveKeystorePassword(); }
+        if (string.IsNullOrEmpty(keyAliasPass)) { keyAliasPass = keystorePass; }
+
+        if (string.IsNullOrEmpty(keystore) || string.IsNullOrEmpty(keystorePass) ||
+            string.IsNullOrEmpty(keyAlias) || string.IsNullOrEmpty(keyAliasPass))
+        {
+            Debug.LogError("[Editor_BuildAabCommand] Signing env vars missing. Set POSOCCER_KEYSTORE, " +
+                           "POSOCCER_KEYSTORE_PASS, POSOCCER_KEYALIAS, POSOCCER_KEYALIAS_PASS. " +
+                           "Refusing to fall back to the debug keystore - Play would reject it.");
+            EditorApplication.Exit(3);
+            return;
+        }
+        if (!File.Exists(keystore))
+        {
+            Debug.LogError($"[Editor_BuildAabCommand] No keystore at {keystore}");
+            EditorApplication.Exit(3);
+            return;
+        }
+
+        PlayerSettings.Android.useCustomKeystore = true;
+        PlayerSettings.Android.keystoreName = keystore;
+        PlayerSettings.Android.keystorePass = keystorePass;
+        PlayerSettings.Android.keyaliasName = keyAlias;
+        PlayerSettings.Android.keyaliasPass = keyAliasPass;
+
+        // ---- Play requirements ---------------------------------------------
+        EditorUserBuildSettings.buildAppBundle = true;
+        PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
+        PlayerSettings.SetScriptingBackend(UnityEditor.Build.NamedBuildTarget.Android,
+                                           ScriptingImplementation.IL2CPP);
+        PlayerSettings.Android.targetSdkVersion = (AndroidSdkVersions)TargetApiLevel;
+
+        string versionName = Environment.GetEnvironmentVariable("POSOCCER_VERSION_NAME");
+        if (!string.IsNullOrEmpty(versionName)) { PlayerSettings.bundleVersion = versionName; }
+
+        string versionCode = Environment.GetEnvironmentVariable("POSOCCER_VERSION_CODE");
+        if (!string.IsNullOrEmpty(versionCode) && int.TryParse(versionCode, out int vc))
+        {
+            PlayerSettings.Android.bundleVersionCode = vc;
+        }
+        else
+        {
+            // Play rejects a versionCode it has already seen, and an internal
+            // test burns one per upload, so auto-increment when not pinned.
+            PlayerSettings.Android.bundleVersionCode += 1;
+        }
+
+        // EditorBuildSettings.scenes is deliberately NOT written. BuildPipeline uses
+        // BuildPlayerOptions.scenes, so assigning the global list bought nothing and
+        // silently rewrote the project's Build Settings as a side effect of running a
+        // build - and SCN_Training has to stay at index 0 there for headless training
+        // and eval to boot.
+
+        string projectRoot = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
+        string outputPath = Path.Combine(projectRoot, "Builds", "PoSoccer", "PoSoccer.aab");
+        Directory.CreateDirectory(Path.GetDirectoryName(outputPath));
+
+        var options = new BuildPlayerOptions
+        {
+            scenes = scenes,
+            locationPathName = outputPath,
+            target = BuildTarget.Android,
+            targetGroup = BuildTargetGroup.Android,
+            options = BuildOptions.None,
+        };
+
+        Debug.Log($"[Editor_BuildAabCommand] appId={PlayerSettings.GetApplicationIdentifier(UnityEditor.Build.NamedBuildTarget.Android)} " +
+                  $"version={PlayerSettings.bundleVersion} " +
+                  $"versionCode={PlayerSettings.Android.bundleVersionCode} " +
+                  $"targetSdk={(int)PlayerSettings.Android.targetSdkVersion} " +
+                  $"minSdk={(int)PlayerSettings.Android.minSdkVersion}");
+        Debug.Log($"[Editor_BuildAabCommand] Building AAB -> {outputPath}");
+
+        var report = BuildPipeline.BuildPlayer(options);
+        var summary = report.summary;
+
+        Debug.Log($"[Editor_BuildAabCommand] Result:  {summary.result}");
+        Debug.Log($"[Editor_BuildAabCommand] Output:  {summary.outputPath}");
+        Debug.Log($"[Editor_BuildAabCommand] Size:    {summary.totalSize} bytes");
+        Debug.Log($"[Editor_BuildAabCommand] Time:    {summary.totalTime}");
+        Debug.Log($"[Editor_BuildAabCommand] Errors:  {summary.totalErrors}");
+
+        // Do not leave the password sitting in ProjectSettings.asset, which is
+        // tracked in git. Unity persists these fields on write otherwise.
+        PlayerSettings.Android.keystorePass = "";
+        PlayerSettings.Android.keyaliasPass = "";
+
+        EditorApplication.Exit(
+            summary.result == UnityEditor.Build.Reporting.BuildResult.Succeeded ? 0 : 1);
+    }
+}

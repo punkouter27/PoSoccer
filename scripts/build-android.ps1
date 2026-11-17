@@ -95,7 +95,7 @@ $proc = Start-Process -FilePath $UnityEditor `
         '-nographics',
         '-projectPath', $ProjectRoot,
         '-buildTarget', 'Android',
-        '-executeMethod', 'Agent_BuildPlayerCommand.Build',
+        '-executeMethod', 'Editor_BuildPlayerCommand.Build',
         '-buildTargetGroup', 'Android',
         '-buildTargetSubtarget', '0',
         '-logFile', $LogPath

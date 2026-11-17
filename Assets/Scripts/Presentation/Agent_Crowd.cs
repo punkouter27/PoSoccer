@@ -1,89 +1,30 @@
-using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.Rendering.Universal;
-using UnityEngine.Tilemaps;
 
 namespace PoSoccer
 {
     /// <summary>
-    /// Stadium dressing built at runtime: a tilemapped crowd ring, advertising
-    /// boards along the touchline, and a pool of camera-flash lights that pop in
-    /// the stands and spill onto the pitch.
-    ///
-    /// SIZED FOR WHAT THE CAMERA ACTUALLY SHOWS. Agent_CameraFollow derives its
-    /// wide shot as the smallest orthographic size that fits the whole pitch, and
-    /// on a 9:16 portrait viewport that resolves to "fit the pitch height" - which
-    /// leaves roughly half a world unit of margin past the goal lines and about one
-    /// past the touchlines. Deep stands would therefore be invisible in every
-    /// shot. So the budget goes where it is seen: the boards sit hard against the
-    /// touchline, the stands are shallow, and the spectacle is carried by
-    /// flashbulbs, whose light reaches the pitch even when their source does not.
-    ///
-    /// Both tilemaps are one draw call each and the crowd shimmer walks a
-    /// contiguous cursor rather than scattering random cells, so it dirties one
-    /// tilemap chunk per frame instead of many.
+    /// Lightweight stadium perimeter dressing built at runtime: static SpriteRenderer
+    /// boards and stands rings (zero Tilemap chunk rebuilds, zero idle Light2D passes)
+    /// plus audio reactions to xG chances.
     ///
     /// Presentation only. Self-disables in training and evaluation.
     /// </summary>
     [RequireComponent(typeof(Agent_EnvController))]
     public sealed class Agent_Crowd : MonoBehaviour
     {
-        [Tooltip("World size of one crowd cell.")]
-        [SerializeField] private float _cellSize = 0.5f;
-        [Tooltip("Depth of the crowd ring outside the boards, in world units. Kept " +
-                 "shallow on purpose: the portrait camera leaves roughly half a world " +
-                 "unit of margin past the goal line, so deeper rows are built and " +
-                 "shimmered every frame for pixels that are never on screen.")]
+        [Tooltip("Depth of the crowd ring outside the boards, in world units.")]
         [SerializeField] private float _standsDepth = 1.5f;
         [Tooltip("Gap between the touchline and the advertising boards.")]
         [SerializeField] private float _boardGap = 0.35f;
         [Tooltip("Thickness of the advertising board ring.")]
         [SerializeField] private float _boardDepth = 0.5f;
-        [Tooltip("Fraction of crowd cells occupied by a spectator; the rest read as empty seats.")]
-        [Range(0.2f, 1f)] [SerializeField] private float _occupancy = 0.62f;
-        [Tooltip("Number of pooled camera-flash lights.")]
-        [SerializeField] private int _flashbulbs = 10;
-        [Tooltip("Flashes per second across the whole crowd during normal play.")]
-        [SerializeField] private float _flashRate = 1.6f;
-        [Tooltip("Cells recoloured per frame to keep the crowd alive. 0 disables the " +
-                 "shimmer entirely - with a shallow stand ring the movement is barely " +
-                 "visible, and every write dirties a tilemap chunk for a mesh rebuild.")]
-        [SerializeField] private int _shimmerPerFrame = 4;
         [SerializeField] private bool _enableCrowd = true;
 
-        static readonly Color[] SpectatorTones =
-        {
-            new(0.82f, 0.65f, 0.52f), new(0.62f, 0.45f, 0.35f), new(0.42f, 0.30f, 0.24f),
-            new(0.90f, 0.76f, 0.63f), new(0.55f, 0.58f, 0.66f), new(0.70f, 0.72f, 0.78f),
-        };
-
-        static readonly Color EmptySeat = new(0.10f, 0.13f, 0.16f);
-
-        Agent_EnvController _env;
-        Tilemap _stands;
-        Tile _tile;
-
-        readonly List<Vector3Int> _cells = new();
-        readonly List<Vector3> _cellWorld = new();
-        readonly List<Color> _cellBase = new();
-        int _shimmerCursor;
-
-        struct Flashbulb
-        {
-            public Light2D Light;
-            public float Life;
-            public float Cooldown;
-        }
-
-        Flashbulb[] _bulbs;
-        float _flashBoost;
-
         [Header("Chances (xG)")]
-        [Tooltip("Missed shots below this xG get no gasp - a hopeful punt is not a chance.")]
         [Range(0f, 1f)] [SerializeField] private float _gaspMinXg = 0.12f;
-        [Tooltip("xG at which a miss draws the loudest gasp.")]
         [Range(0f, 1f)] [SerializeField] private float _gaspFullXg = 0.5f;
 
+        Agent_EnvController _env;
         Agent_ExpectedGoals _xg;
         Agent_Audio _audio;
         bool _xgLookedUp;
@@ -96,8 +37,9 @@ namespace PoSoccer
 
         void Start()
         {
-            _env = GetComponent<Agent_EnvController>();
-            var hud = FindAnyObjectByType<Agent_HUD>();
+            var ctx = GetComponent<Agent_MatchContext>();
+            _env = ctx != null && ctx.Env != null ? ctx.Env : GetComponent<Agent_EnvController>();
+            var hud = ctx != null && ctx.Hud != null ? ctx.Hud : FindAnyObjectByType<Agent_HUD>();
 
             if (!_enableCrowd || !Agent_Presentation.IsMatchScene(hud))
             {
@@ -105,8 +47,12 @@ namespace PoSoccer
                 return;
             }
 
-            // Start, not Awake: Agent_MatchLoader resizes the pitch per squad size
-            // from its own Awake, so the extents are only final by the time Start runs.
+            if (ctx != null)
+            {
+                _audio = ctx.Audio;
+                _xg = ctx.ExpectedGoals;
+            }
+
             Build();
             _env.EpisodeEnded += OnEpisodeEnded;
         }
@@ -116,8 +62,6 @@ namespace PoSoccer
             if (_env != null) _env.EpisodeEnded -= OnEpisodeEnded;
         }
 
-        // -- Construction ----------------------------------------------------
-
         void Build()
         {
             Vector2 pitch = _env.PitchHalfExtents;
@@ -126,157 +70,59 @@ namespace PoSoccer
             Vector2 standsInner = boardOuter + Vector2.one * 0.3f;
             Vector2 standsOuter = standsInner + Vector2.one * _standsDepth;
 
-            var gridGo = new GameObject("Stadium_Crowd");
-            gridGo.transform.SetParent(transform, false);
-            var grid = gridGo.AddComponent<Grid>();
-            grid.cellSize = new Vector3(_cellSize, _cellSize, 0f);
+            var root = new GameObject("Stadium_Crowd").transform;
+            root.SetParent(transform, false);
 
-            _tile = ScriptableObject.CreateInstance<Tile>();
-            _tile.sprite = Agent_Art.Square(_cellSize);
-            _tile.hideFlags = HideFlags.HideAndDontSave;
-
-            Material lit = Agent_Stadium.Instance != null
-                ? Agent_Stadium.Instance.litMaterial : null;
-
-            // Hoardings get the sheen material when Agent_Surfaces built one -
-            // it runs at -35, so it has already assigned BoardMaterial by now.
+            Material lit = Agent_Stadium.Instance != null ? Agent_Stadium.Instance.litMaterial : null;
             var surfaces = GetComponent<Agent_Surfaces>();
-            Material boardMaterial = surfaces != null && surfaces.BoardMaterial != null
-                ? surfaces.BoardMaterial : lit;
+            Material boardMaterial = surfaces != null && surfaces.BoardMaterial != null ? surfaces.BoardMaterial : lit;
+            Sprite quad = Agent_Art.Square(1f);
 
-            _stands = NewLayer(gridGo.transform, "Stands", -18, lit);
-            var boards = NewLayer(gridGo.transform, "Boards", -16, boardMaterial);
-
-            FillRing(_stands, standsInner, standsOuter, CrowdColor, _cells, _cellWorld);
-            FillRing(boards, boardInner, boardOuter, BoardColor, null, null);
-
-            BuildFlashbulbs(standsInner, standsOuter);
+            BuildRing(root, "Stands", standsInner, standsOuter, -18, new Color(0.11f, 0.14f, 0.17f), lit, quad);
+            BuildRing(root, "Boards", boardInner, boardOuter, -16, new Color(0.10f, 0.12f, 0.15f), boardMaterial, quad);
         }
 
-        Tilemap NewLayer(Transform parent, string label, int sortingOrder, Material lit)
+        static void BuildRing(Transform parent, string label, Vector2 inner, Vector2 outer,
+            int sortingOrder, Color color, Material material, Sprite sprite)
         {
-            var go = new GameObject(label);
+            var group = new GameObject(label).transform;
+            group.SetParent(parent, false);
+
+            float sideW = outer.x - inner.x;
+            float endH = outer.y - inner.y;
+            float totalW = outer.x * 2f;
+            float innerH = inner.y * 2f;
+
+            AddStrip(group, "N", new Vector2(0f, (inner.y + outer.y) * 0.5f), new Vector2(totalW, endH), sortingOrder, color, material, sprite);
+            AddStrip(group, "S", new Vector2(0f, -(inner.y + outer.y) * 0.5f), new Vector2(totalW, endH), sortingOrder, color, material, sprite);
+            AddStrip(group, "E", new Vector2((inner.x + outer.x) * 0.5f, 0f), new Vector2(sideW, innerH), sortingOrder, color, material, sprite);
+            AddStrip(group, "W", new Vector2(-(inner.x + outer.x) * 0.5f, 0f), new Vector2(sideW, innerH), sortingOrder, color, material, sprite);
+        }
+
+        static void AddStrip(Transform parent, string name, Vector2 localPos, Vector2 scale,
+            int sortingOrder, Color color, Material material, Sprite sprite)
+        {
+            var go = new GameObject(name);
             go.transform.SetParent(parent, false);
-            var tilemap = go.AddComponent<Tilemap>();
-            var renderer = go.AddComponent<TilemapRenderer>();
-            renderer.sortingOrder = sortingOrder;
-            // Match the rest of the scene's lighting; Agent_Stadium only reassigns
-            // SpriteRenderers, and a TilemapRenderer is not one.
-            if (lit != null) renderer.sharedMaterial = lit;
-            return tilemap;
+            go.transform.localPosition = localPos;
+            go.transform.localScale = new Vector3(scale.x, scale.y, 1f);
+            var sr = go.AddComponent<SpriteRenderer>();
+            sr.sprite = sprite;
+            sr.color = color;
+            sr.sortingOrder = sortingOrder;
+            if (material != null) sr.sharedMaterial = material;
         }
-
-        /// <summary>
-        /// Fills the rectangular annulus between <paramref name="inner"/> and
-        /// <paramref name="outer"/> half-extents, colouring each cell through
-        /// <paramref name="tint"/>.
-        /// </summary>
-        void FillRing(Tilemap tilemap, Vector2 inner, Vector2 outer,
-            System.Func<Vector3, Color> tint, List<Vector3Int> cellsOut, List<Vector3> worldOut)
-        {
-            int maxX = Mathf.CeilToInt(outer.x / _cellSize) + 1;
-            int maxY = Mathf.CeilToInt(outer.y / _cellSize) + 1;
-
-            for (int y = -maxY; y <= maxY; y++)
-            {
-                for (int x = -maxX; x <= maxX; x++)
-                {
-                    var cell = new Vector3Int(x, y, 0);
-                    Vector3 world = tilemap.GetCellCenterWorld(cell);
-                    Vector3 local = world - transform.position;
-
-                    bool insideOuter = Mathf.Abs(local.x) <= outer.x && Mathf.Abs(local.y) <= outer.y;
-                    bool insideInner = Mathf.Abs(local.x) < inner.x && Mathf.Abs(local.y) < inner.y;
-                    if (!insideOuter || insideInner) continue;
-
-                    tilemap.SetTile(cell, _tile);
-                    // Required before SetColor: tiles lock their colour by default.
-                    tilemap.SetTileFlags(cell, TileFlags.None);
-                    tilemap.SetColor(cell, tint(local));
-
-                    if (cellsOut != null)
-                    {
-                        cellsOut.Add(cell);
-                        // Kept so the shimmer can vary AROUND the seat colour
-                        // instead of compounding on the previous frame's value.
-                        _cellBase.Add(tilemap.GetColor(cell));
-                    }
-                    if (worldOut != null) worldOut.Add(world);
-                }
-            }
-        }
-
-        Color CrowdColor(Vector3 local)
-        {
-            if (Random.value > _occupancy) return EmptySeat;
-            Color tone = SpectatorTones[Random.Range(0, SpectatorTones.Length)];
-            // Rows further from the pitch sit deeper in shadow, which reads as depth.
-            float depth = Mathf.InverseLerp(0f, _standsDepth,
-                Mathf.Max(Mathf.Abs(local.x) - _env.PitchHalfExtents.x,
-                          Mathf.Abs(local.y) - _env.PitchHalfExtents.y));
-            return Color.Lerp(tone, EmptySeat, Mathf.Clamp01(depth) * 0.55f);
-        }
-
-        Color BoardColor(Vector3 local)
-        {
-            // Alternating blocks of team colour and dark, like hoardings.
-            int block = Mathf.FloorToInt((Mathf.Abs(local.x) + Mathf.Abs(local.y)) / (_cellSize * 6f));
-            switch (block % 3)
-            {
-                case 0: return Agent_UIStyle.BlueTeam * 0.75f;
-                case 1: return new Color(0.08f, 0.09f, 0.10f);
-                default: return Agent_UIStyle.RedTeam * 0.75f;
-            }
-        }
-
-        void BuildFlashbulbs(Vector2 inner, Vector2 outer)
-        {
-            _bulbs = new Flashbulb[Mathf.Max(0, _flashbulbs)];
-            for (int i = 0; i < _bulbs.Length; i++)
-            {
-                var go = new GameObject("Flashbulb");
-                go.transform.SetParent(transform, false);
-                var light = go.AddComponent<Light2D>();
-                light.lightType = Light2D.LightType.Point;
-                light.color = new Color(0.92f, 0.96f, 1f);
-                light.pointLightInnerRadius = 0.1f;
-                light.pointLightOuterRadius = 2.2f;
-                light.intensity = 0f;
-                _bulbs[i].Light = light;
-                _bulbs[i].Cooldown = Random.Range(0f, 3f);
-            }
-        }
-
-        // -- Life ------------------------------------------------------------
 
         void OnEpisodeEnded(Agent_Soccer.Team? winner)
         {
             if (winner == null) return;
-            // Everyone reaches for their phone at once.
-            _flashBoost = 1f;
             if (_shotOpen && winner.Value == _shotTeam) _shotScored = true;
         }
 
         void Update()
         {
-            Shimmer();
-            TickFlashbulbs();
             ReactToChances();
         }
-
-        // -- Reacting to chances (2026-11-07) ---------------------------------
-        //
-        // The crowd used to react to two things: proximity to goal (Agent_Audio's
-        // pressure) and goals. A real crowd reacts to CHANCES - it rises as a good
-        // shot is struck and groans when it misses - and Agent_ExpectedGoals already
-        // prices every shot. So: a shot opens -> anticipation scaled by its xG
-        // (flashbulbs, a cheer swell); the shot resolves without a goal -> a gasp
-        // scaled by the same xG, so a sitter missed is heard as one and a hopeful
-        // punt from distance barely registers.
-        //
-        // Read through the PUBLIC totals only (ShotsFor, TotalFor, ResolvedShots),
-        // polled once a frame: a shot's xG is the jump in its side's total. No
-        // edit to Agent_ExpectedGoals and no event to keep in sync with it.
 
         void ReactToChances()
         {
@@ -285,15 +131,12 @@ namespace PoSoccer
                 if (_xgLookedUp) return;
                 _xgLookedUp = true;
                 _xg = GetComponent<Agent_ExpectedGoals>();
-                _audio = GetComponent<Agent_Audio>();
-                if (_audio == null) _audio = FindAnyObjectByType<Agent_Audio>();
+                if (_audio == null) _audio = GetComponent<Agent_Audio>() ?? FindAnyObjectByType<Agent_Audio>();
                 if (_xg == null || !_xg.isActiveAndEnabled) { _xg = null; return; }
                 SnapshotChances();
                 return;
             }
 
-            // Resolution first: a touch that ends one shot can open the next in the
-            // same frame, and the old one must be judged before it is replaced.
             int resolved = _xg.ResolvedShots;
             if (resolved != _seenResolved)
             {
@@ -302,7 +145,6 @@ namespace PoSoccer
                 {
                     float amount = Mathf.InverseLerp(_gaspMinXg, _gaspFullXg, _shotXg);
                     if (_audio != null) _audio.Gasp(Mathf.Lerp(0.35f, 1f, amount));
-                    _flashBoost = Mathf.Max(_flashBoost, 0.25f * amount);
                 }
                 _shotOpen = false;
                 _shotScored = false;
@@ -324,8 +166,6 @@ namespace PoSoccer
                 _shotTeam = team;
                 _shotXg = value;
 
-                // Anticipation: the stands rise with the quality of the chance.
-                _flashBoost = Mathf.Max(_flashBoost, Mathf.Clamp01(value * 1.5f) * 0.6f);
                 if (_audio != null) _audio.Cheer(Mathf.Clamp01(value * 1.2f));
             }
         }
@@ -337,68 +177,6 @@ namespace PoSoccer
             {
                 _seenShots[side] = _xg.ShotsFor((Agent_Soccer.Team)side);
                 _seenTotal[side] = _xg.TotalFor((Agent_Soccer.Team)side);
-            }
-        }
-
-        /// <summary>
-        /// Recolours a short contiguous run of cells each frame. Contiguous, not
-        /// random: scattered writes dirty many tilemap chunks at once and each one
-        /// costs a mesh rebuild.
-        /// </summary>
-        void Shimmer()
-        {
-            if (_stands == null || _cells.Count == 0) return;
-
-            for (int i = 0; i < _shimmerPerFrame; i++)
-            {
-                _shimmerCursor = (_shimmerCursor + 1) % _cells.Count;
-                var cell = _cells[_shimmerCursor];
-                Color seat = _cellBase[_shimmerCursor];
-                if (seat == EmptySeat) continue;
-                // Around the base colour, never off the previous value: reading
-                // back and re-multiplying is a multiplicative random walk, which
-                // drifts the whole crowd darker over the course of a match.
-                float jiggle = Random.Range(0.92f, 1.08f);
-                _stands.SetColor(cell, new Color(
-                    Mathf.Clamp01(seat.r * jiggle),
-                    Mathf.Clamp01(seat.g * jiggle),
-                    Mathf.Clamp01(seat.b * jiggle), 1f));
-            }
-        }
-
-        void TickFlashbulbs()
-        {
-            if (_bulbs == null || _cellWorld.Count == 0) return;
-
-            float dt = Time.unscaledDeltaTime;
-            _flashBoost = Mathf.Max(0f, _flashBoost - dt * 0.35f);
-            // Goals turn a trickle of flashes into a storm.
-            float rate = _flashRate * (1f + _flashBoost * 14f);
-            float meanGap = _bulbs.Length / Mathf.Max(0.01f, rate);
-
-            for (int i = 0; i < _bulbs.Length; i++)
-            {
-                var light = _bulbs[i].Light;
-                if (light == null) continue;
-
-                if (_bulbs[i].Life > 0f)
-                {
-                    _bulbs[i].Life -= dt;
-                    // Hard attack, fast decay - a xenon pop, not a fade-in.
-                    light.intensity = Mathf.Max(0f, _bulbs[i].Life / 0.12f) * 2.4f;
-                    if (_bulbs[i].Life <= 0f)
-                    {
-                        light.intensity = 0f;
-                        _bulbs[i].Cooldown = Random.Range(0.2f, 2f) * meanGap;
-                    }
-                    continue;
-                }
-
-                _bulbs[i].Cooldown -= dt;
-                if (_bulbs[i].Cooldown > 0f) continue;
-
-                light.transform.position = _cellWorld[Random.Range(0, _cellWorld.Count)];
-                _bulbs[i].Life = 0.12f;
             }
         }
     }

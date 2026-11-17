@@ -27,7 +27,7 @@ MonoBehaviour:
   trainedOn: 2026-11-09
   evalWinRate: 0.9771
   evalEpisodes: 350
-  trainedActionGain: 1.0
+  trainedActionGain: 1
   trainedInterfaceVersion: iface-2026-10-10
   trainedPhysicsVersion: phys-2026-10-10
   trainingConfigHash: 4c612139c55f

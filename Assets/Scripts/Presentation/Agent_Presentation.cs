@@ -104,6 +104,9 @@ namespace PoSoccer
             if (env == null) return;
             var go = env.gameObject;
 
+            var ctx = go.GetComponent<Agent_MatchContext>() ?? go.AddComponent<Agent_MatchContext>();
+            ctx.Env = env;
+
             InstallVisuals(go);
 
             // Global-state owners: exactly one pitch may hold these.
@@ -121,57 +124,35 @@ namespace PoSoccer
             if (go.GetComponent<Agent_MatchStats>() == null) go.AddComponent<Agent_MatchStats>();
 
             // Agent_Overtime OWNS THE PITCH GEOMETRY, which is why it is here rather
-            // than in InstallVisuals despite drawing its own boundary: it calls
-            // ResizePitch and SetGoalWidth, and six gallery clones each squeezing
-            // the pitch they share a camera with is not a thing anyone wants to
-            // debug. Agent_BrainCam owns a screen panel and Agent_Dossier writes the
-            // end panel, so both are scoreboard-side by the rule above.
+            // than in InstallVisuals despite drawing its own boundary.
             if (go.GetComponent<Agent_Overtime>() == null) go.AddComponent<Agent_Overtime>();
             if (go.GetComponent<Agent_BrainCam>() == null) go.AddComponent<Agent_BrainCam>();
             if (go.GetComponent<Agent_Dossier>() == null) go.AddComponent<Agent_Dossier>();
 
-            // Spectator controls and the per-decision match log. Agent_SpectatorInput
-            // steers the one camera and the one clock (through Agent_CameraFollow and
-            // Agent_TimeFreeze), and Agent_MatchLog writes one file per match, so
-            // both are singular and belong on this side of the line.
+            // Spectator controls and opt-in match log.
             if (go.GetComponent<Agent_SpectatorInput>() == null) go.AddComponent<Agent_SpectatorInput>();
             if (go.GetComponent<Agent_MatchLog>() == null) go.AddComponent<Agent_MatchLog>();
 
-            // Match-only overlays (2026-10-11). Agent_ExpectedGoals writes the ticker and
-            // an end-panel card, so it is scoreboard-side. Agent_Skids draws only its own
-            // pitch and could be a per-pitch visual; it is here because the gallery's six
-            // small pitches are too small to read a skid on. Both before Agent_MatchStats
-            // would also work - the ticker line reads the skids lazily.
-            if (go.GetComponent<Agent_ExpectedGoals>() == null) go.AddComponent<Agent_ExpectedGoals>();
+            // Match-only overlays.
+            var xg = go.GetComponent<Agent_ExpectedGoals>() ?? go.AddComponent<Agent_ExpectedGoals>();
             if (go.GetComponent<Agent_Skids>() == null) go.AddComponent<Agent_Skids>();
 
-            // Momentum timeline (2026-11-07). Samples Agent_WinProbability's threat and
-            // Agent_ExpectedGoals' running xG, writes an end-panel card: scoreboard-side,
-            // and after both of the components it reads.
+            // Momentum timeline.
             if (go.GetComponent<Agent_Momentum>() == null) go.AddComponent<Agent_Momentum>();
 
-            // Character voices and the tournament hand-off (2026-11-08). Voices own an
-            // audio pool for the whole match; the tournament component records the one
-            // result and steers the one end panel; the intro card draws on the one HUD.
-            // All singular, all scoreboard-side.
+            // Character voices and the tournament hand-off.
             if (go.GetComponent<Agent_Voices>() == null) go.AddComponent<Agent_Voices>();
             if (go.GetComponent<Agent_TournamentMatch>() == null) go.AddComponent<Agent_TournamentMatch>();
             if (go.GetComponent<Agent_MatchIntro>() == null) go.AddComponent<Agent_MatchIntro>();
             if (go.GetComponent<Agent_Weather>() == null) go.AddComponent<Agent_Weather>();
-            if (go.GetComponent<Agent_Sidelines>() == null) go.AddComponent<Agent_Sidelines>();
-            if (go.GetComponent<Agent_Wager>() == null) go.AddComponent<Agent_Wager>();
 
-            // Screen-space and device-wide owners. All three are singular by
-            // nature - one framebuffer, one vibrator, one frame budget - so they
-            // belong here rather than in InstallVisuals, whatever the gallery
-            // might otherwise want.
-            //
-            // Agent_Quality is added LAST and carries execution order 80 so its
-            // Start runs after the two components it steers have decided whether
-            // they are alive at all.
+            // Screen-space and device-wide owners.
             if (go.GetComponent<Agent_ScreenFX>() == null) go.AddComponent<Agent_ScreenFX>();
             if (go.GetComponent<Agent_Haptics>() == null) go.AddComponent<Agent_Haptics>();
             if (go.GetComponent<Agent_Quality>() == null) go.AddComponent<Agent_Quality>();
+
+            ctx.ExpectedGoals = xg;
+            ctx.Refresh();
         }
 
         /// <summary>
@@ -185,6 +166,9 @@ namespace PoSoccer
         public static void InstallGallery(Agent_EnvController env)
         {
             if (env == null) return;
+            var ctx = env.GetComponent<Agent_MatchContext>() ?? env.gameObject.AddComponent<Agent_MatchContext>();
+            ctx.Env = env;
+            ctx.Refresh();
             InstallVisuals(env.gameObject);
             if (env.GetComponent<Agent_Gallery>() == null) env.gameObject.AddComponent<Agent_Gallery>();
         }
@@ -230,9 +214,6 @@ namespace PoSoccer
             if (go.GetComponent<Agent_ParticleFX>() == null) go.AddComponent<Agent_ParticleFX>();
             if (go.GetComponent<Agent_ImpactFX>() == null) go.AddComponent<Agent_ImpactFX>();
             if (go.GetComponent<Agent_Shadows>() == null) go.AddComponent<Agent_Shadows>();
-            // Per-pitch: the wear texture records THIS pitch's match, so the
-            // gallery's clones each keep their own.
-            if (go.GetComponent<Agent_Wear>() == null) go.AddComponent<Agent_Wear>();
             if (go.GetComponent<Agent_Limbs>() == null) go.AddComponent<Agent_Limbs>();
             if (go.GetComponent<Agent_Intent>() == null) go.AddComponent<Agent_Intent>();
             if (go.GetComponent<Agent_VisionView>() == null) go.AddComponent<Agent_VisionView>();

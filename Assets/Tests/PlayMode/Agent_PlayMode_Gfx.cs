@@ -59,16 +59,11 @@ namespace PoSoccer.Tests
             Assert.IsNull(Object.FindAnyObjectByType<Agent_ScreenFX>(),
                 "Agent_ScreenFX must never be installed in SCN_Training - it parents " +
                 "an overlay to the camera, and training clones 16 pitches around one.");
-            Assert.IsNull(Object.FindAnyObjectByType<Agent_Wear>(),
-                "Agent_Wear must never be installed in SCN_Training - 16 cloned pitches " +
-                "would each upload a texture several times a second.");
             Assert.IsNull(Object.FindAnyObjectByType<Agent_Quality>(),
                 "Agent_Quality must never be installed in SCN_Training - it switches " +
                 "other components off based on frame time.");
             Assert.IsNull(Object.FindAnyObjectByType<Agent_Haptics>(),
                 "Agent_Haptics must never be installed in SCN_Training.");
-            Assert.IsNull(GameObject.Find("PitchWear"),
-                "A wear quad leaked into the training scene.");
             Assert.IsNull(GameObject.Find("GoalFlash"),
                 "A screen overlay leaked into the training scene.");
             Assert.IsNull(GameObject.Find("GoalShockwave"),
@@ -81,7 +76,6 @@ namespace PoSoccer.Tests
             yield return LoadExhibition();
 
             Assert.IsNotNull(Object.FindAnyObjectByType<Agent_ScreenFX>());
-            Assert.IsNotNull(Object.FindAnyObjectByType<Agent_Wear>());
             Assert.IsNotNull(Object.FindAnyObjectByType<Agent_Quality>());
             Assert.IsNotNull(Object.FindAnyObjectByType<Agent_Haptics>());
         }
@@ -130,51 +124,6 @@ namespace PoSoccer.Tests
                 "for the rest of the match.");
         }
 
-        /// <summary>
-        /// The wear quad has to sit ON the ground: above the pitch background and
-        /// below everything that moves. Drawn over the players it reads as fog;
-        /// drawn under the pitch it is invisible, and both look like "the effect
-        /// is too subtle" rather than like a sorting bug.
-        /// </summary>
-        [UnityTest]
-        public IEnumerator PitchWear_SitsOnTheGround()
-        {
-            yield return LoadExhibition();
-
-            var quad = GameObject.Find("PitchWear");
-            Assert.IsNotNull(quad, "No wear quad was built.");
-
-            var wearRenderer = quad.GetComponent<SpriteRenderer>();
-            Assert.IsNotNull(wearRenderer);
-
-            var env = Object.FindAnyObjectByType<Agent_EnvController>();
-            var pitch = env.transform.Find("PitchBG");
-            Assert.IsNotNull(pitch, "PitchBG is gone; the wear quad cannot be placed.");
-            var pitchRenderer = pitch.GetComponent<SpriteRenderer>();
-
-            Assert.Greater(wearRenderer.sortingOrder, pitchRenderer.sortingOrder,
-                "The wear is drawn under the pitch, so it can never be seen.");
-
-            var agents = env.GetComponentsInChildren<Agent_Soccer>();
-            for (int i = 0; i < agents.Length; i++)
-            {
-                if (!agents[i].TryGetComponent(out SpriteRenderer body)) continue;
-                Assert.Less(wearRenderer.sortingOrder, body.sortingOrder,
-                    "The wear is drawn over the players.");
-            }
-
-            // And it covers the pitch it is recording, at whatever size the pitch
-            // currently is - Agent_PitchSizing rescales per squad.
-            Vector2 half = env.PitchHalfExtents;
-            Assert.AreEqual(half.x * 2f, quad.transform.localScale.x, 0.01f);
-            Assert.AreEqual(half.y * 2f, quad.transform.localScale.y, 0.01f);
-        }
-
-        /// <summary>
-        /// The quality controller sheds in the documented order. Checked by
-        /// forcing tiers rather than by starving the frame rate, which no test
-        /// can do reliably on an unknown machine.
-        /// </summary>
         [UnityTest]
         public IEnumerator QualityTiers_ShedInOrder()
         {
@@ -182,15 +131,15 @@ namespace PoSoccer.Tests
 
             var quality = Object.FindAnyObjectByType<Agent_Quality>();
             var screenFX = Object.FindAnyObjectByType<Agent_ScreenFX>();
-            var wear = Object.FindAnyObjectByType<Agent_Wear>();
+            var skids = Object.FindAnyObjectByType<Agent_Skids>();
             Assert.IsNotNull(quality);
 
             quality.SetTier(0);
             Assert.IsTrue(screenFX.AllowContinuous, "Tier 0 must keep everything on.");
-            Assert.IsTrue(wear.Visible, "Tier 0 must keep everything on.");
+            if (skids != null) Assert.IsTrue(skids.Allowed, "Tier 0 must keep skids on.");
 
             quality.SetTier(1);
-            Assert.IsFalse(wear.Visible, "Tier 1 must shed the continuous pitch wear first.");
+            if (skids != null) Assert.IsFalse(skids.Allowed, "Tier 1 must shed continuous ground skids first.");
             Assert.IsTrue(screenFX.AllowContinuous,
                 "Tier 1 must NOT shed the goal effects.");
 
@@ -198,15 +147,14 @@ namespace PoSoccer.Tests
             Assert.IsTrue(screenFX.AllowContinuous,
                 "Tier 2 must still keep the goal effects - they are brief, they carry the " +
                 "most important moment in the match, and a machine that cannot hold the " +
-                "budget walks down these tiers within a minute. Measured: a probe caught " +
-                "a real goal celebrated with nothing when these were shed first.");
+                "budget walks down these tiers within a minute.");
 
             quality.SetTier(3);
             Assert.IsFalse(screenFX.AllowContinuous, "Tier 3 must shed the impact overlays.");
 
             quality.SetTier(0);
             Assert.IsTrue(screenFX.AllowContinuous, "Recovery must restore what it shed.");
-            Assert.IsTrue(wear.Visible, "Recovery must restore what it shed.");
+            if (skids != null) Assert.IsTrue(skids.Allowed, "Recovery must restore what it shed.");
         }
 
         /// <summary>

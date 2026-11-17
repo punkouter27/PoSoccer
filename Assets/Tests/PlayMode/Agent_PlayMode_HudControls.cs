@@ -235,10 +235,6 @@ namespace PoSoccer.Tests
                 Assert.IsTrue(face == null || !face.gameObject.activeSelf,
                     "Human player must be a generic Blue box with no active Face sprite");
 
-                // Spectator PoCoin betting is disabled during 1P matches.
-                var wager = env.GetComponent<Agent_Wager>();
-                Assert.IsTrue(wager == null || !wager.enabled, "Spectator betting must be disabled in 1P mode");
-
                 // Release opening countdown freeze and test live screen-relative movement + kick.
                 Agent_TimeFreeze.ReleaseAll();
                 var humanCtrl = humanAgent.GetComponent<Agent_HumanController>();

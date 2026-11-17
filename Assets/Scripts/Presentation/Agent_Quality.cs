@@ -94,7 +94,6 @@ namespace PoSoccer
         int _badWindows, _goodWindows;
 
         Agent_ScreenFX _screenFX;
-        Agent_Wear _wear;
         Agent_Skids _skids;
         Agent_Stadium _stadium;
 
@@ -149,11 +148,10 @@ namespace PoSoccer
                 ? 1000f / Application.targetFrameRate
                 : _budgetMs;
             _screenFX = FindAnyObjectByType<Agent_ScreenFX>();
-            _wear = FindAnyObjectByType<Agent_Wear>();
-            _skids = FindAnyObjectByType<Agent_Skids>();
+            _skids = GetComponent<Agent_Skids>() ?? FindAnyObjectByType<Agent_Skids>();
             _stadium = Agent_Stadium.Instance;
-            _particles = FindAnyObjectByType<Agent_ParticleFX>();
-            _surfaces = FindAnyObjectByType<Agent_Surfaces>();
+            _particles = GetComponent<Agent_ParticleFX>() ?? FindAnyObjectByType<Agent_ParticleFX>();
+            _surfaces = GetComponent<Agent_Surfaces>() ?? FindAnyObjectByType<Agent_Surfaces>();
 
             // A scene entered at a degraded tier from a previous match would be
             // dishonest about why it looks the way it does.
@@ -319,22 +317,18 @@ namespace PoSoccer
             // paid every frame, bloom is paid every frame, and the goal overlays
             // are paid for half a second at the one moment the whole match is
             // building towards. So they go last.
-            if (_wear != null) _wear.Visible = Tier < 1;
-            // The skid streaks are the same kind of cost as the wear: ground detail,
-            // redrawn continuously. They go together.
+            // The skid streaks are ground detail, redrawn continuously. Shed first.
             if (_skids != null) _skids.Allowed = Tier < 1;
             if (_stadium != null) _stadium.SetBloomEnabled(Tier < 2);
             // The follow spot is a continuous light, so it goes with the bloom.
             if (_stadium != null) _stadium.FollowSpotEnabled = Tier < 2;
             if (_screenFX != null) _screenFX.AllowContinuous = Tier < 3;
 
-            // Divots are ground detail, like the wear and the skids: same tier.
+            // Divots are ground detail, like the skids: same tier.
             if (_particles != null) _particles.DivotsAllowed = Tier < 1;
 
-            // Ultra extras. Ultra is only ever true at tier 0, but the AND keeps a
-            // forced SetTier from leaving shadows on at a degraded tier.
+            // Ultra extras.
             bool ultra = UltraActive && Tier == 0;
-            if (_stadium != null) _stadium.SetCastShadows(ultra);
             if (_surfaces != null) _surfaces.TurfDetailEnabled = ultra;
             if (_particles != null) _particles.UltraBursts = ultra;
         }

@@ -60,7 +60,7 @@ namespace PoSoccer
         /// instance that does not exist yet. Read at Start and on every tick, so
         /// switching it off mid-match stops recording and keeps what was captured.
         /// </summary>
-        public static bool Enabled { get; set; } = true;
+        public static bool Enabled { get; set; } = false;
 
         /// <summary>File name prefix; the telemetry session log uses "posoccer-telemetry-".</summary>
         public const string FILE_PREFIX = "posoccer-matchlog-";

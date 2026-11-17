@@ -173,22 +173,6 @@ namespace PoSoccer.Tests
         }
 
         [Test]
-        public void Wager_OddsAndSettlement_ConserveBankrollFloor()
-        {
-            var (blueOdds, redOdds) = Agent_Wager.ComputeOdds(1650f, 1450f);
-            Assert.Less(blueOdds, redOdds, "Higher Elo favourite must offer lower payout multiplier than underdog.");
-
-            var (winCoins, winStreak, winDelta) = Agent_Wager.Settle(100, 2, 25, 2.0f, won: true);
-            Assert.Greater(winCoins, 100);
-            Assert.AreEqual(3, winStreak);
-            Assert.Greater(winDelta, 0);
-
-            var (lossCoins, lossStreak, _) = Agent_Wager.Settle(30, 3, 25, 2.0f, won: false);
-            Assert.AreEqual(Agent_Wager.MIN_COINS, lossCoins, "Bankroll must never fall below MIN_COINS.");
-            Assert.AreEqual(0, lossStreak);
-        }
-
-        [Test]
         public void Sidelines_LinesmanAndCoach_StayInAssignedZones()
         {
             float northY = 1f, velN = 0f;

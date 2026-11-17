@@ -3,7 +3,6 @@ using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
-using UnityEngine.Tilemaps;
 
 namespace PoSoccer.Tests
 {
@@ -86,26 +85,17 @@ namespace PoSoccer.Tests
         }
 
         [UnityTest]
-        public IEnumerator Crowd_BuildsTilemapsAndFlashbulbs()
+        public IEnumerator Crowd_BuildsBoardsAndStandsWithoutLightWaste()
         {
             yield return LoadExhibition();
 
             var root = GameObject.Find("Stadium_Crowd");
             Assert.IsNotNull(root, "Crowd root was not built");
 
-            var tilemaps = root.GetComponentsInChildren<Tilemap>();
-            Assert.AreEqual(2, tilemaps.Length, "Expected a stands tilemap and a boards tilemap");
-
-            int totalTiles = 0;
-            for (int i = 0; i < tilemaps.Length; i++)
-            {
-                // Not GetUsedTilesCount(): that counts DISTINCT tile assets, and
-                // every cell here shares one runtime Tile, so it always reports 1.
-                int cells = CountCells(tilemaps[i]);
-                totalTiles += cells;
-                Assert.Greater(cells, 0, $"Tilemap '{tilemaps[i].name}' was built empty");
-            }
-            Assert.Greater(totalTiles, 100, "Crowd ring is implausibly small");
+            var renderers = root.GetComponentsInChildren<SpriteRenderer>();
+            Assert.AreEqual(8, renderers.Length, "Expected 4 stands strips and 4 boards strips");
+            Assert.IsNull(GameObject.Find("Flashbulb"),
+                "Crowd must not spawn idle flashbulb Light2D passes");
         }
 
         /// <summary>
@@ -177,14 +167,6 @@ namespace PoSoccer.Tests
             Assert.AreEqual(1f, Time.timeScale, 0.0001f, "Time scale was not restored");
             Assert.IsNull(GameObject.Find("ReplayGhosts"), "Replay ghosts leaked");
             Assert.IsNull(GameObject.Find("ReplayScrim"), "Replay scrim leaked");
-        }
-
-        static int CountCells(Tilemap tilemap)
-        {
-            int count = 0;
-            foreach (var position in tilemap.cellBounds.allPositionsWithin)
-                if (tilemap.HasTile(position)) count++;
-            return count;
         }
 
         static IEnumerator WaitForClock(float target, float timeoutSeconds)
