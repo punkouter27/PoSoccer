@@ -33,7 +33,7 @@ if ($Platform -eq "EditMode") { $unityArgs += "-nographics" }
 if ($Filter) { $unityArgs += @("-testFilter", $Filter) }
 
 Write-Host "Running $assembly headless (log: $log)"
-$exit = Invoke-UnityBatch -UnityExe $UnityExe -Arguments $unityArgs
+$exit = Invoke-UnityBatch -UnityExe $UnityExe -Arguments $unityArgs -Root $root
 
 if (-not (Test-Path $resultsXml)) {
     Write-Host "No results file - compile error or the project failed to open. See $log" -ForegroundColor Red

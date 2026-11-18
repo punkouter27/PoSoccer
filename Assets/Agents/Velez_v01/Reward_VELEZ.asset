@@ -1,0 +1,59 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: af179823a658aab41bd1d23c428ab770, type: 3}
+  m_Name: Reward_VELEZ
+  m_EditorClassIdentifier: 
+  playerName: VELEZ
+  personalityNotes: 'THE POACHER. Biggest scoring reward on the roster with matching progress shaping, half the assist: finishes.'
+  playerColor: {r: 0.25, g: 0.6, b: 0.2, a: 1}
+  faceTexture: {fileID: 2800000, guid: 59e6264697706ed45bc02abfac3bde0a, type: 3}
+  skills: 'Poacher: lurks near goal, finishes chances'
+  voicePitch: 0.9
+  kitPattern: 0
+  kitColor: {r: 1, g: 1, b: 1, a: 0}
+  kitBands: 6
+  brainModel: {fileID: 0}
+  trainingSteps: 0
+  trainingRunId: 
+  trainedOn: 
+  evalWinRate: -1
+  evalEpisodes: 0
+  trainedActionGain: -1
+  trainedInterfaceVersion: 
+  trainedPhysicsVersion: 
+  trainingConfigHash: 
+  bodyScale: 1
+  bodyMass: 75
+  staminaModel: 0
+  reactionLatencyMs: 0
+  goalScorer: 1.6884423
+  assist: 0.5025126
+  teamBaselineVictory: 0.8040201
+  goalConceded: -1.0050251
+  stalemateTimeout: -0.6
+  goalSpeedBonus: 0.05
+  crossbarProximity: 0
+  stepPenalty: -0.00005
+  ballProximityScale: 0.02
+  useDifferentialProximity: 1
+  facingAlignmentScale: 0
+  ballToGoalVelocityScale: 0.0001
+  useDifferentialBallToGoal: 1
+  ballToGoalProgressScale: 0.025999999
+  actionJitterScale: 0.0004
+  turnChurnScale: 0
+  wallProximityPenalty: 0.00005
+  cornerBallPenalty: 0.00006
+  defensivePositionScale: 0
+  possessionScale: 0
+  ballContact: 0.005
+  maxEnvironmentSteps: 9000

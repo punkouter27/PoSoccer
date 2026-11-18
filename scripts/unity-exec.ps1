@@ -26,7 +26,7 @@ if ($BuildTarget) { $unityArgs += @("-buildTarget", $BuildTarget) }
 $unityArgs += $Extra
 
 Write-Host "Running $Method headless (log: $log)"
-$exit = Invoke-UnityBatch -UnityExe $UnityExe -Arguments $unityArgs
+$exit = Invoke-UnityBatch -UnityExe $UnityExe -Arguments $unityArgs -Root $root
 Select-String -Path $log -Pattern "error CS\d+|Exception" -ErrorAction SilentlyContinue |
     Select-Object -First 10 | ForEach-Object { Write-Host $_.Line }
 Write-Host "Unity exit $exit"

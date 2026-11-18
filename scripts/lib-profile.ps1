@@ -6,8 +6,10 @@
 # ValidateSet would have to repeat this list in five places.
 $PoSoccerProfiles = [ordered]@{
     STANDARD = "Standard_v01"; MATT = "Matt_v01"; KIM = "Kim_v01"; NICK = "Nick_v01"
-    ALAN = "Alan_v01"; BAILY = "Baily_v01"; BRENDAN = "Brendan_v01"
-    DUPEE = "Dupee_v01"; JH = "Jh_v01"
+    ALAN = "Alan_v01"; BAILY = "Baily_v01"; BRENDAN = "Brendan_v01"; DECOY = "Decoy_v01"
+    DUPEE = "Dupee_v01"; JH = "Jh_v01"; JOSH = "Josh_v01"; MANZI = "Manzi_v01"
+    MAYA = "Maya_v01"; PORTO = "Porto_v01"; SOKOL = "Sokol_v01"; TONG = "Tong_v01"
+    VELEZ = "Velez_v01"
 }
 
 function Assert-Profile([string]$Name) {

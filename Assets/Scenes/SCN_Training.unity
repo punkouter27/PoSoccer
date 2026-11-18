@@ -1280,8 +1280,16 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 925dcdc45ee02f44c951785fdf1ea276, type: 2}
   - {fileID: 11400000, guid: f59f6246cfc0b664e9fff8fd9829d3d4, type: 2}
   - {fileID: 11400000, guid: c3a3a00291d706c4e9d544f3529523fc, type: 2}
+  - {fileID: 11400000, guid: 57790275cafd4dc46bc1012d4705fc90, type: 2}
   - {fileID: 11400000, guid: 5179e1a1f13b7674c94dfd00d9ec46c8, type: 2}
   - {fileID: 11400000, guid: 496a96e90a561e9408d1de3478fb2562, type: 2}
+  - {fileID: 11400000, guid: c8f6841628048274fa7245beaf7d1cab, type: 2}
+  - {fileID: 11400000, guid: 028a0b59e7091514fb862b3c9fc03150, type: 2}
+  - {fileID: 11400000, guid: 0a94c8d84bcfa4143b191b8dc905e43e, type: 2}
+  - {fileID: 11400000, guid: 3cdd07148a39e47498ded71b82b40904, type: 2}
+  - {fileID: 11400000, guid: e1064e22535faaa49bddb1f70f9d3241, type: 2}
+  - {fileID: 11400000, guid: ef6ec3d1eb913fd4481e8ed9751704c1, type: 2}
+  - {fileID: 11400000, guid: 0201da02e404dce4e8be9901b3bc23f4, type: 2}
   ball: {fileID: 2082574069}
   blueGoal: {fileID: 2006005700}
   redGoal: {fileID: 2039853467}

@@ -12,11 +12,18 @@ function Resolve-UnityExe {
     # 6000.5 -> 6000.6 move (see build-headless.ps1).
     $versionFile = Join-Path $Root "ProjectSettings\ProjectVersion.txt"
     $version = (Select-String -Path $versionFile -Pattern '^m_EditorVersion:\s*(\S+)').Matches[0].Groups[1].Value
-    $exe = "C:\Program Files\Unity\Hub\Editor\$version\Editor\Unity.exe"
-    if (-not (Test-Path $exe)) {
+    $hub = "C:\Program Files\Unity\Hub\Editor"
+    $exe = "$hub\$version\Editor\Unity.exe"
+    if (Test-Path $exe) { return $exe }
+    $line = ($version -split '\.')[0..1] -join '.'
+    $alt = Get-ChildItem $hub -Directory -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -like "$line.*" -and (Test-Path (Join-Path $_.FullName "Editor\Unity.exe")) } |
+        Sort-Object Name -Descending | Select-Object -First 1
+    if (-not $alt) {
         throw "Unity $version (from ProjectVersion.txt) is not installed at $exe. Install it via Unity Hub, or pass -UnityExe."
     }
-    return $exe
+    Write-Warning "Unity $version is not installed; using $($alt.Name)."
+    return (Join-Path $alt.FullName "Editor\Unity.exe")
 }
 
 # Batchmode cannot open a project an editor already holds: Unity prints the reason to the
@@ -35,7 +42,28 @@ function Assert-ProjectClosed {
 # Start-Process -Wait, not `&`: the call operator has returned before Unity's child
 # process finished, so the exit code described a build that was still running.
 function Invoke-UnityBatch {
-    param([string]$UnityExe, [string[]]$Arguments)
-    $proc = Start-Process -FilePath $UnityExe -Wait -PassThru -NoNewWindow -ArgumentList $Arguments
-    return $proc.ExitCode
+    param([string]$UnityExe, [string[]]$Arguments, [string]$Root = "")
+    $saved = @{}
+    if ($Root) {
+        $guarded = @(
+            "ProjectSettings\ProjectVersion.txt",
+            "Packages\manifest.json",
+            "Packages\packages-lock.json",
+            "ProjectSettings\ProjectAuditorSettings.asset",
+            "ProjectSettings\ProjectSettings.asset"
+        )
+        foreach ($f in $guarded) {
+            $full = Join-Path $Root $f
+            if (Test-Path $full) { $saved[$full] = [IO.File]::ReadAllBytes($full) }
+        }
+    }
+    try {
+        $proc = Start-Process -FilePath $UnityExe -PassThru -WindowStyle Hidden -ArgumentList $Arguments
+        while (-not $proc.HasExited) { Start-Sleep -Milliseconds 500 }
+        $proc.WaitForExit()
+        return $proc.ExitCode
+    }
+    finally {
+        foreach ($full in $saved.Keys) { [IO.File]::WriteAllBytes($full, $saved[$full]) }
+    }
 }

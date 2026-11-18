@@ -1,0 +1,92 @@
+# p50 / JOSH - from scratch, the p38 scheduled curriculum (2026-11-08).
+#
+# One brain per character (AGENTS.md): JOSH starts from random weights, never from another
+# profile's brain. Same recipe that took MATT, KIM and NICK from ~27% to 82-87% (p38), with
+# JOSH's own reward table (Reward_JOSH.asset, docs/players.md) supplying the skills.
+#
+# Launch:  .\scripts	rain-roster.ps1   (queues every untrained character, three at a time)
+# Grade:   .\scripts\evaluate.ps1 -RunId soccer_p50_josh -Profile JOSH -Episodes 350
+behaviors:
+  JOSH:
+    trainer_type: ppo
+    hyperparameters:
+      batch_size: 2048
+      buffer_size: 20480
+      learning_rate: 3.0e-4
+      learning_rate_schedule: linear
+      beta: 8.0e-3
+      epsilon: 0.2
+      lambd: 0.95
+      num_epoch: 3
+    network_settings:
+      normalize: true
+      hidden_units: 256
+      num_layers: 2
+    reward_signals:
+      extrinsic:
+        gamma: 0.99
+        strength: 1.0
+    max_steps: 30000000
+    time_horizon: 1024
+    summary_freq: 50000
+    keep_checkpoints: 20
+    checkpoint_interval: 1000000
+
+environment_parameters:
+  goal_width: 6.0
+
+  bot_strength:
+    curriculum:
+      - name: Lesson0_Drill
+        completion_criteria:
+          measure: progress
+          behavior: JOSH
+          min_lesson_length: 100
+          threshold: 0.05
+        value: 0.0
+      - name: Lesson1_Feeble
+        completion_criteria:
+          measure: progress
+          behavior: JOSH
+          min_lesson_length: 100
+          threshold: 0.1
+        value: 0.2
+      - name: Lesson2_Weak
+        completion_criteria:
+          measure: progress
+          behavior: JOSH
+          min_lesson_length: 100
+          threshold: 0.15
+        value: 0.35
+      - name: Lesson3_Half
+        completion_criteria:
+          measure: progress
+          behavior: JOSH
+          min_lesson_length: 100
+          threshold: 0.2
+        value: 0.5
+      - name: Lesson4_Capable
+        completion_criteria:
+          measure: progress
+          behavior: JOSH
+          min_lesson_length: 100
+          threshold: 0.3
+        value: 0.65
+      - name: Lesson5_Strong
+        completion_criteria:
+          measure: progress
+          behavior: JOSH
+          min_lesson_length: 100
+          threshold: 0.5
+        value: 0.8
+      - name: Lesson6_Full
+        value: 1.0
+
+env_settings:
+  num_envs: 4
+
+engine_settings:
+  time_scale: 20
+  target_frame_rate: -1
+  capture_frame_rate: 60
+  no_graphics: true
