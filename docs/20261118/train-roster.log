@@ -1,3 +1,11 @@
 2026-11-18 12:36:29  roster queue start: DECOY,JOSH,MANZI,MAYA,PORTO,SOKOL,TONG,VELEZ in 8 batch(es) of up to 1, estimated ~68.4 h
 2026-11-18 12:36:29  build player
 2026-11-18 12:37:23  round p50 : DECOY (from scratch)
+2026-11-18 13:37:50     [p50] [INFO] DECOY. Step: 6500000. Time Elapsed: 3603.474 s. Mean Reward: 0.749. Std of Reward: 2.842. Training.
+2026-11-18 13:37:50     [p50] [INFO] JOSH. Step: 50000. Time Elapsed: 54.301 s. No episode was completed since last summary. Training.
+2026-11-18 13:49:19  stopped early by request (40 min budget): DECOY p50 at DECOY-6999480.onnx; queue halted, p51bot round skipped
+2026-11-18 13:51:26     eval timeout: 12 min for 100 episodes
+2026-11-18 13:51:26     Eval 'soccer_p50_decoy': 100 episodes | blue 31 / red 31 / stale 38 | win-rate 31.0% | mean steps 6,106
+2026-11-18 13:51:26       stamped Reward_DECOY.asset: 31.0% over 100 episodes
+2026-11-18 13:51:26     FAIL: below acceptance bar (>=80% wins, <=10% stalemates).
+2026-11-18 13:51:27  wrap-up done

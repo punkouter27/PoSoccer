@@ -15,3 +15,5 @@ Preflight passed.
 Estimate (1 profiles in parallel): 30,000,000 steps at ~540 s per million = ~4.5 h; done around 2026-11-18 17:07 local.
 DECOY -> run soccer_p50_decoy, base port 5240, worker PID 15248, log C:\Users\punko\Downloads\_CODEMATT\PoSoccer\results\train_soccer_p50_decoy.log
 PIDS: 15248
+2026-11-18 13:37:50     [p50] [INFO] DECOY. Step: 6500000. Time Elapsed: 3603.474 s. Mean Reward: 0.749. Std of Reward: 2.842. Training.
+2026-11-18 13:37:50     [p50] [INFO] JOSH. Step: 50000. Time Elapsed: 54.301 s. No episode was completed since last summary. Training.
