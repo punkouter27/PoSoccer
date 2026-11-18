@@ -1,0 +1,17 @@
+2026-11-18 12:36:29  roster queue start: DECOY,JOSH,MANZI,MAYA,PORTO,SOKOL,TONG,VELEZ in 8 batch(es) of up to 1, estimated ~68.4 h
+2026-11-18 12:36:29  build player
+[33;1mWARNING: Unity 6000.6.9f1 is not installed; using 6000.6.0f1.[0m
+OK: headless training build at Builds\PoSoccer\PoSoccer.exe (data assets 11/18/2026 17:37:18 UTC)
+2026-11-18 12:37:23  round p50 : DECOY (from scratch)
+Preflight (C:\Users\punko\Downloads\_CODEMATT\PoSoccer)
+  ok    player data is newer than every Assets input (2026-11-18 17:37 UTC)
+  ok    SCN_Training is Build Settings index 0
+  ok    C# package com.unity.ml-agents 4.1.0 matches the pin
+  ok    mlagents 1.2.0.dev0 in .venv matches the pin
+  ok    Python 3.10.11
+  ok    no Git LFS pointer stubs among 1 small binary files
+  ok    no trainers or headless env players running
+Preflight passed.
+Estimate (1 profiles in parallel): 30,000,000 steps at ~540 s per million = ~4.5 h; done around 2026-11-18 17:07 local.
+DECOY -> run soccer_p50_decoy, base port 5240, worker PID 15248, log C:\Users\punko\Downloads\_CODEMATT\PoSoccer\results\train_soccer_p50_decoy.log
+PIDS: 15248
