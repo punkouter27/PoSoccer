@@ -153,14 +153,16 @@ namespace PoSoccer.Tests
             yield return Realtime(0.8f);
             yield return CapturePng("01_menu.png", "01_menu");
 
-            // 2. 1v1 AI Match — Streamlined View + 1v1 GIF burst
+            // 2. 1v1 AI Match — Opening Curtain Wipe + Streamlined View + 1v1 GIF burst
             Click(FindButton("PLAY"), "1v1 PLAY");
-            yield return Frames(8);
+            yield return Frames(3);
+            yield return CapturePng("02a_opening_wipe.png", "02a_opening_wipe");
+            yield return Frames(5);
             var hud = Object.FindAnyObjectByType<Agent_HUD>();
             var env = Object.FindAnyObjectByType<Agent_EnvController>();
             Assert.IsNotNull(hud);
             Assert.IsNotNull(env);
-            hud.matchGoals = 2;
+            hud.matchGoals = 4;
 
             yield return WaitUntilRealtime(() => !Agent_TimeFreeze.IsFrozen, 18f);
             yield return Realtime(2.5f);
@@ -174,8 +176,8 @@ namespace PoSoccer.Tests
 
             // 3. Overlays + STATS Broadcast Strip (Intent + Vision + ShotTracer, clean pitch)
             var hudRoot = hud.GetComponent<UIDocument>().rootVisualElement;
-            var statsBtn = hudRoot.Q<Button>("broadcast-toggle");
-            if (statsBtn != null) Click(statsBtn, "STATS toggle");
+            Agent_HUD.BroadcastEnabled = true;
+            hud.SetBroadcastStripVisible(true);
             Agent_Intent.Visible = true;
             Agent_VisionView.CurrentMode = Agent_VisionView.Mode.Focus;
             Agent_ShotTracer.Visible = true;
@@ -191,52 +193,77 @@ namespace PoSoccer.Tests
             yield return CapturePng("03b_braincam.png", "03b_braincam");
 
             Agent_Overlays.AllOff();
-            if (statsBtn != null) Click(statsBtn, "STATS off");
             Agent_HUD.BroadcastEnabled = false;
+            hud.SetBroadcastStripVisible(false);
 
-            // 4. Dynamic Weather (Snowy)
+            // 3c. TAB Debug & Stats Panel
+            var telemetry = Object.FindAnyObjectByType<Agent_Telemetry>();
+            if (telemetry != null)
+            {
+                telemetry.SetVisible(true);
+                yield return Realtime(0.6f);
+                yield return CapturePng("03c_tab_telemetry.png", "03c_tab_telemetry");
+                telemetry.SetVisible(false);
+                yield return Frames(3);
+            }
+
+            // 4. Dynamic Weather (Snowy + Wet sheen)
+            yield return WaitUntilRealtime(() => !Agent_TimeFreeze.IsFrozen, 25f);
             Agent_Weather.CurrentCondition = Agent_Weather.Condition.Snowy;
-            yield return Realtime(2.8f);
+            yield return Realtime(1.8f);
             yield return CapturePng("04_weather_snowy.png", "04_weather_snowy");
+            yield return WaitUntilRealtime(() => !Agent_TimeFreeze.IsFrozen, 25f);
+            Agent_Weather.CurrentCondition = Agent_Weather.Condition.Wet;
+            yield return Realtime(1.6f);
+            yield return CapturePng("04b_weather_wet.png", "04b_weather_wet");
             Agent_Weather.CurrentCondition = Agent_Weather.Condition.Dry;
 
             // 5. Settings Sheet open over live match
             var settingsBtn = FindButton("SETTINGS");
             if (settingsBtn != null) Click(settingsBtn, "SETTINGS");
-            yield return Frames(6);
+            yield return Frames(4);
+            yield return Realtime(0.45f);
             yield return CapturePng("05_settings_sheet.png", "05_settings_sheet");
             Agent_SettingsSheet.Close();
             yield return Frames(4);
 
-            // 6. Goal celebration + Replay GIF burst
+            // 6. Goal celebration + Replay GIF burst (move defenders clear so the shot lands cleanly)
+            yield return WaitUntilRealtime(() => !Agent_TimeFreeze.IsFrozen, 25f);
             bool firstEnded = false;
             System.Action<Agent_Soccer.Team?> onFirst = _ => firstEnded = true;
             env.EpisodeEnded += onFirst;
-            env.Ball.position = new Vector2(0.3f, env.PitchHalfExtents.y - 2.4f);
-            env.Ball.linearVelocity = new Vector2(-0.4f, 28f);
+            for (int i = 0; i < env.agents.Count; i++)
+            {
+                if (env.agents[i] != null && env.agents[i].Body != null && env.agents[i].team == Agent_Soccer.Team.Red)
+                {
+                    env.agents[i].Body.position = new Vector2(3.6f, 0f);
+                    env.agents[i].Body.linearVelocity = Vector2.zero;
+                }
+            }
+            env.Ball.position = new Vector2(0.15f, env.PitchHalfExtents.y - 1.8f);
+            env.Ball.linearVelocity = new Vector2(-0.2f, 32f);
             env.Ball.WakeUp();
 
             for (int f = 0; f < 32; f++)
             {
                 yield return Realtime(0.07f);
+                if (f == 4) RecordBounds("06a_goal_impact");
                 if (f == 14) RecordBounds("06_goal_replay");
                 yield return CapturePng($"gif_goal_replay/frame_{f:000}.png");
             }
             env.EpisodeEnded -= onFirst;
+            string impactFrame = Path.Combine(_dir, "gif_goal_replay/frame_004.png");
+            if (File.Exists(impactFrame))
+                File.Copy(impactFrame, Path.Combine(_dir, "06a_goal_impact.png"), true);
             string replayFrame = Path.Combine(_dir, "gif_goal_replay/frame_014.png");
             if (File.Exists(replayFrame))
                 File.Copy(replayFrame, Path.Combine(_dir, "06_goal_replay.png"), true);
 
             yield return WaitUntilRealtime(() => !Agent_TimeFreeze.IsFrozen, 25f);
-            yield return Realtime(1.2f);
+            yield return Realtime(1.0f);
 
-            // Ensure 2nd goal finishes the match
-            if (!firstEnded)
-            {
-                yield return ScoreGoal(env, blueNet: false);
-                yield return WaitUntilRealtime(() => !Agent_TimeFreeze.IsFrozen, 25f);
-                yield return Realtime(1.2f);
-            }
+            // End the match cleanly at current + 1 goal
+            hud.matchGoals = 1;
             yield return ScoreGoal(env, blueNet: false);
 
             yield return WaitUntilRealtime(() => hudRoot.Q("end-panel") != null, 35f);

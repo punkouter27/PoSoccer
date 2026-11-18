@@ -22,7 +22,7 @@ namespace PoSoccer
         public const string CARD_NAME = "match-intro";
         const float SHOW_SECONDS = 2.6f;
         const float FADE_SECONDS = 0.5f;
-        const int FACE_SIZE = 150;
+        const int FACE_SIZE = 128;
 
         VisualElement _card;
         float _hideAt = -1f;
@@ -85,15 +85,21 @@ namespace PoSoccer
             var card = new VisualElement { name = CARD_NAME, pickingMode = PickingMode.Ignore };
             card.style.position = Position.Absolute;
             card.style.left = 0; card.style.right = 0;
-            card.style.top = Length.Percent(22);
+            // Sits in the upper-mid clear band below the scoreboard pill so the 3-2-1
+            // countdown toast at 48% never collides with the VS badge.
+            card.style.top = Length.Percent(20);
             card.style.alignItems = Align.Center;
 
             var panel = new VisualElement { pickingMode = PickingMode.Ignore };
             panel.style.flexDirection = FlexDirection.Row;
             panel.style.alignItems = Align.Center;
-            panel.style.backgroundColor = new Color(0f, 0f, 0f, 0.72f);
+            panel.style.backgroundColor = new Color(0.04f, 0.07f, 0.05f, 0.86f);
+            panel.style.borderTopWidth = 1;
+            panel.style.borderBottomWidth = 2;
+            panel.style.borderTopColor = new Color(1f, 1f, 1f, 0.16f);
+            panel.style.borderBottomColor = new Color(0f, 0f, 0f, 0.45f);
             Agent_UIStyle.Round(panel, Agent_UIStyle.RadiusL);
-            Agent_UIStyle.PadAll(panel, Agent_UIStyle.Pad);
+            Agent_UIStyle.PadAll(panel, Agent_UIStyle.Space4);
             card.Add(panel);
 
             panel.Add(Side(blue, Agent_UIStyle.BlueTeam));

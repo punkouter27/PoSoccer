@@ -80,7 +80,9 @@ namespace PoSoccer
             float gapSec = 0.032f;
             float totalSec = 0.03f + syllables * (syllableSec + gapSec);
             int length = Mathf.CeilToInt(totalSec * SAMPLE_RATE);
-            var output = new float[length];
+            int delaySamples = Mathf.RoundToInt(0.065f * SAMPLE_RATE);
+            int outLength = length + delaySamples;
+            var output = new float[outLength];
 
             float f0Base = 122f * Mathf.Clamp(basePitch, 0.6f, 1.6f) * (excited ? 1.24f : 1.0f);
             float formantScale = Mathf.Pow(Mathf.Clamp(basePitch, 0.6f, 1.6f), 0.35f);
@@ -90,7 +92,9 @@ namespace PoSoccer
 
             for (int s = 0; s < syllables; s++)
             {
-                int vowel = (int)(Next(ref state) * 5f) % 5;
+                char seedChar = text[(s * text.Length) / syllables];
+                int vowel = VowelForChar(seedChar, ref state);
+                bool fricative = "sSzZfFvVhHxX".IndexOf(seedChar) >= 0;
                 int count = Mathf.RoundToInt(syllableSec * (0.9f + Next(ref state) * 0.2f) * SAMPLE_RATE);
                 float contour = excited
                     ? 1f + 0.18f * Mathf.Sin((s / (float)Mathf.Max(1, syllables - 1)) * Mathf.PI)
@@ -110,20 +114,41 @@ namespace PoSoccer
                     if (phase >= 1f) phase -= 1f;
                     float saw = 2f * phase - 1f;
                     glottalLow += 0.35f * (saw - glottalLow);
-                    float noise = (Next(ref state) * 2f - 1f) * 0.1f;
-                    float src = glottalLow * 0.9f + noise;
+                    float noise = (Next(ref state) * 2f - 1f) * (u < 0.14f ? (fricative ? 0.55f : 0.32f) : 0.1f);
+                    float src = glottalLow * (u < 0.10f && fricative ? 0.35f : 0.9f) + noise;
                     float voiced = r1.Process(src) + r2.Process(src) * 0.6f + r3.Process(src) * 0.3f;
-                    float env = Mathf.Clamp01(u / 0.08f) * Mathf.Clamp01((1f - u) / 0.25f);
+                    float env = Mathf.Clamp01(u / 0.06f) * Mathf.Clamp01((1f - u) / 0.25f);
                     output[cursor + i] += voiced * env;
                 }
                 cursor += count + Mathf.RoundToInt(gapSec * SAMPLE_RATE);
             }
 
+            // Stadium PA slapback echo (65 ms, damped).
+            float paLp = 0f;
+            for (int i = outLength - 1; i >= delaySamples; i--)
+            {
+                paLp += 0.35f * (output[i - delaySamples] - paLp);
+                output[i] += paLp * 0.18f;
+            }
+
             float peak = 0f;
-            for (int i = 0; i < length; i++) peak = Mathf.Max(peak, Mathf.Abs(output[i]));
+            for (int i = 0; i < outLength; i++) peak = Mathf.Max(peak, Mathf.Abs(output[i]));
             float gain = peak > 1e-6f ? Mathf.Lerp(0.42f, 0.85f, intensity) / peak : 0f;
-            for (int i = 0; i < length; i++) output[i] *= gain;
+            for (int i = 0; i < outLength; i++) output[i] *= gain;
             return output;
+        }
+
+        static int VowelForChar(char c, ref uint state)
+        {
+            switch (char.ToLowerInvariant(c))
+            {
+                case 'a': return 0;
+                case 'e': return 1;
+                case 'i': return 2;
+                case 'o': return 3;
+                case 'u': return 4;
+                default: return (int)(Next(ref state) * 5f) % 5;
+            }
         }
 
         /// <summary>Builds a Unity <see cref="AudioClip"/> for a broadcast commentary line.</summary>

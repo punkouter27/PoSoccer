@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>PoSoccer — New Features, Gameplay GIFs &amp; Cleanup Showcase (2026-11-17)</title>
+<title>PoSoccer — 20-Item GFX, Physics-FX, 3D Audio &amp; UI/UX Polish Showcase (2026-11-17)</title>
 <style>
   :root {
     --bg: #0b0f14;
@@ -16,6 +16,7 @@
     --sky: #38bdf8;
     --amber: #f59e0b;
     --rose: #f43f5e;
+    --violet: #a855f7;
   }
   * { box-sizing: border-box; }
   body {
@@ -28,13 +29,13 @@
   header {
     padding: 36px 24px 28px;
     border-bottom: 1px solid var(--border);
-    background: radial-gradient(circle at 20% 0%, rgba(34,197,94,0.12), transparent 55%),
-                radial-gradient(circle at 80% 0%, rgba(56,189,248,0.10), transparent 55%),
+    background: radial-gradient(circle at 20% 0%, rgba(34,197,94,0.14), transparent 55%),
+                radial-gradient(circle at 80% 0%, rgba(56,189,248,0.12), transparent 55%),
                 var(--surface);
   }
-  .wrap { max-width: 1220px; margin: 0 auto; padding: 0 20px; }
+  .wrap { max-width: 1260px; margin: 0 auto; padding: 0 20px; }
   h1 { margin: 0 0 8px; font-size: 2rem; letter-spacing: 0.02em; }
-  .subtitle { color: var(--muted); max-width: 820px; margin: 0 0 18px; }
+  .subtitle { color: var(--muted); max-width: 880px; margin: 0 0 18px; }
   .pills { display: flex; flex-wrap: wrap; gap: 10px; }
   .pill {
     padding: 5px 12px;
@@ -47,14 +48,15 @@
   }
   .pill--ok { border-color: rgba(34,197,94,0.45); color: #86efac; }
   .pill--sky { border-color: rgba(56,189,248,0.45); color: #7dd3fc; }
+  .pill--amber { border-color: rgba(245,158,11,0.45); color: #fcd34d; }
   section { padding: 36px 0; border-bottom: 1px solid var(--border); }
-  h2 { font-size: 1.4rem; margin: 0 0 6px; }
+  h2 { font-size: 1.45rem; margin: 0 0 6px; }
   .sec-desc { color: var(--muted); margin: 0 0 22px; }
 
   /* GIF grid */
   .gif-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
     gap: 22px;
   }
   .gif-card {
@@ -87,16 +89,25 @@
     padding: 16px 18px;
   }
   .sum-card h3 { margin: 0 0 8px; font-size: 1rem; color: #86efac; }
-  .sum-card ul { margin: 0; padding-left: 18px; color: var(--muted); font-size: 0.9rem; }
-  .sum-card li { margin-bottom: 4px; }
+  .sum-card.sky h3 { color: #7dd3fc; }
+  .sum-card.amber h3 { color: #fcd34d; }
+  .sum-card.violet h3 { color: #d8b4fe; }
+  .sum-card ul { margin: 0; padding-left: 18px; color: var(--muted); font-size: 0.89rem; }
+  .sum-card li { margin-bottom: 5px; }
 
   /* Annotated screenshots */
-  .feat-list { display: flex; flex-direction: column; gap: 28px; }
+  .feat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+    gap: 24px;
+  }
   .feat-item {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 14px;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
   }
   .feat-item img {
     width: 100%;
@@ -108,12 +119,10 @@
     padding: 14px 18px;
     border-top: 1px solid var(--border);
     display: flex;
-    flex-wrap: wrap;
-    justify-content: space-between;
-    align-items: center;
-    gap: 10px;
+    flex-direction: column;
+    gap: 4px;
   }
-  .feat-caption strong { font-size: 1rem; }
+  .feat-caption strong { font-size: 1rem; color: #f8fafc; }
   .feat-caption span { color: var(--muted); font-size: 0.88rem; }
 
   /* Lightbox */
@@ -139,23 +148,28 @@
     color: var(--muted);
     font-size: 0.85rem;
   }
+  code {
+    background: rgba(148, 163, 184, 0.12);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: 0.84em;
+  }
 </style>
 </head>
 <body>
 
 <header>
   <div class="wrap">
-    <h1>PoSoccer — Feature, Gameplay &amp; Cleanup Showcase</h1>
+    <h1>PoSoccer — 20-Item GFX, Physics-FX, 3D Audio &amp; UI/UX Polish Showcase</h1>
     <p class="subtitle">
-      Live <code>1080&times;1920</code> portrait captures from Unity PlayMode after the 20-item architecture,
-      FPS, and roster cleanup pass. Includes animated gameplay GIFs and annotated breakdowns of every new feature.
+      Live <code>1080&times;1920</code> portrait captures from Unity 6 (<code>6000.6.0f1</code> 2D URP) PlayMode after implementing all 20 shader, lighting, shadow, physics-visual, procedural 3D DSP audio, automated asset conditioning, and UI Toolkit microinteraction upgrades.
     </p>
     <div class="pills">
       <span class="pill pill--ok">EditMode 183 / 183 Passed</span>
-      <span class="pill pill--ok">PlayMode 111 / 111 Passed</span>
-      <span class="pill pill--sky">8 Trained Brains (&ge;91.7% Win Rate)</span>
-      <span class="pill">173-Input RL Contract Unchanged</span>
-      <span class="pill">~1.4 GB Stale Artifacts Purged</span>
+      <span class="pill pill--ok">PlayMode 111 / 114 Passed (0 Failed)</span>
+      <span class="pill pill--sky">21-Slot SRP-Batched Shader Budget</span>
+      <span class="pill pill--amber">Binaural ITD + 4-Tap Bowl DSP Audio</span>
+      <span class="pill">Asset Pipeline: 12 Tex + 14 Audio Conditioned</span>
     </div>
   </div>
 </header>
@@ -169,61 +183,63 @@
       <article class="gif-card">
         <img src="gameplay_1v1_ai.gif" alt="1v1 AI Match Gameplay GIF" />
         <div class="gif-body">
-          <h3>1v1 Trained AI Duel (MATT vs KIM)</h3>
-          <p>Showcases the streamlined portrait HUD, procedural striding legs &amp; kick follow-through (<code>Agent_Limbs</code>), ball-tracking faces (<code>Agent_Faces</code>), and 2.5D ball spin/loft.</p>
+          <h3>1. 1v1 AI Duel — Shaders, Shadows &amp; 2.5D Ball</h3>
+          <p>Demonstrates directional floodlight specular rims (<code>PoSoccerFX.hlsl</code>), elliptical contact shadows (<code>Agent_Shadows</code>), procedural striding legs &amp; kick brace springs (<code>Agent_Limbs</code>), and stepped stadium bowl depth.</p>
         </div>
       </article>
       <article class="gif-card">
         <img src="gameplay_goal_replay.gif" alt="Goal Strike and Replay GIF" />
         <div class="gif-body">
-          <h3>Goal Strike, Spring Net &amp; Slow-Mo Replay</h3>
-          <p>High-velocity shot into the deformable spring-Verlet goal net (<code>Agent_GoalFrame</code>), floodlight celebration pulse, commentary callout, and <code>Agent_Replay</code> letterbox playback.</p>
+          <h3>2. Goal Strike, Verlet Net Recoil &amp; Slow-Mo Replay</h3>
+          <p>High-velocity shot into the 2-tier 2.5D diamond goal net (<code>Agent_GoalFrame</code>), floodlight celebration pulse, team-colored confetti, kinetic score punch, and pulsing <code>&bull; REPLAY</code> letterbox playback.</p>
         </div>
       </article>
       <article class="gif-card">
         <img src="gameplay_4v4_1p.gif" alt="4v4 1-Player Human Control GIF" />
         <div class="gif-body">
-          <h3>4v4 1-Player Mode (Human + 3 AI vs 4 AI)</h3>
-          <p>New <code>Agent_HumanController</code> driving Blue Slot 0 (<code>YOU</code>) alongside 3 trained AI teammates against 4 Red brains, with auto-scaled pitch and live stamina telemetry.</p>
+          <h3>3. 4v4 1-Player Mode (YOU + 3 AI vs 4 AI)</h3>
+          <p><code>Agent_HumanController</code> driving Blue Slot 0 alongside 3 AI teammates with focused gold chip ring (<code>.chip--focused</code>), curve-spin arcs, stamina-tier shader materials, and tackle sparks.</p>
         </div>
       </article>
     </div>
   </section>
 
   <section>
-    <h2>What Is New &amp; What Was Streamlined</h2>
-    <p class="sec-desc">Summary of recent simulation/presentation upgrades alongside the 20-item cleanup pass.</p>
+    <h2>What Is New Across All 20 Upgrades</h2>
+    <p class="sec-desc">Engineered within PoSoccer&rsquo;s &ge;30 FPS Ultra / 60 FPS target budget, frozen 173-input RL contract, and SRP Batcher rules.</p>
     <div class="summary-grid">
       <div class="sum-card">
-        <h3>1-Player Control &amp; 4v4 Team Play</h3>
+        <h3>Lighting, Shadows &amp; Shaders (1&ndash;5)</h3>
         <ul>
-          <li><code>1P: OFF / YOU</code> toggle on the menu puts you in Blue Slot 0 for <code>1v1</code> or <code>4v4</code>.</li>
-          <li>Screen-relative steering, boost stamina, and kick impulse via <code>Agent_HumanController</code>.</li>
-          <li>Goalkeepers in 4v4 equip reaching dive gloves via <code>Agent_Limbs</code>.</li>
+          <li><strong>Floodlight Rim &amp; Turf Grain</strong>: Dual-tower specular rim + mow-direction blade sheen in <code>PoSoccerFX.hlsl</code> (zero extra CBUFFER slots or keywords).</li>
+          <li><strong>Elliptical Contact Shadows</strong>: Radial floodlight elongation + 4 static goalpost shadow pads in <code>Agent_Shadows</code>.</li>
+          <li><strong>Weather Shader Coupling</strong>: <code>Dry</code>/<code>Wet</code>/<code>Muddy</code>/<code>Snowy</code> turf sheen, color tint, and volume <code>SplitToning</code>.</li>
+          <li><strong>Ultra Perimeter Shadow Rim</strong>: <code>Agent_Stadium.SetCastShadows</code> gated cleanly by <code>Agent_Quality.UltraActive</code> + high-xG bloom pulses.</li>
         </ul>
       </div>
-      <div class="sum-card">
-        <h3>2.5D Ball, Spring Nets &amp; Weather</h3>
+      <div class="sum-card sky">
+        <h3>Physics-FX &amp; Stadium Bowl (6&ndash;10)</h3>
         <ul>
-          <li><code>Agent_BallHeight</code> adds vertical loft, shadow scaling, and header collisions while keeping RL observations 2D.</li>
-          <li><code>Agent_GoalFrame</code> simulates spring-Verlet net ripples pinned to the posts.</li>
-          <li><code>Agent_Weather</code> adds Dry / Wet / Muddy / Snowy turf multipliers in exhibition only.</li>
+          <li><strong>SRP-Batched Fatigue Tiers</strong>: Shared rested/winded materials (<code>_Fatigue</code>) + cold-weather breath puffs below 35% stamina.</li>
+          <li><strong>2.5D Bounce &amp; Tackle Sparks</strong>: <code>Agent_BallHeight.BallBounced</code> triggers weather-matched bursts; curve-spin gold tinting in <code>Agent_BallSpin</code>.</li>
+          <li><strong>2-Tier Perspective Goal Net</strong>: Diamond weave + spring goalpost recoil (<code>Agent_GoalFrame</code>) + micro camera shake on heavy strikes.</li>
+          <li><strong>Stepped Bowl &amp; LED Boards</strong>: Single-mesh outer concrete tier (<code>Stadium_Bowl</code>) + pulsing team N/S stands.</li>
         </ul>
       </div>
-      <div class="sum-card">
-        <h3>Policy Transparency Overlays</h3>
+      <div class="sum-card amber">
+        <h3>Procedural 3D Spatial Audio (11&ndash;14)</h3>
         <ul>
-          <li><code>VIEW</code> cycles <code>STAMINA</code>, <code>INTENT</code>, <code>LANES</code>, <code>VISION</code>, <code>TRACER</code>, <code>BRAIN</code>, <code>XG FIELD</code>, and <code>SKIDS</code>.</li>
-          <li><code>Agent_BrainCam</code> + <code>Agent_Saliency</code> expose raw 4-channel outputs and occlusion saliency live.</li>
-          <li><code>STATS</code> toggles the model win-chance bar, ticker, and live player telemetry stream.</li>
+          <li><strong>Binaural ITD &amp; Bowl Reflections</strong>: Zero-alloc per-voice ITD micro-delay (&le;0.65 ms), 4 early-reflection taps, and <code>Surface.Turf</code> bounce modal synth in <code>Agent_ImpactSynth</code>.</li>
+          <li><strong>Weather Skid &amp; Loft Roll</strong>: Condition-filtered skid loops, airborne roll quieting via <code>Agent_BallHeight</code>, and velocity Doppler.</li>
+          <li><strong>Directional Crowd &amp; PA Voice</strong>: Lateral crowd pan tracking the ball plus character-driven consonant transients &amp; 65 ms PA slapback echo in <code>Agent_VoiceSynth</code>.</li>
         </ul>
       </div>
-      <div class="sum-card">
-        <h3>FPS &amp; Architecture Cleanup</h3>
+      <div class="sum-card violet">
+        <h3>Asset Pipeline &amp; UI/UX Polish (15&ndash;20)</h3>
         <ul>
-          <li>Purged 7 untrained profiles, sub-bar <code>DECOY</code>, <code>Agent_BrainHub</code>, <code>Agent_Wager</code>, and <code>Agent_Wear</code>.</li>
-          <li>Replaced <code>Tilemap</code> crowd rebuilds &amp; 10 idle flashbulb <code>Light2D</code>s with static perimeter rings; cut permanent lights from 7 to 3.</li>
-          <li>Removed per-body <code>MaterialPropertyBlock</code> SRP-Batcher breaks and gated RL dense rewards/telemetry to training only.</li>
+          <li><strong>Headless Asset Pipeline</strong>: <code>Editor_ProcessAssets</code> enforces Crunch/ASTC 6&times;6 textures, Vorbis streaming/preload audio, and rebuilds <code>PitchAtlas</code>.</li>
+          <li><strong>Shader Warmup</strong>: Pre-warms <code>PoSoccer/SpriteLitFX</code> on <code>SCN_Menu</code> entry to prevent first-goal hitches.</li>
+          <li><strong>UI Toolkit Microinteractions</strong>: Spring-overshoot buttons, tap SFX/haptics, staggered 4&times;4 grid cascade, 280 ms dual-curtain wipe, kinetic score punch, gold tab underline, pulsing replay badge, and <code>.chip--focused</code> highlight.</li>
         </ul>
       </div>
     </div>
@@ -231,62 +247,83 @@
 
   <section>
     <h2>Annotated Feature Screenshots</h2>
-    <p class="sec-desc">Click any card to inspect full-size. Highlights map directly to runtime UI Toolkit and pitch bounds.</p>
-    <div class="feat-list">
+    <p class="sec-desc">Click any card to inspect full-size <code>1080&times;1920</code> captures.</p>
+    <div class="feat-grid">
       <div class="feat-item">
-        <img src="feat_01_menu.png" alt="Annotated Menu Screenshot" onclick="openZoom(this.src)" />
+        <img src="feat_01_menu.png" alt="Menu Microinteractions & Pre-Warm" onclick="openZoom(this.src)" />
         <div class="feat-caption">
-          <strong>1. Consolidated Menu &amp; 8-Brain Trained Roster</strong>
-          <span>Zero untrained tiles; 1v1, 4v4, 1v1 CUP, 4v4 CUP, and 1P mode toggle.</span>
+          <strong>1. Tactile Menu, Staggered Tiles &amp; Shader Pre-Warm</strong>
+          <span>Spring-overshoot mode pills, pitch-varied tap SFX/haptics, illuminated team borders, and menu shader warmup.</span>
         </div>
       </div>
       <div class="feat-item">
-        <img src="feat_02_match_streamlined.png" alt="Annotated Streamlined Match Screenshot" onclick="openZoom(this.src)" />
+        <img src="feat_02_intro_stadium.png" alt="Match Intro & Stepped Stadium Bowl" onclick="openZoom(this.src)" />
         <div class="feat-caption">
-          <strong>2. Streamlined Primary Gameplay View</strong>
-          <span>Uncluttered portrait pitch, static crowd rings, 3-light stadium, procedural limbs &amp; faces.</span>
+          <strong>2. Versus Intro, Stepped Bowl &amp; 2-Tier Goal Net</strong>
+          <span>Dual-curtain wipe reveal into the stepped concrete stadium bowl, team-tinted stands, goalpost shadows, and 2.5D diamond net.</span>
         </div>
       </div>
       <div class="feat-item">
-        <img src="feat_03_overlays_stats.png" alt="Annotated Overlays and Stats Screenshot" onclick="openZoom(this.src)" />
+        <img src="feat_03_shaders_shadows.png" alt="Floodlight Rim & Elliptical Shadows" onclick="openZoom(this.src)" />
         <div class="feat-caption">
-          <strong>3. Broadcast STATS Strip &amp; Sensor Overlays</strong>
-          <span>360&deg; ray perception cones, intent arrows, shot tracer, win-chance model, and live ticker.</span>
+          <strong>3. Directional Floodlight Rim &amp; Elliptical Shadows</strong>
+          <span>Dual-tower rim highlights, mow-lane turf detail, radial elliptical contact shadows, and binaural ITD 3D impact audio.</span>
         </div>
       </div>
       <div class="feat-item">
-        <img src="feat_04_braincam_saliency.png" alt="Annotated BrainCam and Saliency Screenshot" onclick="openZoom(this.src)" />
+        <img src="feat_04_weather_wet.png" alt="Wet Weather Shader Coupling" onclick="openZoom(this.src)" />
         <div class="feat-caption">
-          <strong>4. Brain Cam &amp; Input Saliency</strong>
-          <span>Live 4-channel policy output bars (FWD/LAT/TURN/BST) and occlusion attribution.</span>
+          <strong>4. Wet Weather Turf Sheen &amp; Rain Bursts</strong>
+          <span>Dynamic <code>_SheenStrength</code> puddle gloss, rain particles, cool <code>SplitToning</code>, and weather-filtered skid acoustics.</span>
         </div>
       </div>
       <div class="feat-item">
-        <img src="feat_05_settings_weather.png" alt="Annotated Settings and Weather Screenshot" onclick="openZoom(this.src)" />
+        <img src="feat_05_overlays_stats.png" alt="Broadcast STATS & Focused Chip" onclick="openZoom(this.src)" />
         <div class="feat-caption">
-          <strong>5. Unified 4-Tab Settings Sheet &amp; Weather Turf</strong>
-          <span>MATCH, VIEW, OVERLAYS, and AUDIO settings plus Wet/Muddy/Snowy exhibition turf physics.</span>
+          <strong>5. Broadcast STATS Strip &amp; Focused Chip Ring</strong>
+          <span>Live <code>MODEL</code> win-chance bar, 360&deg; ray vision cones, intent vectors, and gold <code>.chip--focused</code> indicator.</span>
         </div>
       </div>
       <div class="feat-item">
-        <img src="feat_06_goal_replay.png" alt="Annotated Goal Replay Screenshot" onclick="openZoom(this.src)" />
+        <img src="feat_06_braincam.png" alt="BrainCam & Saliency" onclick="openZoom(this.src)" />
         <div class="feat-caption">
-          <strong>6. Goal Celebration, Commentary &amp; Slow-Motion Replay</strong>
-          <span>Letterboxed replay playback, spoken commentary line, and velocity shot trail.</span>
+          <strong>6. Brain Cam &amp; Occlusion Saliency</strong>
+          <span>Real-time 4-channel policy bars (<code>FWD/LAT/TURN/BST</code>) and per-input saliency attribution.</span>
         </div>
       </div>
       <div class="feat-item">
-        <img src="feat_07_end_panel.png" alt="Annotated End Panel Screenshot" onclick="openZoom(this.src)" />
+        <img src="feat_07_settings_sheet.png" alt="Settled Settings Sheet" onclick="openZoom(this.src)" />
         <div class="feat-caption">
-          <strong>7. 3-Tab Post-Match Telemetry Panel</strong>
-          <span>SUMMARY, STATS (measured match telemetry), and PLAYERS (occupancy maps) with REMATCH.</span>
+          <strong>7. Settings Bottom Sheet &amp; Gold Tab Underline</strong>
+          <span>Smooth slide-up sheet cleanly above chrome, active gold tab underline, and live weather/audio/view switches.</span>
         </div>
       </div>
       <div class="feat-item">
-        <img src="feat_08_4v4_1p.png" alt="Annotated 4v4 1P Screenshot" onclick="openZoom(this.src)" />
+        <img src="feat_08_goal_impact.png" alt="Goal Strike & Kinetic Score Punch" onclick="openZoom(this.src)" />
         <div class="feat-caption">
-          <strong>8. 4v4 1-Player Human + AI Squad Match</strong>
-          <span>Control Blue Slot 0 directly alongside 3 AI teammates with auto-focused YOU telemetry.</span>
+          <strong>8. Goal Strike, Confetti &amp; Kinetic Score Punch</strong>
+          <span>Team-colored confetti burst, floodlight strobe, Verlet net recoil, ease-out-back toast, and PA slapback commentary.</span>
+        </div>
+      </div>
+      <div class="feat-item">
+        <img src="feat_09_goal_replay.png" alt="Slow-Mo Replay & Shot Trail" onclick="openZoom(this.src)" />
+        <div class="feat-caption">
+          <strong>9. Slow-Motion Replay &amp; Pulsing Badge</strong>
+          <span>Letterbox framing, smoothly pulsing <code>&bull; REPLAY</code> badge, low-pass audio ducking, and tapered shot trail.</span>
+        </div>
+      </div>
+      <div class="feat-item">
+        <img src="feat_10_end_panel.png" alt="Post-Match Telemetry Panel" onclick="openZoom(this.src)" />
+        <div class="feat-caption">
+          <strong>10. Post-Match Telemetry &amp; Scrim Depth</strong>
+          <span>Active gold-underlined <code>STATS</code> tab with measured distance, top speed, possession, and touch counts.</span>
+        </div>
+      </div>
+      <div class="feat-item">
+        <img src="feat_11_4v4_1p.png" alt="4v4 1P Mode" onclick="openZoom(this.src)" />
+        <div class="feat-caption">
+          <strong>11. 4v4 1-Player Human + AI Squad</strong>
+          <span>Control Blue Slot 0 (<code>YOU</code>) with curve-spin arcs, stamina-tier shaders, tackle sparks, and focused chip glow.</span>
         </div>
       </div>
     </div>

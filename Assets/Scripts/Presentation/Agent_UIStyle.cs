@@ -158,6 +158,46 @@ namespace PoSoccer
             element.schedule.Execute(() => element.RemoveFromClassList(fromClass)).ExecuteLater(16);
         }
 
+        static AudioSource _uiAudio;
+        static AudioClip _uiClickClip;
+
+        /// <summary>
+        /// Plays a subtle pitch-varied click SFX and micro-haptic tick when unmuted in PlayMode.
+        /// </summary>
+        public static void PlayTapFeedback(float pitch = 1f, int hapticMs = 10)
+        {
+            if (!Application.isPlaying || Agent_Presentation.IsHeadless || Agent_Audio.Muted) return;
+
+            if (_uiClickClip == null) _uiClickClip = Resources.Load<AudioClip>("Audio/click");
+            if (_uiClickClip != null)
+            {
+                if (_uiAudio == null)
+                {
+                    var go = new GameObject("PoSoccer_UIAudio");
+                    Object.DontDestroyOnLoad(go);
+                    _uiAudio = go.AddComponent<AudioSource>();
+                    _uiAudio.playOnAwake = false;
+                    _uiAudio.spatialBlend = 0f;
+                }
+                _uiAudio.pitch = Mathf.Clamp(pitch, 0.7f, 1.5f);
+                _uiAudio.volume = 0.45f * Agent_Audio.SfxVolume * Agent_Audio.MasterVolume;
+                _uiAudio.PlayOneShot(_uiClickClip);
+            }
+
+            if (hapticMs > 0)
+            {
+                var haptics = Object.FindAnyObjectByType<Agent_Haptics>();
+                if (haptics != null) haptics.Play(hapticMs, 0.25f);
+            }
+        }
+
+        /// <summary>Attaches microinteraction audio + haptic tap feedback to any UI Toolkit button.</summary>
+        public static void WireTapFeedback(Button button, float pitch = 1f)
+        {
+            if (button == null) return;
+            button.clicked += () => PlayTapFeedback(pitch);
+        }
+
         public static void Round(VisualElement e, int radius = Radius)
         {
             e.style.borderTopLeftRadius = radius;

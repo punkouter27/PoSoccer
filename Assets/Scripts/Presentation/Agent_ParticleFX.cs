@@ -61,6 +61,9 @@ namespace PoSoccer
         float _turfCredit;
         ParticleSystem _divots;
         float[] _divotReadyAt = System.Array.Empty<float>();
+        float[] _breathReadyAt = System.Array.Empty<float>();
+        Agent_Contact[] _contacts = System.Array.Empty<Agent_Contact>();
+        System.Action<Vector2, Vector2, float>[] _contactHandlers = System.Array.Empty<System.Action<Vector2, Vector2, float>>();
 
         /// <summary>Divot marks allowed. Cleared by Agent_Quality with the pitch wear.</summary>
         public bool DivotsAllowed { get; set; } = true;
@@ -86,8 +89,22 @@ namespace PoSoccer
 
             _env.EpisodeEnded += OnEpisodeEnded;
             Agent_MatchFX.BallContact.Hit += OnBallHit;
+            Agent_BallHeight.BallBounced += OnBallBounced;
+            _contacts = new Agent_Contact[_env.agents.Count];
+            _contactHandlers = new System.Action<Vector2, Vector2, float>[_env.agents.Count];
             for (int i = 0; i < _env.agents.Count; i++)
-                if (_env.agents[i] != null) _env.agents[i].WallKicked += OnWallKicked;
+            {
+                var agent = _env.agents[i];
+                if (agent == null) continue;
+                agent.WallKicked += OnWallKicked;
+                var contact = agent.GetComponent<Agent_Contact>();
+                if (contact != null)
+                {
+                    _contacts[i] = contact;
+                    _contactHandlers[i] = OnPlayerTackle;
+                    contact.PlayerContact += _contactHandlers[i];
+                }
+            }
         }
 
         void OnDestroy()
@@ -98,7 +115,13 @@ namespace PoSoccer
                 for (int i = 0; i < _env.agents.Count; i++)
                     if (_env.agents[i] != null) _env.agents[i].WallKicked -= OnWallKicked;
             }
+            for (int i = 0; i < _contacts.Length; i++)
+            {
+                if (_contacts[i] != null && _contactHandlers[i] != null)
+                    _contacts[i].PlayerContact -= _contactHandlers[i];
+            }
             Agent_MatchFX.BallContact.Hit -= OnBallHit;
+            Agent_BallHeight.BallBounced -= OnBallBounced;
         }
 
         // -- Construction ----------------------------------------------------
@@ -291,6 +314,7 @@ namespace PoSoccer
                 _turfCredit -= count;
 
                 Vector2 skidDirection = -velocity.normalized;
+                Color sprayColor = WeatherTurfColor();
                 for (int p = 0; p < count; p++)
                 {
                     var emit = new ParticleSystem.EmitParams
@@ -300,12 +324,95 @@ namespace PoSoccer
                         velocity = skidDirection * Random.Range(1.5f, 4f)
                                    + Random.insideUnitCircle * 1.2f,
                         startLifetime = Random.Range(0.3f, 0.7f),
+                        startColor = sprayColor,
                     };
                     _turf.Emit(emit, 1);
                 }
             }
 
             UpdateDivots(agents);
+            UpdateColdBreath(agents);
+        }
+
+        static Color WeatherTurfColor()
+        {
+            switch (Agent_Weather.CurrentCondition)
+            {
+                case Agent_Weather.Condition.Wet: return new Color(0.75f, 0.90f, 1f, 0.78f);
+                case Agent_Weather.Condition.Muddy: return new Color(0.38f, 0.27f, 0.16f, 0.9f);
+                case Agent_Weather.Condition.Snowy: return new Color(0.95f, 0.98f, 1f, 0.85f);
+                default: return new Color(0.35f, 0.62f, 0.28f, 1f);
+            }
+        }
+
+        void UpdateColdBreath(System.Collections.Generic.List<Agent_Soccer> agents)
+        {
+            if (_debris == null || Agent_TimeFreeze.IsFrozen) return;
+            var cond = Agent_Weather.CurrentCondition;
+            if (cond != Agent_Weather.Condition.Snowy && cond != Agent_Weather.Condition.Wet) return;
+
+            if (_breathReadyAt.Length < agents.Count) _breathReadyAt = new float[agents.Count];
+            float now = Time.time;
+            for (int i = 0; i < agents.Count && i < _breathReadyAt.Length; i++)
+            {
+                var agent = agents[i];
+                if (agent == null || agent.Stamina == null || agent.Stamina.Ratio >= 0.35f) continue;
+                if (now < _breathReadyAt[i]) continue;
+
+                _breathReadyAt[i] = now + Random.Range(0.45f, 0.75f);
+                Vector2 forward = agent.transform.up;
+                var puff = new ParticleSystem.EmitParams
+                {
+                    position = agent.transform.position + (Vector3)(forward * 0.28f),
+                    velocity = forward * 0.7f + Random.insideUnitCircle * 0.25f,
+                    startLifetime = 0.45f,
+                    startSize = 0.16f,
+                    startColor = new Color(0.92f, 0.96f, 1f, 0.32f),
+                };
+                _debris.Emit(puff, 1);
+            }
+        }
+
+        void OnBallBounced(Vector2 worldPos, float impactSpeed)
+        {
+            if (_turf == null) return;
+            if (_env != null && _env.Ball != null && Vector2.Distance(worldPos, _env.Ball.position) > 1.2f) return;
+
+            int count = Mathf.Clamp(Mathf.RoundToInt(impactSpeed * 1.4f), 3, 10);
+            Color c = WeatherTurfColor();
+            for (int i = 0; i < count; i++)
+            {
+                var emit = new ParticleSystem.EmitParams
+                {
+                    position = worldPos,
+                    velocity = Random.insideUnitCircle.normalized * Random.Range(0.9f, 2.6f),
+                    startLifetime = Random.Range(0.22f, 0.42f),
+                    startSize = Random.Range(0.06f, 0.11f),
+                    startColor = c,
+                };
+                _turf.Emit(emit, 1);
+            }
+        }
+
+        void OnPlayerTackle(Vector2 point, Vector2 normal, float impulse)
+        {
+            if (_debris == null) return;
+            float strength = Agent_ImpactScale.Player01(impulse);
+            if (strength < 0.45f) return;
+
+            int count = Mathf.RoundToInt(Mathf.Lerp(4f, 10f, strength));
+            for (int i = 0; i < count; i++)
+            {
+                var emit = new ParticleSystem.EmitParams
+                {
+                    position = point,
+                    velocity = (normal + Random.insideUnitCircle * 1.1f).normalized * Random.Range(1.4f, 4.2f),
+                    startLifetime = Random.Range(0.18f, 0.34f),
+                    startSize = Random.Range(0.05f, 0.10f),
+                    startColor = new Color(1f, 0.94f, 0.76f, 0.85f),
+                };
+                _debris.Emit(emit, 1);
+            }
         }
 
         /// <summary>

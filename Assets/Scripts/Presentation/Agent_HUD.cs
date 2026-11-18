@@ -77,13 +77,17 @@ namespace PoSoccer
 
         VisualElement _root, _endPanel, _blueChips, _redChips;
         VisualElement _meter;
-        Button _broadcastButton, _soundButton, _overlayButton;
+        VisualElement _bottomDock, _thumbstickPad, _thumbstickKnob, _humanActions;
+        Button _soundButton, _boostButton, _kickButton;
         Label _agentStream;
         Agent_SpectatorInput _spectator;
+        Agent_HumanController _humanController;
+        bool _humanControlsVisible;
+        bool _thumbDragBoost;
+        bool _boostButtonHeld;
+        int _thumbPointerId = -1;
         readonly System.Text.StringBuilder _streamText = new(64);
         float _nextSlowRefresh;
-        int _shownOverlaySignature = -1;
-        int _shownOverlayVersion = -1;
         Agent_Soccer _streamSubject;
         int _streamSpeedTenths = -1, _streamStaminaPct = -1;
         bool _streamBoost;
@@ -104,6 +108,11 @@ namespace PoSoccer
         VisualElement _pausePanel;
         float _commentaryUntil;
         bool _pendingEnd;
+        bool _replayShown;
+        float _scorePunchAge = -1f;
+        Color _scorePunchColor = Color.white;
+        readonly Dictionary<Agent_Soccer, VisualElement> _chipMap = new();
+        VisualElement _focusedChip;
 
         // Broadcast telemetry lanes, added with the director / win-probability /
         // stat-ticker layer. Each is driven by exactly one component and no-ops
@@ -156,27 +165,17 @@ namespace PoSoccer
         {
             var broadcast = _showBroadcastStrip ? DisplayStyle.Flex : DisplayStyle.None;
             var probability = _showBroadcastStrip && enableMatchFlow ? DisplayStyle.Flex : DisplayStyle.None;
-            var agentStream = (_showBroadcastStrip || Agent_MatchSetup.HumanControl) && enableMatchFlow
+            var agentStream = _showBroadcastStrip && enableMatchFlow
                 ? DisplayStyle.Flex : DisplayStyle.None;
             var meter = _showBroadcastStrip || !enableMatchFlow ? DisplayStyle.Flex : DisplayStyle.None;
 
             if (_winProbBar != null) _winProbBar.style.display = probability;
             if (_winProbLabel != null) _winProbLabel.style.display = probability;
-            // The agent stream describes a player in a MATCH; in 1P mode it stays
-            // visible regardless of the STATS toggle so you always see your stamina/boost.
+            // All stat/debug readouts stay hidden unless toggled via TAB / Settings.
             if (_agentStream != null) _agentStream.style.display = agentStream;
             if (_ticker != null) _ticker.style.display = broadcast;
             if (_broadcastTag != null) _broadcastTag.style.display = broadcast;
             if (_meter != null) _meter.style.display = meter;
-            if (_broadcastButton != null)
-                _broadcastButton.EnableInClassList(Agent_UIStyle.ON, _showBroadcastStrip);
-        }
-
-        /// <summary>The STATS button: flips the readouts and remembers the choice.</summary>
-        void ToggleBroadcast()
-        {
-            BroadcastEnabled = !_showBroadcastStrip;
-            SetBroadcastStripVisible(BroadcastEnabled);
         }
 
         public bool IsPaused => _pausePanel != null;
@@ -427,6 +426,10 @@ namespace PoSoccer
             _meter = _root.Q<VisualElement>("meter");
             // Optional too (2026-11-07): an older template simply has no stream.
             _agentStream = _root.Q<Label>("agent-stream");
+            _bottomDock = _root.Q<VisualElement>("bottom-dock");
+            _thumbstickPad = _root.Q<VisualElement>("thumbstick-pad");
+            _thumbstickKnob = _root.Q<VisualElement>("thumbstick-knob");
+            _humanActions = _root.Q<VisualElement>("human-actions");
             var controls = _root.Q<VisualElement>("controls");
 
             if (safe == null || _topBand == null || _bottomBand == null ||
@@ -468,7 +471,10 @@ namespace PoSoccer
             // Agent_UIStyle.Pad is the .band rule's own padding-top
             // (--space-5: 24px), added back because assigning style.paddingTop
             // replaces the stylesheet value rather than adding to it.
-            _topBand.style.paddingTop = Agent_UIStyle.Pad + Agent_Chrome.BAR_HEIGHT;
+            _topBand.style.paddingTop = Agent_UIStyle.Space3 + Agent_Chrome.BAR_HEIGHT;
+            _topBand.style.paddingBottom = Agent_UIStyle.Space2;
+            _bottomBand.style.paddingTop = Agent_UIStyle.Space2;
+            _bottomBand.style.paddingBottom = Agent_UIStyle.Space4;
 
             // The training scene has no match, so a frozen 0-0 would only mislead.
             _score.style.display = enableMatchFlow ? DisplayStyle.Flex : DisplayStyle.None;
@@ -506,45 +512,24 @@ namespace PoSoccer
 
             if (enableMatchFlow)
             {
-                // MENU used to live here. It now sits in the upper-right corner,
-                // owned by Agent_Chrome, so that the corner layout is identical in
-                // the menu and in a match. Two MENU buttons on one screen is worse
-                // than either position on its own. Agent_Chrome.ReturnToMenu keeps
-                // the Agent_TimeFreeze.ReleaseAll() that used to happen here.
-                //
-                // SND used to be the first control here. Cut 2026-11-07: the
-                // settings sheet is now one tap away in the upper-right corner on
-                // every screen, with SOUND at the top of its AUDIO tab, and the
-                // menu keeps its own mute button for the reach-without-looking
-                // case. A second mute switch in the match row bought nothing for
-                // the width it took next to DEBUG.
-
+                // Keep the gameplay HUD uncluttered: only the thumb-ergonomic Pause
+                // button sits in the bottom bar. All debug/stat readouts and overlay
+                // toggles live behind the TAB key (Agent_Telemetry) and Settings.
                 var pause = SmallButton("II", TogglePause);
                 pause.name = "pause";
                 pause.AddToClassList("hud__control");
+                pause.AddToClassList("btn--pause");
+                Agent_UIStyle.WireTapFeedback(pause, 0.94f);
                 controls.Add(pause);
 
-                // ONE switch for every broadcast readout. Short label on purpose:
-                // this row is centred between Agent_Chrome's DEBUG button and the
-                // version label, and three wide buttons would reach both.
-                _broadcastButton = Agent_UIStyle.ToggleButton("STATS", _showBroadcastStrip, ToggleBroadcast);
-                _broadcastButton.name = "broadcast-toggle";
-                _broadcastButton.AddToClassList("hud__control");
-                controls.Add(_broadcastButton);
+                BuildHumanTouchControls();
 
-                // THE ONE OVERLAY SWITCH (2026-11-07). Each tap shows the next
-                // overlay on its own - intent, vision, tracer, brain cam, xG field,
-                // skids, then none (Agent_Overlays.CycleSolo). The O key does the
-                // same; the letter keys and the panel's grid still switch any of
-                // them individually. The label is the overlay showing, or VIEW.
-                _overlayButton = Agent_UIStyle.ToggleButton(Agent_Overlays.SoloText(), false, CycleOverlay);
-                _overlayButton.name = "overlay-cycle";
-                _overlayButton.AddToClassList("hud__control");
-                controls.Add(_overlayButton);
+                if (!Agent_MatchSetup.GalleryMode) BuildOpeningWipe();
             }
             else
             {
                 controls.style.display = DisplayStyle.None;
+                SetHumanControlsVisible(false);
             }
 
             // The upper-right SETTINGS button (Agent_Chrome) opens the sheet over
@@ -555,37 +540,161 @@ namespace PoSoccer
             return true;
         }
 
-        void CycleOverlay()
+        void BuildHumanTouchControls()
         {
-            Agent_Overlays.CycleSolo();
-            RefreshOverlayButton();
+            if (_humanActions != null)
+            {
+                _humanActions.Clear();
+
+                _boostButton = SmallButton("BOOST", null);
+                _boostButton.name = "human-boost";
+                _boostButton.AddToClassList("btn--boost");
+                _boostButton.RegisterCallback<PointerDownEvent>(_ => SetBoostHeld(true));
+                _boostButton.RegisterCallback<PointerUpEvent>(_ => SetBoostHeld(false));
+                _boostButton.RegisterCallback<PointerCancelEvent>(_ => SetBoostHeld(false));
+                _boostButton.RegisterCallback<PointerLeaveEvent>(_ => SetBoostHeld(false));
+                _humanActions.Add(_boostButton);
+
+                _kickButton = SmallButton("KICK", TriggerHumanKick);
+                _kickButton.name = "human-kick";
+                _kickButton.AddToClassList("btn--kick");
+                _kickButton.RegisterCallback<PointerDownEvent>(_ => TriggerHumanKick());
+                Agent_UIStyle.WireTapFeedback(_kickButton, 1.15f);
+                _humanActions.Add(_kickButton);
+            }
+
+            if (_thumbstickPad != null)
+            {
+                _thumbstickPad.RegisterCallback<PointerDownEvent>(evt =>
+                {
+                    if (_thumbPointerId >= 0) return;
+                    _thumbPointerId = evt.pointerId;
+                    _thumbstickPad.CapturePointer(evt.pointerId);
+                    UpdateThumbstick(evt.position);
+                });
+                _thumbstickPad.RegisterCallback<PointerMoveEvent>(evt =>
+                {
+                    if (_thumbPointerId != evt.pointerId || !_thumbstickPad.HasPointerCapture(evt.pointerId)) return;
+                    UpdateThumbstick(evt.position);
+                });
+                _thumbstickPad.RegisterCallback<PointerUpEvent>(evt => ReleaseThumbstick(evt.pointerId));
+                _thumbstickPad.RegisterCallback<PointerCancelEvent>(evt => ReleaseThumbstick(evt.pointerId));
+                _thumbstickPad.RegisterCallback<PointerCaptureOutEvent>(evt => ReleaseThumbstick(evt.pointerId));
+            }
+
+            SetHumanControlsVisible(enableMatchFlow && Agent_MatchSetup.HumanControl);
+        }
+
+        void SetHumanControlsVisible(bool visible)
+        {
+            _humanControlsVisible = visible;
+            var disp = visible ? DisplayStyle.Flex : DisplayStyle.None;
+            if (_thumbstickPad != null) _thumbstickPad.style.display = disp;
+            if (_humanActions != null) _humanActions.style.display = disp;
+            if (_boostButton != null) _boostButton.style.display = disp;
+            if (_kickButton != null) _kickButton.style.display = disp;
+            if (_bottomDock != null) _bottomDock.EnableInClassList("is-human", visible);
+            if (!visible) ResetHumanTouchState();
+        }
+
+        Agent_HumanController ResolveHumanController()
+        {
+            if (_humanController != null && _humanController.enabled) return _humanController;
+            if (env == null) return null;
+            for (int i = 0; i < env.agents.Count; i++)
+            {
+                var a = env.agents[i];
+                if (a != null && a.HumanControlled)
+                {
+                    _humanController = a.GetComponent<Agent_HumanController>();
+                    return _humanController;
+                }
+            }
+            return null;
+        }
+
+        void UpdateThumbstick(Vector2 panelPos)
+        {
+            if (_thumbstickPad == null) return;
+            Rect r = _thumbstickPad.worldBound;
+            if (float.IsNaN(r.width) || r.width < 10f) return;
+
+            float maxTravel = Mathf.Max(24f, r.width * 0.34f);
+            Vector2 delta = panelPos - r.center;
+            // Panel Y increases downward; world pitch Y increases upward.
+            Vector2 clamped = Vector2.ClampMagnitude(delta, maxTravel);
+
+            if (_thumbstickKnob != null)
+            {
+                _thumbstickKnob.style.translate = new Translate(clamped.x, clamped.y);
+            }
+
+            Vector2 worldDir = new Vector2(clamped.x / maxTravel, -clamped.y / maxTravel);
+            _thumbDragBoost = worldDir.magnitude > 0.85f;
+            var ctrl = ResolveHumanController();
+            if (ctrl != null)
+            {
+                ctrl.TouchMoveInput = worldDir;
+                ctrl.TouchBoost = _thumbDragBoost || _boostButtonHeld;
+            }
+        }
+
+        void ReleaseThumbstick(int pointerId)
+        {
+            if (_thumbPointerId != pointerId && pointerId >= 0) return;
+            if (_thumbstickPad != null && pointerId >= 0 && _thumbstickPad.HasPointerCapture(pointerId))
+                _thumbstickPad.ReleasePointer(pointerId);
+            _thumbPointerId = -1;
+            _thumbDragBoost = false;
+            if (_thumbstickKnob != null) _thumbstickKnob.style.translate = StyleKeyword.Null;
+            var ctrl = ResolveHumanController();
+            if (ctrl != null)
+            {
+                ctrl.TouchMoveInput = Vector2.zero;
+                ctrl.TouchBoost = _boostButtonHeld;
+            }
+        }
+
+        void SetBoostHeld(bool held)
+        {
+            _boostButtonHeld = held;
+            if (_boostButton != null) _boostButton.EnableInClassList(Agent_UIStyle.ON, held);
+            var ctrl = ResolveHumanController();
+            if (ctrl != null) ctrl.TouchBoost = held || _thumbDragBoost;
+        }
+
+        void TriggerHumanKick()
+        {
+            var ctrl = ResolveHumanController();
+            if (ctrl != null) ctrl.TriggerTouchKick();
+        }
+
+        void ResetHumanTouchState()
+        {
+            if (_thumbPointerId >= 0) ReleaseThumbstick(_thumbPointerId);
+            _thumbPointerId = -1;
+            _thumbDragBoost = false;
+            _boostButtonHeld = false;
+            if (_thumbstickKnob != null) _thumbstickKnob.style.translate = StyleKeyword.Null;
+            if (_boostButton != null) _boostButton.EnableInClassList(Agent_UIStyle.ON, false);
+            var ctrl = ResolveHumanController();
+            if (ctrl != null)
+            {
+                ctrl.TouchMoveInput = Vector2.zero;
+                ctrl.TouchBoost = false;
+            }
         }
 
         /// <summary>
-        /// Re-labels the VIEW button when an overlay was switched by any route - the
-        /// button, the O key, a letter key, the panel. Polled on the slow refresh
-        /// with a bitmask compare, so the common case is one int comparison.
-        /// </summary>
-        void RefreshOverlayButton()
-        {
-            if (_overlayButton == null) return;
-            int signature = Agent_Overlays.Signature();
-            if (signature == _shownOverlaySignature && Agent_Overlays.Version == _shownOverlayVersion) return;
-            _shownOverlaySignature = signature;
-            _shownOverlayVersion = Agent_Overlays.Version;
-            _overlayButton.text = Agent_Overlays.SoloText();
-            _overlayButton.EnableInClassList(Agent_UIStyle.ON, signature != 0);
-        }
-
-        /// <summary>
-        /// The lower-left agent line: the focused player, else whoever last touched
-        /// the ball, else the first player. Rebuilt only when a shown value changes
-        /// at the precision it is printed at, and only on the slow refresh, so it
-        /// allocates at most a few strings a second and only with STATS on.
+        /// Highlights the focused/human/last-toucher player chip, and updates the
+        /// broadcast agent line when STATS are toggled on via TAB/Settings.
         /// </summary>
         void RefreshAgentStream()
         {
-            if (_agentStream == null || (!_showBroadcastStrip && !Agent_MatchSetup.HumanControl) || !enableMatchFlow || env == null) return;
+            if (!enableMatchFlow || env == null) return;
+
+            bool wantHuman = Agent_MatchSetup.HumanControl;
+            if (wantHuman != _humanControlsVisible) SetHumanControlsVisible(wantHuman);
 
             if (_spectator == null) _spectator = env.GetComponent<Agent_SpectatorInput>();
             Agent_Soccer subject = _spectator != null ? _spectator.FocusedAgent : null;
@@ -604,6 +713,9 @@ namespace PoSoccer
             if (subject == null) subject = env.LastToucher;
             if (subject == null && env.agents.Count > 0) subject = env.agents[0];
             if (subject == null || subject.Body == null) return;
+
+            UpdateFocusedChip(subject);
+            if (_agentStream == null || !_showBroadcastStrip) return;
 
             int speedTenths = Mathf.RoundToInt(subject.Body.linearVelocity.magnitude * 10f);
             int stamina = subject.Stamina != null && subject.Stamina.maxStamina > 0f
@@ -841,6 +953,7 @@ namespace PoSoccer
             _toast.text = text;
             _toast.style.color = color;            // per-event colour is data
             Agent_UIStyle.SetShown(_toast, true);
+            Agent_UIStyle.PlayEntrance(_toast, "toast--entering");
             _toastUntil = Time.unscaledTime + seconds;
         }
 
@@ -868,9 +981,57 @@ namespace PoSoccer
         /// <summary>Letterbox bars + REPLAY tag, for the duration of a goal replay.</summary>
         public void SetReplayChrome(bool on)
         {
+            _replayShown = on;
             Agent_UIStyle.SetShown(_letterboxTop, on);
             Agent_UIStyle.SetShown(_letterboxBottom, on);
             Agent_UIStyle.SetShown(_replayTag, on);
+            if (!on && _replayTag != null) _replayTag.style.opacity = StyleKeyword.Null;
+            UpdateBandVisibility();
+        }
+
+        void UpdateBandVisibility()
+        {
+            bool modal = IsPaused || _ended;
+            if (modal || _replayShown) ResetHumanTouchState();
+            if (_topBand != null)
+                _topBand.style.visibility = modal ? Visibility.Hidden : Visibility.Visible;
+            if (_bottomBand != null)
+                _bottomBand.style.visibility = (modal || _replayShown) ? Visibility.Hidden : Visibility.Visible;
+        }
+
+        void BuildOpeningWipe()
+        {
+            if (_root == null) return;
+            var left = new VisualElement { name = "wipe-left", pickingMode = PickingMode.Ignore };
+            left.AddToClassList("wipe-curtain");
+            left.AddToClassList("wipe-curtain--blue");
+
+            var right = new VisualElement { name = "wipe-right", pickingMode = PickingMode.Ignore };
+            right.AddToClassList("wipe-curtain");
+            right.AddToClassList("wipe-curtain--red");
+
+            _root.Add(left);
+            _root.Add(right);
+            _root.schedule.Execute(() =>
+            {
+                left.AddToClassList("is-open");
+                right.AddToClassList("is-open");
+            }).ExecuteLater(16);
+            _root.schedule.Execute(() =>
+            {
+                left.RemoveFromHierarchy();
+                right.RemoveFromHierarchy();
+            }).ExecuteLater(360);
+        }
+
+        void UpdateFocusedChip(Agent_Soccer subject)
+        {
+            VisualElement next = null;
+            if (subject != null) _chipMap.TryGetValue(subject, out next);
+            if (ReferenceEquals(next, _focusedChip)) return;
+            if (_focusedChip != null) _focusedChip.RemoveFromClassList("chip--focused");
+            _focusedChip = next;
+            if (_focusedChip != null) _focusedChip.AddToClassList("chip--focused");
         }
 
         /// <summary>
@@ -892,7 +1053,8 @@ namespace PoSoccer
             _pausePanel = new VisualElement { name = "pause-panel" };
             _pausePanel.AddToClassList("panel--scrim");
             // Absolute on the panel root, so it carries its own safe-area inset.
-            Agent_UIStyle.BindSafeArea(_pausePanel, Agent_Chrome.BAR_HEIGHT, Agent_Chrome.BAR_HEIGHT);
+            Agent_UIStyle.BindSafeArea(_pausePanel, Agent_Chrome.BAR_HEIGHT, Agent_Chrome.BOTTOM_BAR_HEIGHT);
+            UpdateBandVisibility();
 
             var heading = new Label("PAUSED");
             heading.AddToClassList("score");
@@ -911,11 +1073,18 @@ namespace PoSoccer
             // buttons instead of a form.
             _pausePanel.Add(PauseButton("RESUME", true, Resume));
             _pausePanel.Add(PauseButton("SETTINGS", false, OpenSettings));
+            _pausePanel.Add(PauseButton("DEBUG & STATS", false, OpenTelemetryFromPause));
             _pausePanel.Add(PauseButton("MENU", false,
                 () => { Agent_TimeFreeze.ReleaseAll(); SceneManager.LoadScene(menuScene); }));
 
             _root.Add(_pausePanel);
             Agent_UIStyle.PlayEntrance(_pausePanel);
+        }
+
+        static void OpenTelemetryFromPause()
+        {
+            var telemetry = FindAnyObjectByType<Agent_Telemetry>();
+            if (telemetry != null) telemetry.SetVisible(true);
         }
 
         static Button PauseButton(string text, bool primary, System.Action onClick)
@@ -934,6 +1103,7 @@ namespace PoSoccer
                 _pausePanel.parent.Remove(_pausePanel);
             _pausePanel = null;
             Agent_TimeFreeze.Release(_pauseToken);
+            UpdateBandVisibility();
         }
 
         /// <summary>Raise the deferred end panel. No-op once it is already up.</summary>
@@ -948,6 +1118,8 @@ namespace PoSoccer
             if (_blueChips == null) return;
             _blueChips.Clear();
             _redChips.Clear();
+            _chipMap.Clear();
+            _focusedChip = null;
 
             // DRIVER TAGS ONLY WHEN THEY DISTINGUISH SOMETHING (2026-11-07). Since
             // 2026-10-11 the menu offers only RL-trained brains, so in an ordinary
@@ -990,6 +1162,7 @@ namespace PoSoccer
                     chip.Add(driver);
                 }
 
+                _chipMap[agent] = chip;
                 (agent.team == Agent_Soccer.Team.Blue ? _blueChips : _redChips).Add(chip);
             }
         }
@@ -1058,13 +1231,14 @@ namespace PoSoccer
             SetReplayChrome(false);
             HideBanner();
             Agent_TimeFreeze.Acquire(this);
+            UpdateBandVisibility();
 
             _endPanel = new VisualElement { name = "end-panel" };
             _endPanel.AddToClassList("panel--scrim");
             _endPanel.AddToClassList("endpanel");
             // Absolute on the panel root, so it insets itself - and reserves both
             // of Agent_Chrome's bars, which draw above this panel.
-            Agent_UIStyle.BindSafeArea(_endPanel, Agent_Chrome.BAR_HEIGHT, Agent_Chrome.BAR_HEIGHT);
+            Agent_UIStyle.BindSafeArea(_endPanel, Agent_Chrome.BAR_HEIGHT, Agent_Chrome.BOTTOM_BAR_HEIGHT);
 
             var head = new VisualElement();
             head.AddToClassList("endpanel__head");
@@ -1290,6 +1464,7 @@ namespace PoSoccer
             var b = new Button(onClick) { text = text };
             b.AddToClassList("btn");
             b.AddToClassList(primary ? "btn--primary" : "btn--ghost");
+            Agent_UIStyle.WireTapFeedback(b, primary ? 1.12f : 0.96f);
             return b;
         }
 
@@ -1324,9 +1499,37 @@ namespace PoSoccer
 
                 if (_blueScore != _shownBlue || _redScore != _shownRed)
                 {
+                    if (_shownBlue >= 0 && _shownRed >= 0)
+                    {
+                        _scorePunchAge = 0f;
+                        _scorePunchColor = _blueScore > _shownBlue ? Agent_UIStyle.BlueTeam : Agent_UIStyle.RedTeam;
+                    }
                     _score.text = $"{_blueScore}  —  {_redScore}";
                     _shownBlue = _blueScore;
                     _shownRed = _redScore;
+                }
+
+                if (_scorePunchAge >= 0f)
+                {
+                    _scorePunchAge += Time.unscaledDeltaTime;
+                    float t = _scorePunchAge / 0.45f;
+                    if (t >= 1f)
+                    {
+                        _scorePunchAge = -1f;
+                        _score.style.scale = StyleKeyword.Null;
+                        _score.style.color = StyleKeyword.Null;
+                    }
+                    else
+                    {
+                        float s = 1f + Agent_Tween.Punch(t) * 0.28f;
+                        _score.style.scale = new Scale(new Vector3(s, s, 1f));
+                        _score.style.color = Color.Lerp(_scorePunchColor, Agent_UIStyle.TextPrimary, Mathf.Clamp01(t * 1.4f));
+                    }
+                }
+
+                if (_replayShown && _replayTag != null)
+                {
+                    _replayTag.style.opacity = 0.62f + 0.38f * (0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * 5.2f));
                 }
 
                 // Counts DOWN when the match is bounded. A timer that ends the game
@@ -1364,11 +1567,10 @@ namespace PoSoccer
 
             UpdateBallControlMeter();
 
-            // Four times a second, unscaled so a frozen clock still re-labels.
+            // Four times a second, unscaled so a frozen clock still updates focus.
             if (Time.unscaledTime >= _nextSlowRefresh)
             {
                 _nextSlowRefresh = Time.unscaledTime + 0.25f;
-                RefreshOverlayButton();
                 RefreshAgentStream();
             }
         }

@@ -47,6 +47,9 @@ namespace PoSoccer
         static readonly int KitScale = Shader.PropertyToID("_KitScale");
         static readonly int TurfDetail = Shader.PropertyToID("_TurfDetail");
         static readonly int TurfScale = Shader.PropertyToID("_TurfScale");
+        static readonly int Fatigue = Shader.PropertyToID("_Fatigue");
+        static readonly int ColorProp = Shader.PropertyToID("_Color");
+        static readonly int EmissionBoost = Shader.PropertyToID("_EmissionBoost");
 
         [Tooltip("Depth of the mown-grass banding on the pitch.")]
         [Range(0f, 0.5f)] [SerializeField] private float _pitchStripes = 0.075f;
@@ -95,11 +98,23 @@ namespace PoSoccer
         // KitPattern.None this dictionary holds exactly the same two materials
         // the previous version created by hand.
         readonly System.Collections.Generic.Dictionary<BodyLook, Material> _bodyMaterials = new();
+        readonly System.Collections.Generic.List<Agent_Soccer> _trackedAgents = new();
+        readonly System.Collections.Generic.List<SpriteRenderer> _trackedRenderers = new();
+        readonly System.Collections.Generic.List<bool> _trackedFatigued = new();
         Shader _shader;
         Texture2D _sphereNormal;
+        static bool _shadersWarmed;
 
-        /// <summary>Retained for API compatibility; bodies stay in SRP Batcher.</summary>
-        public bool FatigueVisible { get; set; } = false;
+        /// <summary>Shares two fatigue-tier materials per team look while keeping SRP Batcher intact.</summary>
+        public bool FatigueVisible { get; set; } = true;
+
+        /// <summary>Pre-warms PoSoccer/SpriteLitFX materials once on menu idle to prevent first-goal shader hitches.</summary>
+        public static void WarmupPresentationShaders()
+        {
+            if (_shadersWarmed || Agent_Presentation.IsHeadless) return;
+            _shadersWarmed = true;
+            Shader.WarmupAllShaders();
+        }
 
         /// <summary>
         /// Ultra-only turf micro-detail (blade grain + anisotropic mow sheen).
@@ -129,24 +144,27 @@ namespace PoSoccer
             public readonly Reward_Settings.KitPattern Pattern;
             public readonly Color Kit;
             public readonly float Bands;
+            public readonly bool Fatigued;
 
             public BodyLook(Agent_Soccer.Team team, Reward_Settings.KitPattern pattern,
-                Color kit, float bands)
+                Color kit, float bands, bool fatigued = false)
             {
                 Team = team;
                 Pattern = pattern;
                 Kit = kit;
                 Bands = bands;
+                Fatigued = fatigued;
             }
 
             public bool Equals(BodyLook other)
                 => Team == other.Team && Pattern == other.Pattern
-                   && Kit == other.Kit && Mathf.Approximately(Bands, other.Bands);
+                   && Kit == other.Kit && Mathf.Approximately(Bands, other.Bands)
+                   && Fatigued == other.Fatigued;
 
             public override bool Equals(object obj) => obj is BodyLook other && Equals(other);
 
             public override int GetHashCode()
-                => ((int)Team * 397 ^ (int)Pattern) * 397 ^ Kit.GetHashCode();
+                => ((((int)Team * 397 ^ (int)Pattern) * 397 ^ Kit.GetHashCode()) * 397) ^ (Fatigued ? 1 : 0);
         }
 
         /// <summary>
@@ -184,6 +202,7 @@ namespace PoSoccer
             _env = env;
             BuildMaterials(shader, sphereNormal, turfNormal);
             Apply(env);
+            ApplyWeather(Agent_Weather.CurrentCondition);
 
             if (_goalNets)
             {
@@ -208,11 +227,14 @@ namespace PoSoccer
 
             _ballMaterial = new Material(shader) { name = "PoSoccer_Ball" };
             if (sphereNormal != null) _ballMaterial.SetTexture(NormalMap, sphereNormal);
+            _ballMaterial.SetFloat(SheenStrength, 0.08f);
+            _ballMaterial.SetFloat(SheenSpeed, 0.12f);
+            _ballMaterial.SetFloat(SheenWidth, 5f);
 
             BoardMaterial = new Material(shader) { name = "PoSoccer_Boards" };
-            BoardMaterial.SetFloat(SheenStrength, 0.28f);
-            BoardMaterial.SetFloat(SheenSpeed, 0.22f);
-            BoardMaterial.SetFloat(SheenWidth, 7f);
+            BoardMaterial.SetFloat(SheenStrength, 0.38f);
+            BoardMaterial.SetFloat(SheenSpeed, 0.35f);
+            BoardMaterial.SetFloat(SheenWidth, 6.5f);
 
             // Body materials are built on demand in Apply, once the profile
             // behind each player is known. Keep what they need.
@@ -377,7 +399,12 @@ namespace PoSoccer
 
         void Update()
         {
-            if (_env == null || !_goalNets) return;
+            if (_env == null) return;
+
+            TickFatigue();
+            TickBallVisual();
+
+            if (!_goalNets) return;
 
             if (!Mathf.Approximately(_env.CurrentGoalWidth, _shownGoalWidth))
                 ApplyNetWidth(_env.CurrentGoalWidth);
@@ -389,6 +416,58 @@ namespace PoSoccer
             float decay = Time.unscaledDeltaTime / Mathf.Max(0.05f, _rippleSeconds);
             Decay(ref _blueRipple, _blueNetMaterial, decay);
             Decay(ref _redRipple, _redNetMaterial, decay);
+        }
+
+        void TickBallVisual()
+        {
+            if (_ballMaterial == null || _env == null || _env.Ball == null) return;
+            float speed = _env.Ball.linearVelocity.magnitude;
+            // Subtle specular shimmer and emission flare when the ball rockets across the pitch.
+            float flare = Mathf.Clamp01((speed - 8f) / 10f) * 0.18f;
+            _ballMaterial.SetFloat(EmissionBoost, flare);
+        }
+
+        /// <summary>
+        /// Drives pitch and ball shader parameters from the active weather condition
+        /// using the existing shared materials (zero draw-call overhead).
+        /// </summary>
+        public void ApplyWeather(Agent_Weather.Condition condition)
+        {
+            if (_pitchMaterial != null)
+            {
+                switch (condition)
+                {
+                    case Agent_Weather.Condition.Wet:
+                        _pitchMaterial.SetColor(ColorProp, new Color(0.86f, 0.96f, 0.92f, 1f));
+                        _pitchMaterial.SetFloat(SheenStrength, 0.14f);
+                        _pitchMaterial.SetFloat(SheenSpeed, 0.14f);
+                        _pitchMaterial.SetFloat(StripeStrength, _pitchStripes * 1.15f);
+                        break;
+                    case Agent_Weather.Condition.Muddy:
+                        _pitchMaterial.SetColor(ColorProp, new Color(0.82f, 0.77f, 0.65f, 1f));
+                        _pitchMaterial.SetFloat(SheenStrength, 0.02f);
+                        _pitchMaterial.SetFloat(SheenSpeed, 0.04f);
+                        _pitchMaterial.SetFloat(StripeStrength, _pitchStripes * 1.35f);
+                        break;
+                    case Agent_Weather.Condition.Snowy:
+                        _pitchMaterial.SetColor(ColorProp, new Color(0.95f, 1.0f, 1.05f, 1f));
+                        _pitchMaterial.SetFloat(SheenStrength, 0.11f);
+                        _pitchMaterial.SetFloat(SheenSpeed, 0.04f);
+                        _pitchMaterial.SetFloat(StripeStrength, _pitchStripes * 0.65f);
+                        break;
+                    default:
+                        _pitchMaterial.SetColor(ColorProp, Color.white);
+                        _pitchMaterial.SetFloat(SheenStrength, _pitchSheen);
+                        _pitchMaterial.SetFloat(SheenSpeed, 0.06f);
+                        _pitchMaterial.SetFloat(StripeStrength, _pitchStripes);
+                        break;
+                }
+            }
+
+            if (_ballMaterial != null)
+            {
+                _ballMaterial.SetFloat(SheenStrength, condition == Agent_Weather.Condition.Wet ? 0.15f : 0.08f);
+            }
         }
 
         static void Decay(ref float ripple, Material material, float step)
@@ -408,12 +487,13 @@ namespace PoSoccer
             var material = new Material(_shader)
             {
                 name = look.Pattern == Reward_Settings.KitPattern.None
-                    ? $"PoSoccer_Team{look.Team}"
-                    : $"PoSoccer_Team{look.Team}_{look.Pattern}",
+                    ? $"PoSoccer_Team{look.Team}{(look.Fatigued ? "_Tired" : "")}"
+                    : $"PoSoccer_Team{look.Team}_{look.Pattern}{(look.Fatigued ? "_Tired" : "")}",
             };
             material.SetColor(RimColor, Agent_SoccerView.TeamColor(look.Team));
             material.SetFloat(RimStrength, _playerRim);
             material.SetFloat(RimPower, 5f);
+            material.SetFloat(Fatigue, look.Fatigued ? 0.85f : 0f);
             if (_sphereNormal != null) material.SetTexture(NormalMap, _sphereNormal);
 
             // Alpha 0 means "no kit" whatever the pattern says, so a profile can
@@ -451,6 +531,9 @@ namespace PoSoccer
             }
 
             // Walking the hierarchy keeps Start order independent.
+            _trackedAgents.Clear();
+            _trackedRenderers.Clear();
+            _trackedFatigued.Clear();
             var agents = env.GetComponentsInChildren<Agent_Soccer>();
             for (int i = 0; i < agents.Length; i++)
             {
@@ -460,15 +543,37 @@ namespace PoSoccer
 
                 var profile = agent.rewards;
                 var look = profile != null
-                    ? new BodyLook(agent.team, profile.kitPattern, profile.kitColor, profile.kitBands)
-                    : new BodyLook(agent.team, Reward_Settings.KitPattern.None, Color.clear, 6f);
+                    ? new BodyLook(agent.team, profile.kitPattern, profile.kitColor, profile.kitBands, false)
+                    : new BodyLook(agent.team, Reward_Settings.KitPattern.None, Color.clear, 6f, false);
                 body.sharedMaterial = BodyMaterial(look, body);
+                _trackedAgents.Add(agent);
+                _trackedRenderers.Add(body);
+                _trackedFatigued.Add(false);
             }
         }
 
-        // Per-renderer MaterialPropertyBlock fatigue was removed to keep all player
-        // bodies inside the SRP Batcher across the whole match.
-        void TickFatigue() { }
+        // Swaps between two shared fatigue-tier materials per look (Rested / Spent)
+        // so player bodies stay inside the SRP Batcher without MaterialPropertyBlocks.
+        void TickFatigue()
+        {
+            if (!FatigueVisible) return;
+            for (int i = 0; i < _trackedAgents.Count; i++)
+            {
+                var agent = _trackedAgents[i];
+                var body = _trackedRenderers[i];
+                if (agent == null || body == null || agent.Stamina == null) continue;
+
+                bool fatigued = agent.Stamina.Ratio < 0.35f;
+                if (fatigued == _trackedFatigued[i]) continue;
+                _trackedFatigued[i] = fatigued;
+
+                var profile = agent.rewards;
+                var look = profile != null
+                    ? new BodyLook(agent.team, profile.kitPattern, profile.kitColor, profile.kitBands, fatigued)
+                    : new BodyLook(agent.team, Reward_Settings.KitPattern.None, Color.clear, 6f, fatigued);
+                body.sharedMaterial = BodyMaterial(look, body);
+            }
+        }
 
         /// <summary>
         /// A soft light riding the ball. Small radius and low intensity: it is

@@ -38,6 +38,9 @@ namespace PoSoccer
         /// <summary>Fired when an agent touches the ball while it is at or above <see cref="HeaderMinHeight"/>.</summary>
         public static event System.Action<Agent_Soccer, float> HeaderStruck;
 
+        /// <summary>Fired when an airborne ball bounces off the turf (worldPos, verticalImpactSpeed).</summary>
+        public static event System.Action<Vector2, float> BallBounced;
+
         /// <summary>Current ball height above the turf in metres (0 when rolling on the grass).</summary>
         public float Height => _height;
 
@@ -182,7 +185,13 @@ namespace PoSoccer
         {
             if (_env == null || _env.Ball == null || Agent_TimeFreeze.IsFrozen) return;
             _ballVelLastStep = _env.Ball.linearVelocity;
+            float prevHeight = _height;
+            float prevVel = _verticalVel;
             StepBallVertical(ref _height, ref _verticalVel, Time.fixedDeltaTime, _gravity, _restitution);
+            if (prevHeight > 0.05f && _height <= 0f && prevVel < -0.75f)
+            {
+                BallBounced?.Invoke(_env.Ball.position, -prevVel);
+            }
         }
 
         void LateUpdate()

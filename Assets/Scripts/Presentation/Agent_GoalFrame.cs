@@ -41,6 +41,7 @@ namespace PoSoccer
         Agent_Lines _netLines;
         readonly float[] _netDisp = new float[NET_NODES];
         readonly float[] _netVel = new float[NET_NODES];
+        Agent_Tween.SpringFloat _postShake;
         bool _netDirty = true;
         float _lastBallSpeed = 8f;
 
@@ -55,9 +56,10 @@ namespace PoSoccer
             var hud = FindAnyObjectByType<Agent_HUD>();
             if (!Agent_Presentation.IsHeadless && Agent_Presentation.IsVisualScene(hud))
             {
-                _netLines = new Agent_Lines($"GoalNet_{name}", _sortingOrder - 1, vertexCapacity: 256);
+                _netLines = new Agent_Lines($"GoalNet_{name}", _sortingOrder - 1, vertexCapacity: 384);
                 _netDirty = true;
                 if (_env != null) _env.EpisodeEnded += OnEpisodeEnded;
+                Agent_MatchFX.BallContact.Hit += OnBallHit;
             }
         }
 
@@ -75,7 +77,27 @@ namespace PoSoccer
         void OnDestroy()
         {
             if (_env != null) _env.EpisodeEnded -= OnEpisodeEnded;
+            Agent_MatchFX.BallContact.Hit -= OnBallHit;
             _netLines?.Dispose();
+        }
+
+        void OnBallHit(Collision2D collision)
+        {
+            if (_env == null || _env.Ball == null || collision == null || collision.collider == null) return;
+            if (!collision.collider.CompareTag("Wall")) return;
+            Vector2 pt = collision.contactCount > 0 ? collision.GetContact(0).point : (Vector2)collision.transform.position;
+            float halfW = Mathf.Max(0.5f, _shownWidth * 0.5f);
+            if (Vector2.Distance(pt, transform.position) <= halfW * 0.72f)
+            {
+                float impact = collision.relativeVelocity.magnitude;
+                if (impact > 4f)
+                {
+                    _postShake.Impulse(Mathf.Clamp(impact * 0.14f, 0.4f, 2.2f));
+                    float normX = Mathf.Clamp((pt.x - transform.position.x) / halfW, -1f, 1f);
+                    InjectNetImpact(_netVel, normX, impact * 0.35f);
+                    _netDirty = true;
+                }
+            }
         }
 
         void OnEpisodeEnded(Agent_Soccer.Team? winner)
@@ -122,9 +144,11 @@ namespace PoSoccer
                 }
 
                 bool moving = StepNetSprings(_netDisp, _netVel, Time.unscaledDeltaTime);
-                if (moving || _netDirty)
+                float shakeVal = _postShake.Step(0f, Time.unscaledDeltaTime, 38f, 0.25f);
+                bool shaking = Mathf.Abs(shakeVal) > 0.001f || Mathf.Abs(_postShake.Velocity) > 0.01f;
+                if (moving || shaking || _netDirty)
                 {
-                    DrawNet();
+                    DrawNet(shakeVal);
                     _netDirty = false;
                 }
             }
@@ -208,7 +232,7 @@ namespace PoSoccer
             }
         }
 
-        void DrawNet()
+        void DrawNet(float postRecoil = 0f)
         {
             if (_netLines == null || _shownWidth <= 0f) return;
 
@@ -218,43 +242,46 @@ namespace PoSoccer
             var wall = OutwardWall();
             float goalLineY = origin.y + (wall != null ? wall.localPosition.y - transform.localPosition.y : 0f);
 
-            Color cordColor = new Color(_color.r, _color.g, _color.b, 0.72f);
-            Color meshColor = new Color(0.92f, 0.95f, 1f, 0.28f);
+            Color cordColor = new Color(_color.r, _color.g, _color.b, 0.78f);
+            Color meshColor = new Color(0.92f, 0.95f, 1f, 0.30f);
+            Color roofColor = new Color(1f, 1f, 1f, 0.16f);
 
             _netLines.Begin();
 
             Vector2 prevBack = Vector2.zero;
             Vector2 prevFront = Vector2.zero;
+            Vector2 prevMid = Vector2.zero;
             int n = NET_NODES;
             for (int i = 0; i < n; i++)
             {
                 float t = i / (float)(n - 1);
                 float x = origin.x + Mathf.Lerp(-halfW, halfW, t);
-                // Arch slightly deeper in the middle + dynamic spring billow.
+                // Arch slightly deeper in the middle + dynamic spring billow + post recoil.
                 float arch = Mathf.Sin(t * Mathf.PI) * 0.14f;
-                float depth = (NET_DEPTH + arch + _netDisp[i]) * outward;
+                float depth = (NET_DEPTH + arch + _netDisp[i] + postRecoil * 0.06f * (1f - Mathf.Sin(t * Mathf.PI))) * outward;
 
                 Vector2 front = new Vector2(x, goalLineY);
                 Vector2 back = new Vector2(x, goalLineY + depth);
+                Vector2 mid = Vector2.Lerp(front, back, 0.52f);
 
                 // Side posts at i == 0 and i == n - 1, plus inner mesh ribs.
-                _netLines.AddSegment(front, back, i == 0 || i == n - 1 ? 0.045f : 0.018f,
+                _netLines.AddSegment(front, back, i == 0 || i == n - 1 ? 0.05f : 0.018f,
                     i == 0 || i == n - 1 ? cordColor : meshColor);
 
                 if (i > 0)
                 {
-                    // Back net cord.
-                    _netLines.AddSegment(prevBack, back, 0.038f, cordColor);
-                    // Mid-depth cross-strand and diagonal diamond mesh.
-                    Vector2 midA = Vector2.Lerp(prevFront, prevBack, 0.5f);
-                    Vector2 midB = Vector2.Lerp(front, back, 0.5f);
-                    _netLines.AddSegment(midA, midB, 0.016f, meshColor);
-                    _netLines.AddSegment(prevFront, back, 0.014f, meshColor);
-                    _netLines.AddSegment(front, prevBack, 0.014f, meshColor);
+                    // Back net cord + roof cross-strand + mid-depth diamond weave.
+                    _netLines.AddSegment(prevBack, back, 0.04f, cordColor);
+                    _netLines.AddSegment(prevMid, mid, 0.017f, meshColor);
+                    _netLines.AddSegment(prevFront, mid, 0.012f, roofColor);
+                    _netLines.AddSegment(front, prevMid, 0.012f, roofColor);
+                    _netLines.AddSegment(prevMid, back, 0.014f, meshColor);
+                    _netLines.AddSegment(mid, prevBack, 0.014f, meshColor);
                 }
 
                 prevBack = back;
                 prevFront = front;
+                prevMid = mid;
             }
 
             _netLines.Commit();

@@ -821,6 +821,7 @@ namespace PoSoccer.Tests
         public IEnumerator BroadcastReadouts_AreOneSwitch_AndGiveTheirHeightBack()
         {
             bool previous = Agent_HUD.BroadcastEnabled;
+            var telemetry = Object.FindAnyObjectByType<Agent_Telemetry>();
             try
             {
                 Agent_HUD.BroadcastEnabled = false;
@@ -829,12 +830,14 @@ namespace PoSoccer.Tests
 
                 var hud = Object.FindAnyObjectByType<Agent_HUD>();
                 var root = hud.GetComponent<UIDocument>().rootVisualElement;
+                telemetry = Object.FindAnyObjectByType<Agent_Telemetry>();
+                Assert.IsNotNull(telemetry, "No Agent_Telemetry in the match scene");
 
-                var toggle = root.Q<Button>("broadcast-toggle");
-                Assert.IsNotNull(toggle, "The HUD has no broadcast toggle");
+                Assert.IsNull(root.Q<Button>("broadcast-toggle"),
+                    "Gameplay HUD should not show a STATS button; it lives behind TAB.");
                 Assert.IsNotNull(root.Q<Button>("pause"), "The HUD has no pause button");
 
-                foreach (string name in new[] { "winprob", "winprob-label", "ticker", "broadcast-tag", "meter" })
+                foreach (string name in new[] { "winprob", "winprob-label", "ticker", "broadcast-tag", "meter", "agent-stream" })
                 {
                     Assert.AreEqual(DisplayStyle.None, root.Q<VisualElement>(name).resolvedStyle.display,
                         $"'{name}' is laid out with the broadcast switch OFF.");
@@ -855,7 +858,12 @@ namespace PoSoccer.Tests
                 Assert.IsTrue(probability.enabled,
                     "Hiding the strip disabled the estimator that Agent_Director depends on.");
 
+                telemetry.SetVisible(true);
+                yield return Frames(3);
+                var toggle = telemetry.GetComponent<UIDocument>().rootVisualElement.Q<Button>("broadcast-toggle");
+                Assert.IsNotNull(toggle, "TAB telemetry panel has no broadcast-toggle");
                 Click(toggle);
+                telemetry.SetVisible(false);
                 yield return Frames(3);
 
                 Assert.IsTrue(Agent_HUD.BroadcastEnabled, "The toggle did not persist the choice");
@@ -871,6 +879,7 @@ namespace PoSoccer.Tests
             }
             finally
             {
+                if (telemetry != null) telemetry.SetVisible(false);
                 Agent_HUD.BroadcastEnabled = previous;
                 Agent_TimeFreeze.ReleaseAll();
             }

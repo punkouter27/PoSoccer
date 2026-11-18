@@ -47,7 +47,10 @@ namespace PoSoccer
         Bloom _bloom;
         ChromaticAberration _chroma;
         ColorAdjustments _grading;
+        SplitToning _splitToning;
         float _pulse;
+        Transform _shadowRimRoot;
+        Material _shadowRimMaterial;
 
         // Floodlights are captured so a goal can recolour them; each keeps its
         // authored colour/intensity so the celebration can hand them back exactly.
@@ -142,6 +145,7 @@ namespace PoSoccer
         void OnDestroy()
         {
             if (_env != null) _env.EpisodeEnded -= OnEpisodeEnded;
+            if (_shadowRimMaterial != null) Destroy(_shadowRimMaterial);
         }
 
         /// <summary>
@@ -212,10 +216,10 @@ namespace PoSoccer
 
             // Floodlit-stadium look: cool shadows against warm key light. Cheap,
             // and it stops the pitch green from reading as flat poster paint.
-            var splitToning = profile.Add<SplitToning>();
-            splitToning.shadows.Override(new Color(0.35f, 0.45f, 0.75f));
-            splitToning.highlights.Override(new Color(1f, 0.93f, 0.72f));
-            splitToning.balance.Override(-15f);
+            _splitToning = profile.Add<SplitToning>();
+            _splitToning.shadows.Override(new Color(0.35f, 0.45f, 0.75f));
+            _splitToning.highlights.Override(new Color(1f, 0.93f, 0.72f));
+            _splitToning.balance.Override(-15f);
 
             _bloom = profile.Add<Bloom>();
             _bloom.intensity.Override(0.9f);
@@ -226,6 +230,57 @@ namespace PoSoccer
             _chroma.intensity.Override(0f);
 
             volume.profile = profile;
+            SetWeatherCondition(Agent_Weather.CurrentCondition);
+        }
+
+        /// <summary>Subtle weather-responsive color grading and split toning.</summary>
+        public void SetWeatherCondition(Agent_Weather.Condition condition)
+        {
+            if (_grading != null)
+            {
+                switch (condition)
+                {
+                    case Agent_Weather.Condition.Wet:
+                        _grading.saturation.Override(16f);
+                        _grading.contrast.Override(18f);
+                        break;
+                    case Agent_Weather.Condition.Muddy:
+                        _grading.saturation.Override(4f);
+                        _grading.contrast.Override(20f);
+                        break;
+                    case Agent_Weather.Condition.Snowy:
+                        _grading.saturation.Override(-4f);
+                        _grading.contrast.Override(16f);
+                        break;
+                    default:
+                        _grading.saturation.Override(12f);
+                        _grading.contrast.Override(14f);
+                        break;
+                }
+            }
+
+            if (_splitToning != null)
+            {
+                switch (condition)
+                {
+                    case Agent_Weather.Condition.Wet:
+                        _splitToning.shadows.Override(new Color(0.28f, 0.48f, 0.82f));
+                        _splitToning.highlights.Override(new Color(0.92f, 0.97f, 1f));
+                        break;
+                    case Agent_Weather.Condition.Muddy:
+                        _splitToning.shadows.Override(new Color(0.38f, 0.34f, 0.30f));
+                        _splitToning.highlights.Override(new Color(1f, 0.88f, 0.68f));
+                        break;
+                    case Agent_Weather.Condition.Snowy:
+                        _splitToning.shadows.Override(new Color(0.45f, 0.62f, 0.88f));
+                        _splitToning.highlights.Override(new Color(0.96f, 0.99f, 1f));
+                        break;
+                    default:
+                        _splitToning.shadows.Override(new Color(0.35f, 0.45f, 0.75f));
+                        _splitToning.highlights.Override(new Color(1f, 0.93f, 0.72f));
+                        break;
+                }
+            }
         }
 
         /// <summary>
@@ -240,6 +295,13 @@ namespace PoSoccer
 
         /// <summary>Goal-moment kick: bloom flash + chromatic aberration pulse.</summary>
         public void PulseGoal() => _pulse = 1f;
+
+        /// <summary>High-xG shot micro-pulse: brief bloom and exposure lift.</summary>
+        public void PulseChance(float xg)
+        {
+            if (xg < 0.28f) return;
+            _pulse = Mathf.Max(_pulse, Mathf.Lerp(0.18f, 0.45f, Mathf.Clamp01((xg - 0.28f) / 0.45f)));
+        }
 
         /// <summary>
         /// Full goal light show: the post pulse plus a strobe that throws the
@@ -269,8 +331,59 @@ namespace PoSoccer
             _bloom.active = enabled;
         }
 
-        /// <summary>Retained for API compatibility; 2D shadow casters stay disabled for fill-rate budget.</summary>
-        public void SetCastShadows(bool enabled) { }
+        /// <summary>
+        /// Desktop Ultra perimeter stadium shadow rim: soft unlit wall-edge shadow
+        /// strips along the pitch perimeter without heavy ShadowCaster2D passes.
+        /// </summary>
+        public void SetCastShadows(bool enabled)
+        {
+            if (!enabled)
+            {
+                if (_shadowRimRoot != null) _shadowRimRoot.gameObject.SetActive(false);
+                return;
+            }
+
+            if (_shadowRimRoot == null) BuildShadowRim();
+            if (_shadowRimRoot != null) _shadowRimRoot.gameObject.SetActive(true);
+        }
+
+        void BuildShadowRim()
+        {
+            var env = _env != null ? _env : FindAnyObjectByType<Agent_EnvController>();
+            if (env == null) return;
+
+            var shader = Shader.Find("Universal Render Pipeline/2D/Sprite-Unlit-Default")
+                ?? Shader.Find("Sprites/Default");
+            if (shader == null) return;
+
+            _shadowRimMaterial = new Material(shader) { name = "PoSoccer_StadiumShadowRim" };
+            var rootGo = new GameObject("StadiumShadowRim");
+            rootGo.transform.SetParent(env.transform, false);
+            _shadowRimRoot = rootGo.transform;
+
+            Vector2 half = env.PitchHalfExtents;
+            Sprite strip = Agent_Art.Square(1f);
+            Color shade = new(0.02f, 0.04f, 0.06f, 0.26f);
+            const float THICKNESS = 0.65f;
+
+            AddShadowStrip("Rim_N", new Vector2(0f, half.y - THICKNESS * 0.5f), new Vector2(half.x * 2f, THICKNESS), strip, shade);
+            AddShadowStrip("Rim_S", new Vector2(0f, -half.y + THICKNESS * 0.5f), new Vector2(half.x * 2f, THICKNESS), strip, shade);
+            AddShadowStrip("Rim_E", new Vector2(half.x - THICKNESS * 0.5f, 0f), new Vector2(THICKNESS, half.y * 2f), strip, shade);
+            AddShadowStrip("Rim_W", new Vector2(-half.x + THICKNESS * 0.5f, 0f), new Vector2(THICKNESS, half.y * 2f), strip, shade);
+        }
+
+        void AddShadowStrip(string label, Vector2 pos, Vector2 size, Sprite sprite, Color color)
+        {
+            var go = new GameObject(label);
+            go.transform.SetParent(_shadowRimRoot, false);
+            go.transform.localPosition = new Vector3(pos.x, pos.y, 0f);
+            go.transform.localScale = new Vector3(size.x, size.y, 1f);
+            var sr = go.AddComponent<SpriteRenderer>();
+            sr.sprite = sprite;
+            sr.sharedMaterial = _shadowRimMaterial;
+            sr.color = color;
+            sr.sortingOrder = -5;
+        }
 
         void Update()
         {

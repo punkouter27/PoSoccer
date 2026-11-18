@@ -126,7 +126,34 @@ namespace PoSoccer
                 Add(_env.Ball.transform, _env.Ball, width, "Shadow_Ball");
             }
 
+            AddGoalpostShadows();
+
             if (_casters.Count == 0) enabled = false;
+        }
+
+        void AddGoalpostShadows()
+        {
+            if (_env == null) return;
+            float halfGoal = Mathf.Max(0.5f, _env.CurrentGoalWidth * 0.5f);
+            AddStaticPostShadow(_env.blueGoal, -halfGoal, "Shadow_BluePostL");
+            AddStaticPostShadow(_env.blueGoal, halfGoal, "Shadow_BluePostR");
+            AddStaticPostShadow(_env.redGoal, -halfGoal, "Shadow_RedPostL");
+            AddStaticPostShadow(_env.redGoal, halfGoal, "Shadow_RedPostR");
+        }
+
+        void AddStaticPostShadow(Transform goal, float xOffset, string label)
+        {
+            if (goal == null) return;
+            var go = new GameObject(label);
+            go.transform.SetParent(_root, false);
+            Vector3 p = goal.position;
+            go.transform.position = new Vector3(p.x + xOffset, p.y - 0.08f, p.z);
+
+            var renderer = go.AddComponent<SpriteRenderer>();
+            renderer.sprite = Agent_Art.Blob(0.55f, 1.1f);
+            renderer.sharedMaterial = _material;
+            renderer.color = new Color(0f, 0f, 0f, _opacity * 0.72f);
+            renderer.sortingOrder = _sortingOrder;
         }
 
         void OnDestroy()
@@ -205,6 +232,15 @@ namespace PoSoccer
 
                 if (caster.Body == null) continue;
                 float speed01 = Mathf.Clamp01(caster.Body.linearVelocity.magnitude / _sprintSpeed);
+                if (!isBall)
+                {
+                    // Elliptical ground shadow aligned along the floodlight push vector.
+                    float angleDeg = Mathf.Atan2(offset.y, offset.x) * Mathf.Rad2Deg;
+                    caster.Shadow.rotation = Quaternion.Euler(0f, 0f, angleDeg);
+                    float radialStretch = 1f + Mathf.Clamp01(fromCentre.magnitude) * 0.22f + speed01 * 0.08f;
+                    caster.Shadow.localScale = new Vector3(radialStretch, 0.88f, 1f);
+                }
+
                 float alpha = _opacity * Mathf.Lerp(1f, _motionFade, speed01);
                 if (isBall && height > 0.01f)
                 {

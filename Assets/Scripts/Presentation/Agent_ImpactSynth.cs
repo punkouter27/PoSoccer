@@ -48,13 +48,17 @@ namespace PoSoccer
     public sealed class Agent_ImpactSynth : MonoBehaviour
     {
         /// <summary>The material pair that made contact. Index into the mode tables.</summary>
-        public enum Surface { Leather = 0, Boards = 1, Post = 2, Body = 3, Net = 4 }
+        public enum Surface { Leather = 0, Boards = 1, Post = 2, Body = 3, Net = 4, Turf = 5 }
 
-        const int MATERIAL_COUNT = 5;
+        const int MATERIAL_COUNT = 6;
         const int MODES = 4;
         const int VOICES = 8;
         const int QUEUE = 16;               // power of two
         const int QUEUE_MASK = QUEUE - 1;
+        const int ITD_BUF = 64;             // power of two (> 0.65 ms @ 48 kHz)
+        const int ITD_MASK = ITD_BUF - 1;
+        const int REFL_BUF = 4096;          // power of two (~85 ms @ 48 kHz)
+        const int REFL_MASK = REFL_BUF - 1;
 
         // -- Material table -----------------------------------------------------
         // Per material, MODES entries of (frequency Hz, T60 seconds, amplitude).
@@ -67,6 +71,7 @@ namespace PoSoccer
             520f, 1420f, 2680f, 4150f,      // Post (inharmonic ratios, like a tube)
             70f, 130f, 260f, 900f,          // Body
             230f, 480f, 1900f, 3600f,       // Net
+            62f, 115f, 220f, 520f,          // Turf (damped grass thump)
         };
 
         static readonly float[] ModeT60 =
@@ -76,6 +81,7 @@ namespace PoSoccer
             1.10f, 0.80f, 0.55f, 0.35f,
             0.08f, 0.06f, 0.04f, 0.015f,
             0.15f, 0.10f, 0.05f, 0.03f,
+            0.07f, 0.05f, 0.03f, 0.015f,
         };
 
         static readonly float[] ModeAmp =
@@ -85,20 +91,21 @@ namespace PoSoccer
             0.6f, 0.45f, 0.3f, 0.2f,
             1.0f, 0.5f, 0.2f, 0.08f,
             0.2f, 0.15f, 0.08f, 0.05f,
+            1.0f, 0.55f, 0.22f, 0.08f,
         };
 
         /// <summary>Contact duration in ms at a medium hit; harder hits shorten it.</summary>
-        static readonly float[] ContactMs = { 6f, 3f, 0.7f, 12f, 25f };
+        static readonly float[] ContactMs = { 6f, 3f, 0.7f, 12f, 25f, 14f };
 
         /// <summary>Noise burst level and length (ms) - the slap, knock or rustle.</summary>
-        static readonly float[] NoiseLevel = { 0.25f, 0.3f, 0.15f, 0.35f, 1.0f };
-        static readonly float[] NoiseMs = { 10f, 8f, 4f, 18f, 180f };
+        static readonly float[] NoiseLevel = { 0.25f, 0.3f, 0.15f, 0.35f, 1.0f, 0.35f };
+        static readonly float[] NoiseMs = { 10f, 8f, 4f, 18f, 180f, 16f };
 
         /// <summary>One-pole low-pass on the noise, Hz: what band the slap sits in.</summary>
-        static readonly float[] NoiseCutoff = { 2500f, 3500f, 6000f, 1200f, 4500f };
+        static readonly float[] NoiseCutoff = { 2500f, 3500f, 6000f, 1200f, 4500f, 1100f };
 
         /// <summary>Output trim per material so the matrix sits level in the mix.</summary>
-        static readonly float[] MaterialGain = { 0.55f, 0.45f, 0.30f, 0.50f, 0.35f };
+        static readonly float[] MaterialGain = { 0.55f, 0.45f, 0.30f, 0.50f, 0.35f, 0.42f };
 
         struct StrikeEvent
         {
@@ -107,6 +114,7 @@ namespace PoSoccer
             public float Hardness;       // 0 soft .. 1 hard
             public float PitchScale;
             public float GainL, GainR;
+            public int DelayL, DelayR;
             public float LowpassAlpha;   // one-pole coefficient for air absorption
             public float Detune;
         }
@@ -136,6 +144,15 @@ namespace PoSoccer
         readonly float[] _noiseState = new float[VOICES];
         readonly float[] _gainL = new float[VOICES];
         readonly float[] _gainR = new float[VOICES];
+        readonly int[] _itdDelayL = new int[VOICES];
+        readonly int[] _itdDelayR = new int[VOICES];
+        readonly int[] _itdWrite = new int[VOICES];
+        readonly float[] _itdRing = new float[VOICES * ITD_BUF];
+        readonly float[] _reflL = new float[REFL_BUF];
+        readonly float[] _reflR = new float[REFL_BUF];
+        int _reflWrite;
+        float _reflLpL, _reflLpR;
+        int _tap1, _tap2, _tap3, _tap4;
         readonly float[] _airAlpha = new float[VOICES];
         readonly float[] _airState = new float[VOICES];
         readonly float[] _energy = new float[VOICES];
@@ -153,6 +170,10 @@ namespace PoSoccer
         void Awake()
         {
             _sampleRate = AudioSettings.outputSampleRate > 0 ? AudioSettings.outputSampleRate : 48000;
+            _tap1 = Mathf.Clamp(Mathf.RoundToInt(0.011f * _sampleRate), 1, REFL_BUF - 2);
+            _tap2 = Mathf.Clamp(Mathf.RoundToInt(0.017f * _sampleRate), 1, REFL_BUF - 2);
+            _tap3 = Mathf.Clamp(Mathf.RoundToInt(0.024f * _sampleRate), 1, REFL_BUF - 2);
+            _tap4 = Mathf.Clamp(Mathf.RoundToInt(0.033f * _sampleRate), 1, REFL_BUF - 2);
 
             // A silent looping carrier keeps the source "playing", which is what
             // keeps OnAudioFilterRead being called. A null clip is not guaranteed
@@ -187,8 +208,12 @@ namespace PoSoccer
             int next = (_head + 1) & QUEUE_MASK;
             if (next == Volatile.Read(ref _tail)) return;
 
-            // Equal-power pan law.
-            float angle = (Mathf.Clamp(pan, -1f, 1f) + 1f) * 0.25f * Mathf.PI;
+            // Equal-power pan law + binaural ITD micro-delay (up to ~0.65 ms).
+            float clampedPan = Mathf.Clamp(pan, -1f, 1f);
+            float angle = (clampedPan + 1f) * 0.25f * Mathf.PI;
+            int maxItd = Mathf.Min(ITD_BUF - 2, Mathf.RoundToInt(0.00065f * _sampleRate));
+            int delayL = clampedPan > 0f ? Mathf.RoundToInt(clampedPan * maxItd) : 0;
+            int delayR = clampedPan < 0f ? Mathf.RoundToInt(-clampedPan * maxItd) : 0;
             float distanceGain = Mathf.Lerp(1f, _farLevel, Mathf.Clamp01(distance01));
             float cutoff = Mathf.Lerp(20000f, Mathf.Max(200f, _farCutoff), Mathf.Clamp01(distance01));
 
@@ -203,6 +228,8 @@ namespace PoSoccer
                 PitchScale = Mathf.Max(0.25f, pitchScale),
                 GainL = Mathf.Cos(angle),
                 GainR = Mathf.Sin(angle),
+                DelayL = delayL,
+                DelayR = delayR,
                 LowpassAlpha = OnePole(cutoff, _sampleRate),
                 Detune = detune,
             };
@@ -231,12 +258,33 @@ namespace PoSoccer
                 {
                     if (!_active[voice]) continue;
                     float sample = RenderVoice(voice);
-                    left += sample * _gainL[voice];
-                    right += sample * _gainR[voice];
+                    int w = _itdWrite[voice];
+                    int ringBase = voice * ITD_BUF;
+                    _itdRing[ringBase + w] = sample;
+                    float sL = _itdRing[ringBase + ((w - _itdDelayL[voice]) & ITD_MASK)];
+                    float sR = _itdRing[ringBase + ((w - _itdDelayR[voice]) & ITD_MASK)];
+                    _itdWrite[voice] = (w + 1) & ITD_MASK;
+                    left += sL * _gainL[voice];
+                    right += sR * _gainR[voice];
                 }
 
-                left *= gain;
-                right *= gain;
+                // 4 early-reflection stadium wall taps with warm 1-pole damping.
+                _reflL[_reflWrite] = left;
+                _reflR[_reflWrite] = right;
+                float earlyL = _reflL[(_reflWrite - _tap1) & REFL_MASK] * 0.13f
+                             + _reflR[(_reflWrite - _tap2) & REFL_MASK] * 0.09f
+                             + _reflL[(_reflWrite - _tap3) & REFL_MASK] * 0.06f
+                             + _reflR[(_reflWrite - _tap4) & REFL_MASK] * 0.04f;
+                float earlyR = _reflR[(_reflWrite - _tap1) & REFL_MASK] * 0.13f
+                             + _reflL[(_reflWrite - _tap2) & REFL_MASK] * 0.09f
+                             + _reflR[(_reflWrite - _tap3) & REFL_MASK] * 0.06f
+                             + _reflL[(_reflWrite - _tap4) & REFL_MASK] * 0.04f;
+                _reflWrite = (_reflWrite + 1) & REFL_MASK;
+                _reflLpL += 0.25f * (earlyL - _reflLpL);
+                _reflLpR += 0.25f * (earlyR - _reflLpR);
+
+                left = (left + _reflLpL) * gain;
+                right = (right + _reflLpR) * gain;
                 // Soft clip: a scrum of eight contacts must saturate, not wrap.
                 left = left / (1f + Mathf.Abs(left));
                 right = right / (1f + Mathf.Abs(right));
@@ -311,6 +359,11 @@ namespace PoSoccer
 
             _gainL[voice] = strike.GainL;
             _gainR[voice] = strike.GainR;
+            _itdDelayL[voice] = strike.DelayL;
+            _itdDelayR[voice] = strike.DelayR;
+            _itdWrite[voice] = 0;
+            int itdBase = voice * ITD_BUF;
+            for (int k = 0; k < ITD_BUF; k++) _itdRing[itdBase + k] = 0f;
             _airAlpha[voice] = strike.LowpassAlpha;
             _airState[voice] = 0f;
             _energy[voice] = amplitude;

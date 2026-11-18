@@ -241,6 +241,18 @@ namespace PoSoccer
                 _env.Ball.linearDamping = _baseBallDamping * BallDampingMultiplier(_currentCondition);
             }
 
+            if (_env != null)
+            {
+                var surfaces = _env.GetComponent<Agent_Surfaces>();
+                if (surfaces != null) surfaces.ApplyWeather(_currentCondition);
+                var audio = _env.GetComponent<Agent_Audio>();
+                if (audio != null) audio.RefreshWeatherAudio(_currentCondition);
+            }
+            if (Agent_Stadium.Instance != null)
+            {
+                Agent_Stadium.Instance.SetWeatherCondition(_currentCondition);
+            }
+
             if (_precipParticles == null) return;
 
             if (_currentCondition == Condition.Dry || _currentCondition == Condition.Muddy)

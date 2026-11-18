@@ -176,10 +176,8 @@ namespace PoSoccer
                 if (ReferenceEquals(evt.target, _scrim)) Close();
             });
             // The scrim is absolute on the panel root, so it carries its own
-            // safe-area inset - and reserves Agent_Chrome's bottom bar, because
-            // the chrome draws ABOVE this panel and its DEBUG button would
-            // otherwise sit on top of the sheet's tab strip.
-            Agent_UIStyle.BindSafeArea(_scrim, 0f, Agent_Chrome.BAR_HEIGHT);
+            // safe-area inset - and reserves Agent_Chrome's bottom build stamp.
+            Agent_UIStyle.BindSafeArea(_scrim, 0f, Agent_Chrome.BOTTOM_BAR_HEIGHT);
 
             var sheet = new VisualElement { name = "settings-panel" };
             sheet.AddToClassList("sheet");
@@ -192,6 +190,7 @@ namespace PoSoccer
             head.Add(title);
             var close = new Button(Close) { text = "CLOSE", name = "settings-close" };
             close.AddToClassList("btn");
+            Agent_UIStyle.WireTapFeedback(close, 0.92f);
             head.Add(close);
             sheet.Add(head);
 
@@ -213,6 +212,7 @@ namespace PoSoccer
                 };
                 tab.AddToClassList("btn");
                 tab.AddToClassList("tab");
+                Agent_UIStyle.WireTapFeedback(tab, 1.04f + tabIndex * 0.04f);
                 Tabs[tabIndex] = tab;
                 tabs.Add(tab);
             }

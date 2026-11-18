@@ -253,7 +253,7 @@ namespace PoSoccer
             get
             {
                 if (_cam == null || _env == null) return 10f;
-                return PitchWideOrthoSize(_env.PitchHalfExtents + Vector2.one * _edgeMargin);
+                return PitchWideOrthoSize(_env.PitchHalfExtents + new Vector2(_edgeMargin, _edgeMargin + DEFAULT_GOAL_CLEARANCE));
             }
         }
 
@@ -385,6 +385,9 @@ namespace PoSoccer
         /// <summary>The shipped value of <c>_edgeMargin</c>, in world units.</summary>
         public const float DEFAULT_EDGE_MARGIN = 0.5f;
 
+        /// <summary>Extra vertical clearance so the 2.5D goal nets sit inside the HUD clear band.</summary>
+        public const float DEFAULT_GOAL_CLEARANCE = 0.85f;
+
         /// <summary>
         /// The wide establishing shot as pure arithmetic, so it can be swept
         /// across aspect ratios and squad sizes without a camera, a pitch or a
@@ -423,7 +426,7 @@ namespace PoSoccer
 
             if (_wide && Time.time >= _wideUntilTime) _wide = false;
 
-            Vector2 pitchHalf = _env.PitchHalfExtents + Vector2.one * _edgeMargin;
+            Vector2 pitchHalf = _env.PitchHalfExtents + new Vector2(_edgeMargin, _edgeMargin + DEFAULT_GOAL_CLEARANCE);
             float wideOrtho = PitchWideOrthoSize(pitchHalf);
             float tightestOrtho = wideOrtho * _tightestFraction;
 

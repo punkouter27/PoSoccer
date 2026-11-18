@@ -31,8 +31,14 @@
     <VisualElement name="safe" class="screen">
 
         <VisualElement name="top-band" class="band">
-            <Label name="score" class="score" text="0  —  0" />
-            <Label name="clock" class="clock" />
+            <VisualElement name="score-pill" class="scoreboard">
+                <VisualElement class="scoreboard__accent scoreboard__accent--blue" />
+                <VisualElement class="scoreboard__center">
+                    <Label name="score" class="score" text="0  —  0" />
+                    <Label name="clock" class="clock" />
+                </VisualElement>
+                <VisualElement class="scoreboard__accent scoreboard__accent--red" />
+            </VisualElement>
 
             <!-- Win-probability strip. One bar, blue growing from the left.
                  The caption says MODEL because it IS a model: a hand-tuned
@@ -77,9 +83,18 @@
                 <VisualElement name="chips-red" class="row" />
             </VisualElement>
 
-            <!-- Populated by C# only when enableMatchFlow: the training scene has
-                 no match to pause. -->
-            <VisualElement name="controls" class="row hud__controls" />
+            <!-- Bottom thumb dock: Pause centered in spectator mode; flanked by
+                 the 1P virtual thumbstick (left) and BOOST/KICK (right) in 1P mode. -->
+            <VisualElement name="bottom-dock" class="row hud__dock">
+                <VisualElement name="thumbstick-pad" class="thumbstick">
+                    <VisualElement name="thumbstick-ring" class="thumbstick__ring" picking-mode="Ignore" />
+                    <VisualElement name="thumbstick-knob" class="thumbstick__knob" picking-mode="Ignore" />
+                </VisualElement>
+                <!-- Populated by C# only when enableMatchFlow: the training scene has
+                     no match to pause. -->
+                <VisualElement name="controls" class="row hud__controls" />
+                <VisualElement name="human-actions" class="row hud__human-actions" />
+            </VisualElement>
 
         </VisualElement>
     </VisualElement>

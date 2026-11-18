@@ -34,8 +34,18 @@ namespace PoSoccer
         float _nextKickTime;
         float _lastKickTime = -10f;
         bool _kickQueued;
+        bool _touchKickPending;
         Transform _ringTransform;
         SpriteRenderer _ringRenderer;
+
+        /// <summary>Virtual on-screen thumbstick movement vector (world XY).</summary>
+        public Vector2 TouchMoveInput { get; set; }
+
+        /// <summary>Virtual on-screen sprint/boost hold state.</summary>
+        public bool TouchBoost { get; set; }
+
+        /// <summary>Queues a kick/lunge from the on-screen KICK button.</summary>
+        public void TriggerTouchKick() => _touchKickPending = true;
 
         /// <summary>Optional test override for screen-space movement input.</summary>
         public Vector2? InjectedMoveInput { get; set; }
@@ -420,12 +430,18 @@ namespace PoSoccer
                 if (stick.sqrMagnitude > v.sqrMagnitude) v = stick;
             }
 
+            if (TouchMoveInput.sqrMagnitude > v.sqrMagnitude)
+            {
+                v = TouchMoveInput;
+            }
+
             return Vector2.ClampMagnitude(v, 1f);
         }
 
         bool ReadBoostHeld()
         {
             if (InjectedBoost.HasValue) return InjectedBoost.Value;
+            if (TouchBoost) return true;
 
             Keyboard kb = Keyboard.current;
             if (kb != null && (kb.leftShiftKey.isPressed || kb.rightShiftKey.isPressed || kb.kKey.isPressed))
@@ -442,6 +458,12 @@ namespace PoSoccer
             if (InjectedKickPressed)
             {
                 InjectedKickPressed = false;
+                return true;
+            }
+
+            if (_touchKickPending)
+            {
+                _touchKickPending = false;
                 return true;
             }
 

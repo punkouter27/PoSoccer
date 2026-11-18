@@ -341,6 +341,9 @@ namespace PoSoccer
         // -- Foot skid --------------------------------------------------------
         AudioSource _skid;
         AudioClip _synthSkid;
+        readonly AudioClip[] _weatherSkids = new AudioClip[4];
+        Agent_Weather.Condition _weatherCondition = Agent_Weather.Condition.Dry;
+        Agent_BallHeight _ballHeight;
         float _skidLevel;
 
         // -- Public reactions ------------------------------------------------
@@ -437,8 +440,10 @@ namespace PoSoccer
             }
 
             _env = GetComponent<Agent_EnvController>();
+            _ballHeight = GetComponent<Agent_BallHeight>();
             _env.EpisodeEnded += OnEpisodeEnded;
             Agent_MatchFX.BallContact.Hit += OnBallHit;
+            Agent_BallHeight.BallBounced += OnBallBounced;
 
             LoadMissingClips();
             _players = GetComponentsInChildren<Agent_Soccer>();
@@ -513,6 +518,7 @@ namespace PoSoccer
         {
             if (_env != null) _env.EpisodeEnded -= OnEpisodeEnded;
             Agent_MatchFX.BallContact.Hit -= OnBallHit;
+            Agent_BallHeight.BallBounced -= OnBallBounced;
 
             if (_contacts != null)
             {
@@ -522,6 +528,10 @@ namespace PoSoccer
 
             // Created with AudioClip.Create, so nothing else owns it.
             if (_synthSkid != null) Destroy(_synthSkid);
+            for (int i = 0; i < _weatherSkids.Length; i++)
+            {
+                if (_weatherSkids[i] != null) Destroy(_weatherSkids[i]);
+            }
         }
 
         // -- Contact banks and the skid voice ---------------------------------
@@ -597,9 +607,11 @@ namespace PoSoccer
         /// </summary>
         void BuildSkid()
         {
+            _weatherCondition = Agent_Weather.CurrentCondition;
             if (skid == null)
             {
-                _synthSkid = SynthesiseSkid();
+                _synthSkid = SynthesiseSkid(_weatherCondition);
+                _weatherSkids[(int)_weatherCondition] = _synthSkid;
                 skid = _synthSkid;
             }
             if (skid == null) return;
@@ -613,23 +625,24 @@ namespace PoSoccer
             _skid.Play();
         }
 
-        /// <summary>
-        /// A short band-limited noise loop, rendered ONCE into an AudioClip.
-        ///
-        /// Follows Editor_GenerateAudio's conventions, because that is where every
-        /// other synthesised layer in the project comes from: a deterministic LCG
-        /// rather than UnityEngine.Random (so the clip is identical every run and
-        /// a recording of the game is reproducible), one-pole filters, and an
-        /// equal-power crossfade of the tail over the head - noise cannot be
-        /// loop-locked the way a sine can. It is done at runtime instead of in
-        /// that editor tool only because adding a binary asset was out of scope;
-        /// the moment a `skid.wav` exists in Resources/Audio this never runs.
-        ///
-        /// The band (roughly 700 Hz - 3.2 kHz) is studs tearing turf: above the
-        /// ball's rolling rumble, below the hiss a phone speaker turns to static.
-        /// 22.05 kHz is enough for that band and halves the one-off cost.
-        /// </summary>
-        static AudioClip SynthesiseSkid()
+        /// <summary>Updates procedural skid & roll acoustic profile when weather changes.</summary>
+        public void RefreshWeatherAudio(Agent_Weather.Condition condition)
+        {
+            _weatherCondition = condition;
+            if (_skid == null || (_synthSkid == null && skid != null && _weatherSkids[(int)condition] == null)) return;
+            int idx = (int)condition;
+            if (_weatherSkids[idx] == null)
+            {
+                _weatherSkids[idx] = SynthesiseSkid(condition);
+            }
+            if (_weatherSkids[idx] != null && _skid.clip != _weatherSkids[idx])
+            {
+                _skid.clip = _weatherSkids[idx];
+                if (!_skid.isPlaying) _skid.Play();
+            }
+        }
+
+        static AudioClip SynthesiseSkid(Agent_Weather.Condition condition = Agent_Weather.Condition.Dry)
         {
             const int RATE = 22050;
             const float SECONDS = 1.6f;
@@ -642,10 +655,18 @@ namespace PoSoccer
 
             var raw = new float[length];
 
+            float highHz = 700f, lowHz = 3200f;
+            switch (condition)
+            {
+                case Agent_Weather.Condition.Wet: highHz = 1200f; lowHz = 5200f; break;
+                case Agent_Weather.Condition.Muddy: highHz = 280f; lowHz = 1100f; break;
+                case Agent_Weather.Condition.Snowy: highHz = 1500f; lowHz = 4800f; break;
+            }
+
             float dt = 1f / RATE;
-            float highRc = 1f / (2f * Mathf.PI * 700f);
+            float highRc = 1f / (2f * Mathf.PI * highHz);
             float highAlpha = highRc / (highRc + dt);
-            float lowRc = 1f / (2f * Mathf.PI * 3200f);
+            float lowRc = 1f / (2f * Mathf.PI * lowHz);
             float lowAlpha = dt / (lowRc + dt);
 
             ulong state = 0x5C1D5C1DUL;
@@ -1187,6 +1208,18 @@ namespace PoSoccer
             return false;
         }
 
+        void OnBallBounced(Vector2 worldPos, float impactSpeed)
+        {
+            if (Muted || _synth == null || !_synth.isActiveAndEnabled) return;
+            if (_env != null && _env.Ball != null && Vector2.Distance(worldPos, _env.Ball.position) > 1.2f) return;
+
+            float strength = Mathf.Clamp01(impactSpeed / 7f);
+            float level = Agent_ImpactScale.Loudness(strength) * 0.65f;
+            if (level < 0.08f) return;
+            _synth.Strike(Agent_ImpactSynth.Surface.Turf, strength, level,
+                PanFor(worldPos), Distance01(worldPos), Mathf.Lerp(0.9f, 1.15f, strength));
+        }
+
         void OnEpisodeEnded(Agent_Soccer.Team? winner)
         {
             if (winner != null)
@@ -1344,8 +1377,16 @@ namespace PoSoccer
 
             // A boo is the crowd bed dropped a fourth; it resolves back to unity
             // pitch so a stalled passage does not leave the stadium detuned.
-            float wantPitch = _booTime > 0f ? 0.78f : 1f;
+            float wantPitch = _booTime > 0f ? 0.78f : 1f + pressure * 0.03f;
             _crowd.pitch = Mathf.MoveTowards(_crowd.pitch, wantPitch, dt * 1.5f);
+
+            // Subtle directional stereo pull toward the ball's lateral side of the bowl.
+            if (_env != null && _env.Ball != null)
+            {
+                float pan = PanFor(_env.Ball.position) * 0.35f;
+                _crowd.panStereo = Mathf.MoveTowards(_crowd.panStereo, pan, dt * 0.9f);
+                if (_swell != null) _swell.panStereo = _crowd.panStereo;
+            }
         }
 
         /// <summary>
@@ -1360,14 +1401,30 @@ namespace PoSoccer
 
             _roll.transform.position = _env.Ball.transform.position;
 
-            float speed01 = Mathf.Clamp01(
-                _env.Ball.linearVelocity.magnitude / Mathf.Max(0.1f, _rollFullSpeed));
-            float target = Muted ? 0f : speed01 * _rollVolume * SfxBus;
-            _roll.volume = Mathf.MoveTowards(_roll.volume, target, dt * 2.5f);
+            if (_ballHeight == null) _ballHeight = GetComponent<Agent_BallHeight>();
+            float height = _ballHeight != null ? _ballHeight.Height : 0f;
+            float groundFactor = 1f - Mathf.Clamp01(height / 0.14f);
+
+            Vector2 vel = _env.Ball.linearVelocity;
+            float speed01 = Mathf.Clamp01(vel.magnitude / Mathf.Max(0.1f, _rollFullSpeed));
+            float target = Muted ? 0f : speed01 * _rollVolume * SfxBus * groundFactor;
+            _roll.volume = Mathf.MoveTowards(_roll.volume, target, dt * 3.5f);
+
+            // Subtle Doppler pitch shift along listener line-of-sight.
+            if (_listener != null)
+            {
+                Vector2 toListener = (Vector2)_listener.position - _env.Ball.position;
+                float dist = toListener.magnitude;
+                float approach = dist > 0.05f ? Vector2.Dot(vel, toListener / dist) : 0f;
+                float doppler = 1f + Mathf.Clamp(approach * 0.008f, -0.06f, 0.06f);
+                _roll.pitch = Mathf.MoveTowards(_roll.pitch, doppler, dt * 2.5f);
+            }
 
             if (_rollFilter != null)
             {
-                float cutoff = Mathf.Lerp(220f, 2400f, speed01);
+                float weatherMax = _weatherCondition == Agent_Weather.Condition.Wet ? 3400f
+                    : _weatherCondition == Agent_Weather.Condition.Muddy ? 1400f : 2400f;
+                float cutoff = Mathf.Lerp(220f, weatherMax, speed01 * groundFactor);
                 _rollFilter.cutoffFrequency =
                     Mathf.MoveTowards(_rollFilter.cutoffFrequency, cutoff, 6000f * dt);
             }

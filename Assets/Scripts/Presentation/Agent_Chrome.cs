@@ -5,33 +5,17 @@ using UnityEngine.UIElements;
 namespace PoSoccer
 {
     /// <summary>
-    /// Persistent screen chrome: the four corners, identical in the menu and in
-    /// a match. Nothing here occupies the centre of the screen - that belongs to
-    /// Agent_HUD in a match and to the menu's own title in SCN_Menu, and a
-    /// sortingOrder-90 overlay that strays into it wins over both.
+    /// Persistent screen chrome: clean corner telemetry, identical in the menu
+    /// and in a match. Nothing here occupies the centre of the screen - that
+    /// belongs to Agent_HUD in a match and to the menu layout in SCN_Menu.
     ///
     ///   upper-left    product name, and under it the screen's name
-    ///   upper-centre  FPS / step readout - ONLY while the health panel is open
+    ///   upper-centre  FPS / step readout - ONLY while the TAB panel is open
     ///   upper-right   SETTINGS (the settings sheet), MENU (hidden at the menu)
-    ///   lower-left    DEBUG (toggles Agent_Telemetry)
     ///   lower-right   version and YYMMDD build stamp
     ///
-    /// The grid was fixed on 2026-11-07. The default screen carries no
-    /// diagnostics: the FPS readout used to be on whenever the counter preference
-    /// was (default ON), so every match opened with a number in the middle of the
-    /// top bar that only a developer reads. It now rides with the health panel,
-    /// which is where every other diagnostic already lives.
-    ///
-    /// DEBUG exists because Agent_Telemetry - a complete frame/GC/draw-call
-    /// overlay - was only reachable by F3 or an undocumented three-finger tap.
-    /// On a phone that is not a shortcut, it is a hidden feature: there is no
-    /// keyboard and nothing on screen suggests the gesture. The button makes an
-    /// already-built diagnostic surface actually usable on the target device.
-    ///
-    /// Everything is absolutely positioned inside a safe-area container, so the
-    /// corners sit inside the notch/cutout rather than under it. Containers are
-    /// PickingMode.Ignore so only the two buttons take input - a full-screen
-    /// overlay that picks would swallow every tap meant for the pitch.
+    /// All debug and stat overlays live behind the TAB key (Agent_Telemetry),
+    /// keeping both the menu and the gameplay screen uncluttered.
     /// </summary>
     [DefaultExecutionOrder(90)]
     [DisallowMultipleComponent]
@@ -54,7 +38,7 @@ namespace PoSoccer
         // above the ~7 mm ergonomic minimum and comfortably above Android's 48dp
         // guidance. Do not shrink these to make the layout prettier.
         const int BUTTON_HEIGHT = 120;
-        const int BUTTON_MIN_WIDTH = 200;
+        const int BUTTON_MIN_WIDTH = 168;
 
         /// <summary>
         /// Total height one corner bar occupies: the row plus the gutter above
@@ -70,6 +54,12 @@ namespace PoSoccer
         /// layout rather than a collision.
         /// </summary>
         public const int BAR_HEIGHT = Agent_UIStyle.Pad + BUTTON_HEIGHT + Agent_UIStyle.Pad;
+
+        /// <summary>
+        /// Height reserved at the bottom edge for the unobtrusive build stamp
+        /// (no DEBUG button sits on the gameplay or menu corners).
+        /// </summary>
+        public const int BOTTOM_BAR_HEIGHT = Agent_UIStyle.Space4 + 44 + Agent_UIStyle.Space4;
 
         const string FPS_KEY = "posoccer_show_fps";
         static int _fpsPreference = -1;
@@ -271,6 +261,7 @@ namespace PoSoccer
             _menuButton = ChromeButton("MENU", ReturnToMenu);
             _menuButton.name = "chrome-menu";
             _menuButton.style.marginRight = Agent_UIStyle.Space2;
+            Agent_UIStyle.WireTapFeedback(_menuButton, 0.94f);
             // Already at the menu: keep the slot so the row keeps its shape, but
             // nothing to navigate to.
             _menuButton.style.visibility = inMenu ? Visibility.Hidden : Visibility.Visible;
@@ -278,6 +269,7 @@ namespace PoSoccer
 
             var settingsButton = ChromeButton("SETTINGS", OpenSettings);
             settingsButton.name = "open-settings";
+            Agent_UIStyle.WireTapFeedback(settingsButton, 1.02f);
             top.Add(settingsButton);
 
             // -- top centre: the FPS readout ---------------------------------
@@ -302,7 +294,7 @@ namespace PoSoccer
             // this component already owns and nothing else draws into. A fixed
             // slot in a row that is itself laid out correctly needs no
             // measurement, and there is no longer a number here to be wrong.
-            _fpsLabel = CornerLabel(string.Empty, Agent_UIStyle.TextMuted, Agent_UIStyle.FontS);
+            _fpsLabel = CornerLabel(string.Empty, Agent_UIStyle.TextMuted, 26);
             _fpsLabel.name = "chrome-fps";
             _fpsLabel.style.position = Position.Absolute;
             _fpsLabel.style.left = 0;
@@ -321,14 +313,12 @@ namespace PoSoccer
             top.Insert(0, _fpsLabel);
 
             // -- bottom row --------------------------------------------------
-            // Space-between puts this against the bottom of the content box; it
-            // needs no offsets of its own.
+            // Subtle build stamp in the lower-right corner; no debug button
+            // clutters the screen (TAB / F3 / 3-finger tap opens Agent_Telemetry).
             var bottom = Row();
+            bottom.style.marginTop = Agent_UIStyle.Space3;
+            bottom.style.marginBottom = Agent_UIStyle.Space3;
             safe.Add(bottom);
-
-            var debugButton = ChromeButton("DEBUG", ToggleTelemetry);
-            debugButton.name = "chrome-debug";
-            bottom.Add(debugButton);
 
             var spacer = new VisualElement { style = { flexGrow = 1 } };
             spacer.pickingMode = PickingMode.Ignore;
@@ -346,7 +336,7 @@ namespace PoSoccer
             version.name = "chrome-version";
             version.style.unityTextAlign = TextAnchor.MiddleRight;
             version.style.unityFontStyleAndWeight = FontStyle.Normal;
-            version.style.opacity = 0.7f;
+            version.style.opacity = 0.65f;
             bottom.Add(version);
         }
 
@@ -398,7 +388,9 @@ namespace PoSoccer
             button.AddToClassList("btn");
             button.style.height = BUTTON_HEIGHT;
             button.style.minWidth = BUTTON_MIN_WIDTH;
-            button.style.fontSize = Agent_UIStyle.FontM;
+            button.style.paddingLeft = Agent_UIStyle.Pad;
+            button.style.paddingRight = Agent_UIStyle.Pad;
+            button.style.fontSize = Agent_UIStyle.FontS;
             button.style.flexGrow = 0;
             return button;
         }
@@ -452,17 +444,6 @@ namespace PoSoccer
             return _telemetry.IsVisible;
         }
 
-        void ToggleTelemetry()
-        {
-            if (_telemetry == null) _telemetry = FindAnyObjectByType<Agent_Telemetry>();
-            if (_telemetry == null)
-            {
-                Debug.LogWarning("Agent_Chrome: no Agent_Telemetry in this scene; DEBUG has nothing to show.");
-                return;
-            }
-            _telemetry.SetVisible(!_telemetry.IsVisible);
-        }
-
         void Update()
         {
             if (!_showFps || _fpsLabel == null) return;
@@ -513,7 +494,7 @@ namespace PoSoccer
             _shownFps = fps;
             _readout.Clear();
             _readout.Append(FpsText[Mathf.Clamp(fps, 0, FPS_CACHE_MAX)]);
-            _readout.Append("  ·  step ");
+            _readout.Append(" · #");
             _readout.Append(_env.StepCount);
             _fpsLabel.text = _readout.ToString();
         }

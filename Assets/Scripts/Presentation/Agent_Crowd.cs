@@ -34,6 +34,11 @@ namespace PoSoccer
         bool _shotOpen, _shotScored;
         Agent_Soccer.Team _shotTeam;
         float _shotXg;
+        SpriteRenderer _blueStands, _redStands;
+        Color _blueStandsBase, _redStandsBase;
+        float _standPulse;
+        Mesh _bowlMesh;
+        Material _bowlMaterial;
 
         void Start()
         {
@@ -60,6 +65,8 @@ namespace PoSoccer
         void OnDestroy()
         {
             if (_env != null) _env.EpisodeEnded -= OnEpisodeEnded;
+            if (_bowlMesh != null) Destroy(_bowlMesh);
+            if (_bowlMaterial != null) Destroy(_bowlMaterial);
         }
 
         void Build()
@@ -78,11 +85,77 @@ namespace PoSoccer
             Material boardMaterial = surfaces != null && surfaces.BoardMaterial != null ? surfaces.BoardMaterial : lit;
             Sprite quad = Agent_Art.Square(1f);
 
-            BuildRing(root, "Stands", standsInner, standsOuter, -18, new Color(0.11f, 0.14f, 0.17f), lit, quad);
+            _blueStandsBase = Color.Lerp(new Color(0.11f, 0.14f, 0.17f), Agent_Palette.Blue, 0.24f);
+            _redStandsBase = Color.Lerp(new Color(0.11f, 0.14f, 0.17f), Agent_Palette.Red, 0.24f);
+
+            var stands = BuildRing(root, "Stands", standsInner, standsOuter, -18, new Color(0.11f, 0.14f, 0.17f), lit, quad);
+            _redStands = stands.Find("N")?.GetComponent<SpriteRenderer>();
+            _blueStands = stands.Find("S")?.GetComponent<SpriteRenderer>();
+            if (_redStands != null) _redStands.color = _redStandsBase;
+            if (_blueStands != null) _blueStands.color = _blueStandsBase;
+
             BuildRing(root, "Boards", boardInner, boardOuter, -16, new Color(0.10f, 0.12f, 0.15f), boardMaterial, quad);
+
+            // Single-mesh outer concrete upper tier (keeps SpriteRenderer count on Stadium_Crowd at 8).
+            Vector2 tier2Inner = standsOuter + Vector2.one * 0.15f;
+            Vector2 tier2Outer = tier2Inner + Vector2.one * (_standsDepth * 0.85f);
+            BuildOuterBowlMesh(root, tier2Inner, tier2Outer, lit);
         }
 
-        static void BuildRing(Transform parent, string label, Vector2 inner, Vector2 outer,
+        void BuildOuterBowlMesh(Transform parent, Vector2 inner, Vector2 outer, Material material)
+        {
+            var go = new GameObject("Stadium_Bowl");
+            go.transform.SetParent(parent, false);
+            var mf = go.AddComponent<MeshFilter>();
+            var mr = go.AddComponent<MeshRenderer>();
+            mr.sortingOrder = -19;
+            if (material != null) _bowlMaterial = new Material(material) { name = "PoSoccer_BowlTier" };
+            else _bowlMaterial = new Material(Shader.Find("Sprites/Default"));
+            mr.sharedMaterial = _bowlMaterial;
+
+            _bowlMesh = new Mesh { name = "PoSoccer_BowlMesh" };
+            float sideW = outer.x - inner.x;
+            float endH = outer.y - inner.y;
+            float totalW = outer.x * 2f;
+            float innerH = inner.y * 2f;
+
+            var verts = new Vector3[16];
+            var uvs = new Vector2[16];
+            var colors = new Color[16];
+            var tris = new int[24];
+            Color c = new(0.07f, 0.09f, 0.12f, 1f);
+
+            AddQuad(0, new Vector2(0f, (inner.y + outer.y) * 0.5f), new Vector2(totalW, endH), c, verts, uvs, colors, tris);
+            AddQuad(1, new Vector2(0f, -(inner.y + outer.y) * 0.5f), new Vector2(totalW, endH), c, verts, uvs, colors, tris);
+            AddQuad(2, new Vector2((inner.x + outer.x) * 0.5f, 0f), new Vector2(sideW, innerH), c, verts, uvs, colors, tris);
+            AddQuad(3, new Vector2(-(inner.x + outer.x) * 0.5f, 0f), new Vector2(sideW, innerH), c, verts, uvs, colors, tris);
+
+            _bowlMesh.vertices = verts;
+            _bowlMesh.uv = uvs;
+            _bowlMesh.colors = colors;
+            _bowlMesh.triangles = tris;
+            _bowlMesh.RecalculateBounds();
+            mf.sharedMesh = _bowlMesh;
+        }
+
+        static void AddQuad(int idx, Vector2 center, Vector2 size, Color c,
+            Vector3[] verts, Vector2[] uvs, Color[] colors, int[] tris)
+        {
+            float hx = size.x * 0.5f, hy = size.y * 0.5f;
+            int v = idx * 4;
+            verts[v + 0] = new Vector3(center.x - hx, center.y - hy, 0f);
+            verts[v + 1] = new Vector3(center.x + hx, center.y - hy, 0f);
+            verts[v + 2] = new Vector3(center.x + hx, center.y + hy, 0f);
+            verts[v + 3] = new Vector3(center.x - hx, center.y + hy, 0f);
+            uvs[v + 0] = new Vector2(0f, 0f); uvs[v + 1] = new Vector2(1f, 0f);
+            uvs[v + 2] = new Vector2(1f, 1f); uvs[v + 3] = new Vector2(0f, 1f);
+            colors[v + 0] = c; colors[v + 1] = c; colors[v + 2] = c; colors[v + 3] = c;
+            int t = idx * 6;
+            tris[t + 0] = v + 0; tris[t + 1] = v + 2; tris[t + 2] = v + 1;
+            tris[t + 3] = v + 0; tris[t + 4] = v + 3; tris[t + 5] = v + 2;
+        }
+
+        static Transform BuildRing(Transform parent, string label, Vector2 inner, Vector2 outer,
             int sortingOrder, Color color, Material material, Sprite sprite)
         {
             var group = new GameObject(label).transform;
@@ -97,6 +170,7 @@ namespace PoSoccer
             AddStrip(group, "S", new Vector2(0f, -(inner.y + outer.y) * 0.5f), new Vector2(totalW, endH), sortingOrder, color, material, sprite);
             AddStrip(group, "E", new Vector2((inner.x + outer.x) * 0.5f, 0f), new Vector2(sideW, innerH), sortingOrder, color, material, sprite);
             AddStrip(group, "W", new Vector2(-(inner.x + outer.x) * 0.5f, 0f), new Vector2(sideW, innerH), sortingOrder, color, material, sprite);
+            return group;
         }
 
         static void AddStrip(Transform parent, string name, Vector2 localPos, Vector2 scale,
@@ -117,11 +191,23 @@ namespace PoSoccer
         {
             if (winner == null) return;
             if (_shotOpen && winner.Value == _shotTeam) _shotScored = true;
+            _standPulse = 1f;
         }
 
         void Update()
         {
             ReactToChances();
+            UpdateStandPulse();
+        }
+
+        void UpdateStandPulse()
+        {
+            if (_standPulse <= 0f) return;
+            _standPulse = Mathf.Max(0f, _standPulse - Time.unscaledDeltaTime * 1.1f);
+            float lift = Mathf.Sin(_standPulse * Mathf.PI * 3f) * 0.5f + 0.5f;
+            float mix = _standPulse * lift * 0.55f;
+            if (_blueStands != null) _blueStands.color = Color.Lerp(_blueStandsBase, Agent_Palette.Blue, mix);
+            if (_redStands != null) _redStands.color = Color.Lerp(_redStandsBase, Agent_Palette.Red, mix);
         }
 
         void ReactToChances()
@@ -167,6 +253,7 @@ namespace PoSoccer
                 _shotXg = value;
 
                 if (_audio != null) _audio.Cheer(Mathf.Clamp01(value * 1.2f));
+                if (Agent_Stadium.Instance != null) Agent_Stadium.Instance.PulseChance(value);
             }
         }
 

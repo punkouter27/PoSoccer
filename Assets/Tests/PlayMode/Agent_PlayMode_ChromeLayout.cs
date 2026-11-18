@@ -103,17 +103,18 @@ namespace PoSoccer.Tests
                 Assert.Greater(panel.width, 1f, $"[{sceneName}] chrome panel never resolved");
 
                 float third = panel.width / 3f;
-                // 2026-11-07 grid: title + screen name upper-left, SETTINGS and
-                // MENU upper-right, DEBUG lower-left, version + build stamp
-                // lower-right. The FPS readout is upper-centre and only exists
-                // while the health panel is open (see the test below).
+                // Clean corner map: title + screen name upper-left, SETTINGS and
+                // MENU upper-right, version + build stamp lower-right.
+                // DEBUG is hidden behind TAB (Agent_Telemetry), and the FPS
+                // readout is upper-centre only while the TAB panel is open.
+                Assert.IsNull(document.rootVisualElement.Q<VisualElement>("chrome-debug"),
+                    $"[{sceneName}] chrome-debug must not clutter the gameplay/menu corners (use TAB).");
                 var checks = new (string Name, bool Left, bool Top)[]
                 {
                     ("chrome-title", true, true),
                     ("chrome-scene", true, true),
                     ("open-settings", false, true),
                     ("chrome-menu", false, true),
-                    ("chrome-debug", true, false),
                     ("chrome-version", false, false),
                 };
 
@@ -366,7 +367,7 @@ namespace PoSoccer.Tests
             foreach (string name in new[]
                      {
                          "chrome-title", "chrome-scene", "chrome-fps", "open-settings",
-                         "chrome-menu", "chrome-debug", "chrome-version",
+                         "chrome-menu", "chrome-version",
                      })
             {
                 Rect bounds = Corner(document, name).worldBound;
@@ -408,6 +409,29 @@ namespace PoSoccer.Tests
                 $"of the chrome bar (MENU ends at y {menu.yMax:0}).");
             Assert.IsFalse(Overlaps(sceneTitle, scoreBounds),
                 "The screen name overlaps the scoreboard.");
+        }
+
+        [UnityTest]
+        public IEnumerator TheTabPanel_PausesAndResumesTheMatch()
+        {
+            SceneManager.LoadScene("SCN_Exhibition");
+            yield return Frames(3);
+            float deadline = Time.realtimeSinceStartup + 15f;
+            while (Agent_TimeFreeze.IsFrozen && Time.realtimeSinceStartup < deadline) yield return null;
+            Assert.IsFalse(Agent_TimeFreeze.IsFrozen, "Countdown did not release the clock");
+
+            var telemetry = Object.FindAnyObjectByType<Agent_Telemetry>();
+            Assert.IsNotNull(telemetry);
+            telemetry.SetVisible(true);
+            yield return Frames(2);
+
+            Assert.IsTrue(Agent_TimeFreeze.IsFrozen, "Opening TAB Debug & Stats panel did not pause the match");
+            Assert.AreEqual(0f, Time.timeScale, 0.0001f);
+
+            telemetry.SetVisible(false);
+            yield return Frames(2);
+            Assert.IsFalse(Agent_TimeFreeze.IsFrozen, "Closing TAB Debug & Stats panel left the clock frozen");
+            Assert.AreEqual(1f, Time.timeScale, 0.0001f);
         }
     }
 }

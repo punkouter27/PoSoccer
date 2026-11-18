@@ -107,7 +107,19 @@ half3 PoSoccerApplyFX(half3 albedo, float2 uv)
         albedo *= 1.0h + _StripeStrength * (band * 2.0h - 1.0h);
     }
 
-    // -- Turf micro-detail removed for fragment-shader FPS budget -------------
+    // -- Turf micro-detail (desktop Ultra / Agent_Surfaces.TurfDetailEnabled) -
+    // Cheap procedural blade grain + mow-direction anisotropic sheen that flips
+    // between alternating roller lanes. Skipped completely when _TurfDetail == 0.
+    if (_TurfDetail > 0.0h)
+    {
+        float2 bladeGrid = luv * max(32.0, _TurfScale);
+        float grain = frac(sin(dot(floor(bladeGrid), float2(12.9898, 78.233))) * 43758.5453);
+        float lane = frac(luv.y * max(1.0, _StripeCount));
+        float mowSign = step(0.5, lane) * 2.0 - 1.0;
+        float aniso = sin((luv.x * 6.0 + luv.y * 2.0) * mowSign + _Time.y * 0.15) * 0.5 + 0.5;
+        albedo *= 1.0h + (half)((grain - 0.5) * 0.065 * _TurfDetail);
+        albedo += (half)(aniso * 0.022 * _TurfDetail);
+    }
 
     // -- Travelling sheen --------------------------------------------------
     // A highlight band sweeping across the surface: wet grass under floodlights,
@@ -152,14 +164,16 @@ half3 PoSoccerApplyFX(half3 albedo, float2 uv)
         albedo += (half)(band * 0.22) * _Fatigue;
     }
 
-    // -- Team rim ----------------------------------------------------------
-    // Radial falloff from the sprite centre. On a round body this reads as a rim
-    // light and replaces the four LineRenderers previously drawn per player.
+    // -- Team rim + stadium floodlight specular ------------------------------
+    // Radial falloff from the sprite centre plus a directional dual-tower grazing
+    // highlight (top & bottom floodlights) so round bodies read as 3D discs.
     if (_RimStrength > 0.0h)
     {
-        float radial = saturate(length(luv - 0.5) * 2.0);
+        float2 delta = (luv - 0.5) * 2.0;
+        float radial = saturate(length(delta));
         float rim = pow(radial, _RimPower);
-        albedo += _RimColor.rgb * rim * _RimStrength;
+        float towerLobe = pow(saturate(abs(delta.y)), 2.2) * (1.0 - smoothstep(0.88, 1.05, radial));
+        albedo += _RimColor.rgb * rim * _RimStrength + (half3)(towerLobe * 0.12 * _RimStrength);
     }
 
     // -- Celebration flare -------------------------------------------------

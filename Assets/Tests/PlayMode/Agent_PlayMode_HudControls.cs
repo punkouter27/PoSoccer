@@ -64,54 +64,60 @@ namespace PoSoccer.Tests
             yield return LoadMatch();
             Agent_Overlays.AllOff();
 
-            var view = HudRoot().Q<Button>("overlay-cycle");
-            Assert.IsNotNull(view, "The HUD has no VIEW button - on a phone the overlays are unreachable.");
+            Assert.IsNull(HudRoot().Q<Button>("overlay-cycle"),
+                "overlay-cycle should not clutter the default gameplay HUD (overlays live behind TAB / Settings).");
 
             int steps = 0;
             bool sawOne = false;
             do
             {
-                Click(view);
-                yield return Real(0.35f);   // the label refreshes four times a second
+                Agent_Overlays.CycleSolo();
+                yield return Real(0.1f);
                 steps++;
                 int on = Agent_Overlays.OnCount();
-                Assert.LessOrEqual(on, 1, "VIEW left more than one overlay on.");
-                if (on == 1)
-                {
-                    sawOne = true;
-                    Assert.AreEqual(Agent_Overlays.SoloText(), view.text,
-                        "The VIEW button does not name the overlay it is showing.");
-                }
-                Assert.Less(steps, Agent_Overlays.Count + 3, "VIEW never came back round to none.");
+                Assert.LessOrEqual(on, 1, "CycleSolo left more than one overlay on.");
+                if (on == 1) sawOne = true;
+                Assert.Less(steps, Agent_Overlays.Count + 3, "CycleSolo never came back round to none.");
             }
             while (Agent_Overlays.OnCount() > 0);
 
-            Assert.IsTrue(sawOne, "VIEW never showed an overlay.");
-            Assert.AreEqual("VIEW", view.text, "With nothing on, the button should read VIEW.");
+            Assert.IsTrue(sawOne, "CycleSolo never showed an overlay.");
+            Assert.AreEqual("VIEW", Agent_Overlays.SoloText(), "With nothing on, SoloText should read VIEW.");
         }
 
         [UnityTest]
         public IEnumerator TheAgentLine_RidesTheStatsSwitch()
         {
             bool previous = Agent_HUD.BroadcastEnabled;
+            var telemetry = Object.FindAnyObjectByType<Agent_Telemetry>();
             try
             {
                 Agent_HUD.BroadcastEnabled = false;
                 yield return LoadMatch();
+                telemetry = Object.FindAnyObjectByType<Agent_Telemetry>();
+                Assert.IsNotNull(telemetry, "No Agent_Telemetry in the match scene");
+
+                Assert.IsNull(HudRoot().Q<Button>("broadcast-toggle"),
+                    "STATS toggle must not clutter the gameplay HUD; it belongs in the TAB panel.");
 
                 var stream = HudRoot().Q<Label>("agent-stream");
                 Assert.IsNotNull(stream, "HUD.uxml has no agent-stream lane");
                 Assert.AreEqual(DisplayStyle.None, stream.resolvedStyle.display,
-                    "The agent line is on the default HUD; it belongs behind STATS.");
+                    "The agent line is on the default HUD; it belongs behind STATS / TAB.");
 
-                Click(HudRoot().Q<Button>("broadcast-toggle"));
+                telemetry.SetVisible(true);
+                yield return Real(0.4f);
+                var statsToggle = telemetry.GetComponent<UIDocument>().rootVisualElement.Q<Button>("broadcast-toggle");
+                Assert.IsNotNull(statsToggle, "TAB telemetry panel has no broadcast-toggle");
+                Click(statsToggle);
                 yield return Real(0.6f);
                 Assert.AreNotEqual(DisplayStyle.None, stream.resolvedStyle.display,
-                    "STATS did not bring the agent line up.");
+                    "TAB STATS toggle did not bring the agent line up.");
                 StringAssert.Contains("m/s", stream.text, "The agent line carries no speed.");
             }
             finally
             {
+                if (telemetry != null) telemetry.SetVisible(false);
                 Agent_HUD.BroadcastEnabled = previous;
             }
         }
@@ -248,14 +254,20 @@ namespace PoSoccer.Tests
                 Assert.Greater(humanAgent.Body.position.y, startPos.y + 0.15f,
                     "Screen-relative Up input did not drive the generic Blue box upward on the pitch");
 
-                // Verify 4v4 HUD auto-focuses YOU in the agent stream even when STATS is off.
+                // Verify 4v4 1P gameplay stays uncluttered (agent-stream hidden by default),
+                // and enabling broadcast stats surfaces YOU's telemetry.
                 var hud = Object.FindAnyObjectByType<Agent_HUD>();
                 Assert.IsNotNull(hud);
                 var hudRoot = hud.GetComponent<UIDocument>().rootVisualElement;
                 var streamLabel = hudRoot.Q<Label>("agent-stream");
                 Assert.IsNotNull(streamLabel);
+                Assert.AreEqual(DisplayStyle.None, streamLabel.resolvedStyle.display,
+                    "1P gameplay HUD should stay uncluttered with agent-stream hidden by default");
+                hud.SetBroadcastStripVisible(true);
+                yield return Real(0.35f);
                 StringAssert.StartsWith("YOU  ·  ", streamLabel.text,
-                    "4v4 HUD should automatically display YOU's speed and stamina telemetry");
+                    "Enabling broadcast stats should display YOU's speed and stamina telemetry");
+                hud.SetBroadcastStripVisible(false);
 
                 // Place ball just ahead of the human box and trigger kick lunge.
                 env.Ball.position = humanAgent.Body.position + new Vector2(0f, 0.8f);
@@ -269,6 +281,28 @@ namespace PoSoccer.Tests
                     "Active Kick/Lunge button did not propel the ball forward");
                 Assert.Greater(humanCtrl.CurrentRingScale, 1.22f,
                     "Kick lunge should visually pulse the HumanRing indicator");
+
+                // Verify on-screen 1P virtual thumbstick + boost + kick controls are visible and kick works.
+                var stick = hudRoot.Q<VisualElement>("thumbstick-pad");
+                var boostBtn = hudRoot.Q<Button>("human-boost");
+                var kickBtn = hudRoot.Q<Button>("human-kick");
+                Assert.IsNotNull(stick);
+                Assert.IsNotNull(boostBtn);
+                Assert.IsNotNull(kickBtn);
+                Assert.AreNotEqual(DisplayStyle.None, stick.resolvedStyle.display, "1P thumbstick should be visible");
+                Assert.AreNotEqual(DisplayStyle.None, boostBtn.resolvedStyle.display, "1P BOOST button should be visible");
+                Assert.AreNotEqual(DisplayStyle.None, kickBtn.resolvedStyle.display, "1P KICK button should be visible");
+
+                // Wait out kick cooldown and test virtual KICK button click.
+                yield return Real(Agent_HumanController.KICK_COOLDOWN + 0.05f);
+                env.Ball.position = humanAgent.Body.position + new Vector2(0f, 0.8f);
+                env.Ball.linearVelocity = Vector2.zero;
+                Click(kickBtn);
+                yield return null;
+                yield return new WaitForFixedUpdate();
+                yield return null;
+                Assert.Greater(env.Ball.linearVelocity.y, 2f,
+                    "On-screen 1P KICK button did not propel the ball forward");
             }
             finally
             {

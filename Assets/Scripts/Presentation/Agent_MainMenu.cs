@@ -97,6 +97,7 @@ namespace PoSoccer
             // Android defaults to 30 fps unless something asks for more; this is the
             // first scene loaded and has no Agent_Bootstrap (2026-08-29).
             Application.targetFrameRate = 60;
+            if (!Application.isBatchMode) Agent_Surfaces.WarmupPresentationShaders();
 
             // Reaching the menu means no lineup is chosen: statics outlive a scene
             // load in a player build, so every flag set by the last launch is
@@ -405,17 +406,20 @@ namespace PoSoccer
                 return;
             }
 
-            // Safe area stays in code: a device measurement, not a design token. Both
-            // chrome bars are reserved so nothing sits under MENU/SETTINGS or DEBUG.
-            Agent_UIStyle.BindSafeArea(safe, Agent_Chrome.BAR_HEIGHT, Agent_Chrome.BAR_HEIGHT);
+            // Safe area stays in code: a device measurement, not a design token. Reserve
+            // the top chrome buttons and the subtle lower-right build stamp.
+            Agent_UIStyle.BindSafeArea(safe, Agent_Chrome.BAR_HEIGHT, Agent_Chrome.BOTTOM_BAR_HEIGHT);
 
             for (int modeIndex = 0; modeIndex < _modeButtons.Length; modeIndex++)
             {
                 var mode = (Mode)modeIndex;
                 _modeButtons[modeIndex].clicked += () => SetMode(mode);
+                Agent_UIStyle.WireTapFeedback(_modeButtons[modeIndex], 1.05f + modeIndex * 0.03f);
             }
             _play.clicked += OnPlay;
+            Agent_UIStyle.WireTapFeedback(_play, 1.15f);
             _random.clicked += RandomLineup;
+            Agent_UIStyle.WireTapFeedback(_random, 1.08f);
 
             var playRow = _root.Q<VisualElement>("play-row");
             if (playRow != null)
@@ -427,6 +431,7 @@ namespace PoSoccer
                 };
                 _humanToggle.AddToClassList("btn");
                 _humanToggle.AddToClassList("menu__random");
+                Agent_UIStyle.WireTapFeedback(_humanToggle, 1.04f);
                 playRow.Add(_humanToggle);
             }
 
@@ -458,6 +463,7 @@ namespace PoSoccer
         {
             var button = new Button(onClick) { text = text, name = name };
             button.AddToClassList("btn");
+            Agent_UIStyle.WireTapFeedback(button, 0.98f);
             return button;
         }
 
@@ -471,7 +477,9 @@ namespace PoSoccer
                 var tile = new Button(() => TapCharacter(profile)) { name = "tile-" + profile.playerName };
                 tile.AddToClassList("btn");
                 tile.AddToClassList("menu__tile");
+                tile.AddToClassList("enter");
                 tile.userData = profile;
+                Agent_UIStyle.WireTapFeedback(tile, 1.0f + (characterIndex % 4) * 0.04f);
 
                 tile.Add(FaceElement(profile, "menu__tile-face"));
 
@@ -490,6 +498,7 @@ namespace PoSoccer
                     tag.text = "IN TRAINING";
                 }
                 _grid.Add(tile);
+                StageEntrance(tile, 20 + characterIndex * 18);
             }
         }
 
@@ -878,6 +887,7 @@ namespace PoSoccer
 
             _cardOverlay = new VisualElement();
             _cardOverlay.AddToClassList("panel--scrim");
+            Agent_UIStyle.BindSafeArea(_cardOverlay, Agent_Chrome.BAR_HEIGHT, Agent_Chrome.BOTTOM_BAR_HEIGHT);
             _cardOverlay.RegisterCallback<PointerDownEvent>(evt =>
             {
                 if (ReferenceEquals(evt.target, _cardOverlay)) CloseCards();
@@ -885,8 +895,10 @@ namespace PoSoccer
 
             // The card scrolls: personalityNotes is free text and can run long.
             var scroll = new ScrollView(ScrollViewMode.Vertical);
-            scroll.style.width = 1000;
-            scroll.style.maxHeight = 1250;
+            scroll.style.width = Length.Percent(96);
+            scroll.style.maxWidth = 1000;
+            scroll.style.flexGrow = 1;
+            scroll.style.flexShrink = 1;
             _cardOverlay.Add(scroll);
             _cardHost = scroll.contentContainer;
             _cardHost.style.alignItems = Align.Center;

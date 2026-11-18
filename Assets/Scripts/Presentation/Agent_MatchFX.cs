@@ -176,6 +176,12 @@ namespace PoSoccer
                     this.GetCancellationTokenOnDestroy());
                 SquashAsync(Mathf.Min(0.45f, impact * 0.03f), _squashCts.Token).Forget();
             }
+
+            if (impact > 11.5f && _camera != null && !Agent_TimeFreeze.IsFrozen)
+            {
+                float microAmp = Mathf.Lerp(0.035f, 0.085f, Mathf.Clamp01((impact - 11.5f) / 8f));
+                ShakeAsync(0.14f, microAmp, this.GetCancellationTokenOnDestroy()).Forget();
+            }
         }
 
         async UniTaskVoid ShakeAsync(float duration, float amplitude, CancellationToken token)

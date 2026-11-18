@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PoSoccer — UI/UX Polish Before &amp; After (2026-11-17)</title>
+<style>
+  :root {
+    --bg: #0b0f14;
+    --surface: #121922;
+    --surface-2: #18222e;
+    --border: #263344;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --green: #22c55e;
+    --sky: #38bdf8;
+    --amber: #f59e0b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.55;
+  }
+  header {
+    padding: 32px 24px 24px;
+    border-bottom: 1px solid var(--border);
+    background: radial-gradient(circle at 20% 0%, rgba(34,197,94,0.14), transparent 55%),
+                var(--surface);
+  }
+  .wrap { max-width: 1260px; margin: 0 auto; padding: 0 20px; }
+  h1 { margin: 0 0 8px; font-size: 1.85rem; }
+  .subtitle { color: var(--muted); max-width: 900px; margin: 0 0 16px; }
+  .pills { display: flex; flex-wrap: wrap; gap: 10px; }
+  .pill {
+    padding: 5px 12px;
+    border-radius: 999px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+  }
+  .pill--ok { border-color: rgba(34,197,94,0.45); color: #86efac; }
+  .pill--sky { border-color: rgba(56,189,248,0.45); color: #7dd3fc; }
+  section { padding: 32px 0; border-bottom: 1px solid var(--border); }
+  h2 { margin: 0 0 8px; font-size: 1.35rem; }
+  .sec-desc { color: var(--muted); margin: 0 0 20px; }
+  .compare-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .card img { width: 100%; display: block; height: auto; }
+  .card-cap {
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+    font-size: 0.9rem;
+    color: var(--muted);
+  }
+  .card-cap strong { display: block; color: var(--text); margin-bottom: 4px; }
+  code { background: rgba(148,163,184,0.14); padding: 1px 5px; border-radius: 4px; font-size: 0.85em; }
+  footer { padding: 24px 20px 40px; text-align: center; color: var(--muted); font-size: 0.85rem; }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1>PoSoccer — Responsive Portrait UI/UX &amp; TAB-Gated Telemetry (2026-11-17)</h1>
+    <p class="subtitle">
+      Before &amp; After <code>1080&times;1920</code> portrait captures showcasing the uncluttered gameplay HUD, TAB-gated debug &amp; stats panel, clean segmented Main Menu, broadcast scoreboard pill, and bleed-free state transitions.
+    </p>
+    <div class="pills">
+      <span class="pill pill--ok">Responsive Vertical Single-Screen Layout</span>
+      <span class="pill pill--ok">One-Thumb Ergonomics (&ge;124 px touch targets)</span>
+      <span class="pill pill--sky">Debug &amp; Stats Hidden Behind TAB</span>
+      <span class="pill">Notch-Safe Margins &amp; Zero ScrollViews</span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section>
+    <h2>1. Main Menu — Clean Segmented Mode Bar, Matchup Card &amp; One-Thumb Dock</h2>
+    <p class="sec-desc">Removed corner <code>DEBUG</code> clutter, grouped mode pills inside a frosted capsule, framed the Blue vs Red matchup card, and balanced the bottom thumb dock.</p>
+    <div class="compare-grid">
+      <div class="card">
+        <img src="../20261117/feat_01_menu.png" alt="Before Main Menu" />
+        <div class="card-cap"><strong>Before</strong>Plain buttons with bottom-left <code>DEBUG</code> corner control.</div>
+      </div>
+      <div class="card">
+        <img src="./01_menu.png" alt="After Main Menu" />
+        <div class="card-cap"><strong>After</strong>Segmented mode pill, elevated matchup card, responsive grid, clean one-thumb action dock.</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. Gameplay HUD — Uncluttered Pitch &amp; Clear Corner Telemetry</h2>
+    <p class="sec-desc">Moved <code>DEBUG</code>, <code>STATS</code>, <code>VIEW</code>, and 1P telemetry lines behind <code>TAB</code>; added a dark frosted scoreboard pill with team accent bars.</p>
+    <div class="compare-grid">
+      <div class="card">
+        <img src="../20261117/feat_03_shaders_shadows.png" alt="Before Gameplay HUD" />
+        <div class="card-cap"><strong>Before (1v1)</strong><code>DEBUG</code>, <code>STATS</code>, and <code>VIEW</code> buttons across bottom; raw score text over pitch lines.</div>
+      </div>
+      <div class="card">
+        <img src="./02_match_streamlined.png" alt="After Gameplay HUD" />
+        <div class="card-cap"><strong>After (1v1)</strong>Uncluttered pitch, frosted scoreboard pill, clean chips, single centered Pause button.</div>
+      </div>
+      <div class="card">
+        <img src="../20261117/feat_11_4v4_1p.png" alt="Before 4v4 1P HUD" />
+        <div class="card-cap"><strong>Before (4v4 1P)</strong><code>YOU &middot; 4.8 m/s</code> text + <code>DEBUG/STATS/VIEW</code> cluttered bottom; score overlapped net.</div>
+      </div>
+      <div class="card">
+        <img src="./08_4v4_1p.png" alt="After 4v4 1P HUD" />
+        <div class="card-cap"><strong>After (4v4 1P)</strong>Clean <code>YOU</code> chip highlight, crisp scoreboard pill, zero stat/debug clutter on screen.</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>3. Unified TAB Panel — All Debug &amp; Stat Data in One Place</h2>
+    <p class="sec-desc">Pressing <code>TAB</code> (or <code>F3</code> / 3-finger tap) opens system health, live match stats, player provenance, overlay toggles, playback speed, and optional broadcast HUD switch.</p>
+    <div class="compare-grid">
+      <div class="card">
+        <img src="./03c_tab_telemetry.png" alt="TAB Debug and Stats Panel" />
+        <div class="card-cap"><strong>TAB Overlay</strong>Displays FPS/step in top bar, health metrics, live match stats, players, overlays, and speed/broadcast controls on a single non-scrolling portrait sheet.</div>
+      </div>
+      <div class="card">
+        <img src="./05_settings_sheet.png" alt="Settings Bottom Sheet" />
+        <div class="card-cap"><strong>Settings Bottom Sheet</strong>Docked cleanly near the bottom thumb zone above the subtle build stamp.</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>4. Seamless Flows — Intro, Replay &amp; Results Screens</h2>
+    <p class="sec-desc">Eliminated countdown/intro collisions, replay chip slicing, and HUD bleed-through behind the Results screen.</p>
+    <div class="compare-grid">
+      <div class="card">
+        <img src="./02a_opening_wipe.png" alt="Opening Match Intro" />
+        <div class="card-cap"><strong>Match Intro</strong>Versus card sits cleanly between the scoreboard pill and the <code>3-2-1</code> countdown.</div>
+      </div>
+      <div class="card">
+        <img src="./06_goal_replay.png" alt="Goal Replay" />
+        <div class="card-cap"><strong>Slow-Mo Replay</strong>Bottom HUD hides cleanly under the letterbox bars with zero sliced player chips.</div>
+      </div>
+      <div class="card">
+        <img src="./07_end_panel_stats.png" alt="Results Screen" />
+        <div class="card-cap"><strong>Results Screen</strong>HUD bands hide cleanly underneath so <code>MATT WINS</code> and bottom actions render with zero bleed-through.</div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  PoSoccer UI/UX Polish &middot; 2026-11-17 &middot; Unity 6 PlayMode 1080&times;1920 Portrait
+</footer>
+</body>
+</html>

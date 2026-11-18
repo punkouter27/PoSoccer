@@ -92,8 +92,10 @@ namespace PoSoccer
             else if (_phaseRad < 0f) _phaseRad += Mathf.PI * 2f;
 
             float alpha = _opacity * Mathf.Clamp01((magnitude - _minSpin) / Mathf.Max(1f, _fullSpin - _minSpin));
-            var head = new Color(1f, 1f, 1f, alpha);
-            var tail = new Color(1f, 1f, 1f, 0f);
+            float curveHue = Mathf.Clamp01((magnitude - 360f) / 360f);
+            Color tint = Color.Lerp(Color.white, new Color(1f, 0.88f, 0.45f, 1f), curveHue);
+            var head = new Color(tint.r, tint.g, tint.b, alpha);
+            var tail = new Color(tint.r, tint.g, tint.b, 0f);
 
             Vector2 centre = ball.position;
             float radius = _ballRadius * _radiusScale;

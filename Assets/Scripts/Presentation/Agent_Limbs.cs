@@ -65,6 +65,7 @@ namespace PoSoccer
             public float KickTimer;
             public float DiveTimer;
             public float DiveSign;
+            public Agent_Tween.SpringFloat BraceSpring;
             public System.Action<Vector2, Vector2> WallKickHandler;
         }
 
@@ -126,6 +127,7 @@ namespace PoSoccer
                 if (_rigs[i].Agent == toucher)
                 {
                     _rigs[i].KickTimer = KICK_FOLLOW_DURATION;
+                    _rigs[i].BraceSpring.Impulse(6f);
                     break;
                 }
             }
@@ -239,10 +241,15 @@ namespace PoSoccer
                         rig.BodyWidth, dist, closingSpeed, rig.KickTimer, rig.Agent.IsBoosting, out kickScaleY);
                 }
 
+                float brace = Mathf.Clamp(_rigBrace(rig, dt), -0.18f, 0.25f);
                 rig.Left.localPosition = new Vector3(-hip, swing - kickOffset * 0.25f, 0f);
+                rig.Left.localScale = new Vector3(
+                    rig.BodyWidth * _legWidth * (1f + brace * 0.35f),
+                    rig.BodyWidth * _legLength * (1f - brace * 0.25f),
+                    1f);
                 rig.Right.localPosition = new Vector3(hip, -swing + kickOffset, 0f);
                 rig.Right.localScale = new Vector3(
-                    rig.BodyWidth * _legWidth,
+                    rig.BodyWidth * _legWidth * (1f - brace * 0.12f),
                     rig.BodyWidth * _legLength * kickScaleY,
                     1f);
 
@@ -330,6 +337,11 @@ namespace PoSoccer
             float reachX = Mathf.Clamp(ballLat * (0.18f + urgency * 0.32f) + slipDive, -0.45f, 0.45f) * bodyWidth;
             float reachY = Mathf.Clamp(Mathf.Max(0f, ballFwd) * (0.12f + urgency * 0.26f), 0f, 0.38f) * bodyWidth;
             return new Vector2(reachX, reachY);
+        }
+
+        static float _rigBrace(Rig rig, float dt)
+        {
+            return rig.BraceSpring.Step(0f, dt, 26f, 0.5f);
         }
     }
 }

@@ -141,10 +141,10 @@ namespace PoSoccer
 
         /// <summary>
         /// Player rows drawn before the list collapses into one "+N more" line.
-        /// The panel has to fit a 16:9 portrait screen at the LARGER type scale
-        /// with no scroll container, and a 10-a-side match has twenty players.
+        /// Sized to keep the panel fitting a 16:9 portrait screen without scrolling
+        /// alongside the match stats section.
         /// </summary>
-        const int MAX_PLAYER_ROWS = 6;
+        const int MAX_PLAYER_ROWS = 4;
 
         static readonly float[] Speeds = { 0.25f, 0.5f, 1f, 2f, 4f };
         static readonly string[] SpeedText = { "0.25x", "0.5x", "1x", "2x", "4x" };
@@ -183,6 +183,8 @@ namespace PoSoccer
 
         Row _frameRow, _qualityRow, _drawRow, _errorRow, _clockRow, _physicsRow, _ballRow;
         Row _modeSeedRow, _rlTelemetryRow;
+        Label _statsSection;
+        Row _statsMatchRow, _statsModelRow, _statsFocusRow;
         readonly Row[] _playerRows = new Row[MAX_PLAYER_ROWS];
         Row _morePlayersRow;
         // One button per Agent_Overlays entry, rebuilt when the registry changes.
@@ -191,6 +193,13 @@ namespace PoSoccer
         readonly List<string> _overlayShownText = new();
         int _overlayVersion = -1;
         readonly Button[] _speedButtons = new Button[Speeds.Length];
+        Button _broadcastButton;
+        bool _broadcastCached;
+
+        Agent_HUD _hud;
+        Agent_MatchStats _matchStats;
+        Agent_WinProbability _winProb;
+        readonly object _tabPauseToken = new Agent_TimeFreeze.Hold("Telemetry.Tab");
 
         int _drawIndex = -1, _batchIndex = -1;
         int _playerSignature;
@@ -360,6 +369,12 @@ namespace PoSoccer
             _panel.style.display = DisplayStyle.Flex;
             _drawRow.Root.style.display = _drawIndex >= 0 ? DisplayStyle.Flex : DisplayStyle.None;
 
+            if (_hud == null) _hud = FindAnyObjectByType<Agent_HUD>();
+            if (_hud != null && _hud.enableMatchFlow && !Agent_Presentation.IsHeadless)
+            {
+                Agent_TimeFreeze.Acquire(_tabPauseToken);
+            }
+
             BeginCsv();
             // Render on the next Update, once there is a frame sample to grade.
             // Rendering here would open every session log with a row of zeroes.
@@ -372,6 +387,7 @@ namespace PoSoccer
 
         void Hide()
         {
+            Agent_TimeFreeze.Release(_tabPauseToken);
             FlushCsv();
             for (int i = 0; i < _recorders.Count; i++) _recorders[i].Dispose();
             _recorders.Clear();
@@ -423,14 +439,13 @@ namespace PoSoccer
             // padding this container carries never reached it. Agent_Chrome records
             // the same defect on its corners.
             //
-            // Both chrome bars are reserved, so the panel opens BETWEEN them: the
-            // DEBUG button that opened it stays visible and tappable underneath,
-            // which is the only way to close it on a phone.
+            // Both chrome bars are reserved, so the panel opens cleanly inside the
+            // safe area without overlapping top controls or the bottom build stamp.
             var safe = new VisualElement();
             safe.style.flexGrow = 1;
             safe.style.justifyContent = Justify.FlexStart;
             safe.pickingMode = PickingMode.Ignore;
-            Agent_UIStyle.BindSafeArea(safe, Agent_Chrome.BAR_HEIGHT, Agent_Chrome.BAR_HEIGHT);
+            Agent_UIStyle.BindSafeArea(safe, Agent_Chrome.BAR_HEIGHT, Agent_Chrome.BOTTOM_BAR_HEIGHT);
             root.Add(safe);
 
             _panel = new VisualElement { name = "health" };
@@ -438,9 +453,27 @@ namespace PoSoccer
             _panel.style.display = DisplayStyle.None;
             safe.Add(_panel);
 
-            _title = new Label("HEALTH");
+            var head = new VisualElement();
+            head.style.flexDirection = FlexDirection.Row;
+            head.style.alignItems = Align.Center;
+            head.style.justifyContent = Justify.SpaceBetween;
+            head.style.marginBottom = Agent_UIStyle.Space1;
+
+            _title = new Label("DEBUG & STATS   (TAB)");
             _title.AddToClassList("health__title");
-            _panel.Add(_title);
+            _title.style.flexShrink = 1;
+            _title.style.marginBottom = 0;
+            head.Add(_title);
+
+            var close = new Button(Hide) { text = "CLOSE", name = "health-close" };
+            close.AddToClassList("btn");
+            close.style.minWidth = 150;
+            close.style.paddingLeft = Agent_UIStyle.Space4;
+            close.style.paddingRight = Agent_UIStyle.Space4;
+            close.style.fontSize = Agent_UIStyle.FontXS;
+            Agent_UIStyle.WireTapFeedback(close, 0.92f);
+            head.Add(close);
+            _panel.Add(head);
 
             _frameRow = AddRow("Frame time (95th percentile)");
             _qualityRow = AddRow("Effects quality");
@@ -452,19 +485,25 @@ namespace PoSoccer
             _modeSeedRow = AddRow("Mode · Seed · Camera");
             _rlTelemetryRow = AddRow("Reward · NaN/Inf");
 
+            _statsSection = Section("MATCH STATS");
+            _panel.Add(_statsSection);
+            _statsMatchRow = AddRow("Possession · Top speed");
+            _statsModelRow = AddRow("Win model · Ball peak");
+            _statsFocusRow = AddRow("Focus / 1P telemetry");
+
             _panel.Add(Section("PLAYERS"));
             for (int i = 0; i < _playerRows.Length; i++) _playerRows[i] = AddRow(string.Empty);
             _morePlayersRow = AddRow(string.Empty);
 
             // The overlay switches come from Agent_Overlays (2026-11-07): every
-            // overlay registered there gets a button here, in the settings sheet's
-            // OVERLAYS tab and in the HUD's VIEW cycler, without editing this file.
+            // overlay registered there gets a button here and in the settings
+            // sheet's OVERLAYS tab, without editing this file.
             _panel.Add(Section("OVERLAYS"));
             _overlayGrid = new VisualElement { name = "health-overlays" };
             _panel.Add(_overlayGrid);
             RebuildOverlayButtons();
 
-            _panel.Add(Section("PLAYBACK SPEED"));
+            _panel.Add(Section("PLAYBACK SPEED · HUD"));
             var speeds = ButtonRow();
             for (int i = 0; i < Speeds.Length; i++)
             {
@@ -472,6 +511,10 @@ namespace PoSoccer
                 _speedButtons[i] = PanelButton(SpeedText[i], () => SetSpeed(speed));
                 speeds.Add(_speedButtons[i]);
             }
+            _broadcastButton = PanelButton("STATS", ToggleBroadcastHud);
+            _broadcastButton.name = "broadcast-toggle";
+            Agent_UIStyle.WireTapFeedback(_broadcastButton, 1.04f);
+            speeds.Add(_broadcastButton);
             _panel.Add(speeds);
         }
 
@@ -580,6 +623,15 @@ namespace PoSoccer
 
         static void SetSpeed(float speed) => Agent_TimeFreeze.SpectatorSpeed = speed;
 
+        void ToggleBroadcastHud()
+        {
+            bool next = !Agent_HUD.BroadcastEnabled;
+            Agent_HUD.BroadcastEnabled = next;
+            if (_hud == null) _hud = FindAnyObjectByType<Agent_HUD>();
+            if (_hud != null) _hud.SetBroadcastStripVisible(next);
+            SyncSwitches();
+        }
+
         void SyncSwitches()
         {
             if (_overlayVersion != Agent_Overlays.Version) RebuildOverlayButtons();
@@ -608,6 +660,17 @@ namespace PoSoccer
             {
                 _speedButtons[i].EnableInClassList(
                     Agent_UIStyle.ON, Mathf.Abs(current - Speeds[i]) < 0.001f);
+            }
+
+            if (_broadcastButton != null)
+            {
+                bool on = Agent_HUD.BroadcastEnabled;
+                if (on != _broadcastCached)
+                {
+                    _broadcastCached = on;
+                    _broadcastButton.text = on ? "STATS ON" : "STATS";
+                }
+                _broadcastButton.EnableInClassList(Agent_UIStyle.ON, on);
             }
         }
 
@@ -735,6 +798,7 @@ namespace PoSoccer
 
             RenderClock();
             RenderPhysics();
+            RenderMatchStats();
             RenderPlayers(ref problems);
             SyncSwitches();
 
@@ -744,9 +808,9 @@ namespace PoSoccer
             {
                 _shownProblems = problems;
                 _title.text = problems == 0
-                    ? "HEALTH · ALL OK   (TAB)"
-                    : problems == 1 ? "HEALTH · 1 PROBLEM   (TAB)"
-                    : "HEALTH · " + problems + " PROBLEMS   (TAB)";
+                    ? "DEBUG & STATS · ALL OK   (TAB)"
+                    : problems == 1 ? "DEBUG & STATS · 1 PROBLEM   (TAB)"
+                    : "DEBUG & STATS · " + problems + " PROBLEMS   (TAB)";
             }
 
             AppendCsvRow(mean, p95, worst);
@@ -820,6 +884,95 @@ namespace PoSoccer
             Set(_ballRow, _builder.ToString(), STATE_NONE);
 
             RenderModeAndReward();
+        }
+
+        void RenderMatchStats()
+        {
+            if (_hud == null) _hud = FindAnyObjectByType<Agent_HUD>();
+            bool inMatch = _env != null && _hud != null && _hud.enableMatchFlow;
+            var vis = inMatch ? DisplayStyle.Flex : DisplayStyle.None;
+            if (_statsSection != null) _statsSection.style.display = vis;
+            if (_statsMatchRow != null) _statsMatchRow.Root.style.display = vis;
+            if (_statsModelRow != null) _statsModelRow.Root.style.display = vis;
+            if (_statsFocusRow != null) _statsFocusRow.Root.style.display = vis;
+            if (_broadcastButton != null) _broadcastButton.SetEnabled(inMatch);
+            if (!inMatch) return;
+
+            if (_matchStats == null) _matchStats = _env.GetComponent<Agent_MatchStats>();
+            if (_winProb == null) _winProb = _env.GetComponent<Agent_WinProbability>();
+
+            // Row 1: Possession & Top Speed leaders (measured)
+            if (_matchStats != null)
+            {
+                Agent_Soccer possLeader = null, speedLeader = null;
+                float bestPoss = -1f, bestSpeed = -1f;
+                var roster = _env.agents;
+                for (int i = 0; i < roster.Count; i++)
+                {
+                    var a = roster[i];
+                    if (a == null || !_matchStats.TryGet(a, out var s)) continue;
+                    if (s.PossessionShare > bestPoss) { bestPoss = s.PossessionShare; possLeader = a; }
+                    if (s.TopSpeed > bestSpeed) { bestSpeed = s.TopSpeed; speedLeader = a; }
+                }
+                _builder.Clear();
+                if (possLeader != null)
+                {
+                    _builder.Append(possLeader.rewards != null ? possLeader.rewards.playerName : possLeader.brainName)
+                            .Append(' ').Append(Mathf.RoundToInt(bestPoss * 100f)).Append('%');
+                }
+                else _builder.Append("—");
+                _builder.Append(" · top ");
+                if (speedLeader != null)
+                {
+                    _builder.Append(speedLeader.rewards != null ? speedLeader.rewards.playerName : speedLeader.brainName)
+                            .Append(' ').Append(bestSpeed.ToString("0.0")).Append(" m/s");
+                }
+                else _builder.Append("0.0 m/s");
+                Set(_statsMatchRow, _builder.ToString(), STATE_NONE);
+            }
+            else
+            {
+                Set(_statsMatchRow, "no match stats", STATE_NONE);
+            }
+
+            // Row 2: Win chance (MODEL) + Ball peak speed
+            _builder.Clear();
+            int winPct = _winProb != null ? Mathf.RoundToInt(_winProb.BlueWinProbability * 100f) : 50;
+            _builder.Append("BLUE ").Append(winPct).Append("% MODEL · ball ")
+                    .Append(_matchStats != null ? _matchStats.BallTopSpeed.ToString("0.0") : "0.0").Append(" m/s");
+            Set(_statsModelRow, _builder.ToString(), STATE_NONE);
+
+            // Row 3: Focused / 1P / Last-touch telemetry
+            Agent_Soccer focus = null;
+            var spec = _env.GetComponent<Agent_SpectatorInput>();
+            if (spec != null) focus = spec.FocusedAgent;
+            if (focus == null && Agent_MatchSetup.HumanControl)
+            {
+                for (int i = 0; i < _env.agents.Count; i++)
+                {
+                    var a = _env.agents[i];
+                    if (a != null && a.HumanControlled) { focus = a; break; }
+                }
+            }
+            if (focus == null) focus = _env.LastToucher;
+            if (focus == null && _env.agents.Count > 0) focus = _env.agents[0];
+            if (focus != null && focus.Body != null)
+            {
+                _builder.Clear();
+                _builder.Append(focus.rewards != null ? focus.rewards.playerName : focus.name)
+                        .Append(" · ").Append(focus.Body.linearVelocity.magnitude.ToString("0.0")).Append(" m/s");
+                if (focus.Stamina != null && focus.Stamina.maxStamina > 0f)
+                {
+                    int pct = Mathf.RoundToInt(focus.Stamina.Current / focus.Stamina.maxStamina * 100f);
+                    _builder.Append(" · stam ").Append(pct).Append('%');
+                }
+                if (focus.IsBoosting) _builder.Append(" · BOOST");
+                Set(_statsFocusRow, _builder.ToString(), STATE_NONE);
+            }
+            else
+            {
+                Set(_statsFocusRow, "—", STATE_NONE);
+            }
         }
 
         void RenderModeAndReward()

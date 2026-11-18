@@ -85,7 +85,7 @@ namespace PoSoccer
             _overlay.style.backgroundColor = ScreenBg;
             _overlay.style.alignItems = Align.Stretch;
             _overlay.style.justifyContent = Justify.FlexStart;
-            Agent_UIStyle.BindSafeArea(_overlay, Agent_Chrome.BAR_HEIGHT, Agent_Chrome.BAR_HEIGHT);
+            Agent_UIStyle.BindSafeArea(_overlay, Agent_Chrome.BAR_HEIGHT, Agent_Chrome.BOTTOM_BAR_HEIGHT);
             _overlay.style.paddingLeft = Agent_UIStyle.Space3;
             _overlay.style.paddingRight = Agent_UIStyle.Space3;
 
@@ -231,38 +231,51 @@ namespace PoSoccer
         }
 
         /// <summary>
-        /// The rating table (1v1 Elo, highest first) as a floating panel that calls
-        /// <paramref name="onTap"/> when tapped. Shared by the bracket screen and the
-        /// main menu's ELO button.
+        /// The rating table (1v1 Elo, highest first) inside a full-screen scrim modal
+        /// with a thumb-zone CLOSE button and safe-area margins.
         /// </summary>
         public static VisualElement EloPanel(System.Action onTap)
         {
-            var panel = new VisualElement { name = "elo-panel" };
-            panel.style.position = Position.Absolute;
-            panel.style.left = Length.Percent(10);
-            panel.style.right = Length.Percent(10);
-            panel.style.top = Length.Percent(20);
-            panel.style.backgroundColor = new Color(0.05f, 0.07f, 0.06f, 0.97f);
-            Agent_UIStyle.Round(panel, Agent_UIStyle.RadiusM);
-            Agent_UIStyle.PadAll(panel, Agent_UIStyle.Pad);
-            panel.RegisterCallback<PointerDownEvent>(_ => onTap());
+            var scrim = new VisualElement { name = "elo-panel" };
+            scrim.AddToClassList("panel--scrim");
+            Agent_UIStyle.BindSafeArea(scrim, Agent_Chrome.BAR_HEIGHT, Agent_Chrome.BOTTOM_BAR_HEIGHT);
+            scrim.RegisterCallback<PointerDownEvent>(evt =>
+            {
+                if (ReferenceEquals(evt.target, scrim)) onTap();
+            });
 
-            var heading = new Label("ELO RATINGS, 1v1  (tap to close)");
-            heading.style.fontSize = Agent_UIStyle.FontS;
-            heading.style.unityFontStyleAndWeight = FontStyle.Bold;
+            var card = new VisualElement();
+            card.AddToClassList("card");
+            card.style.maxHeight = 1320;
+
+            var band = new VisualElement();
+            band.AddToClassList("card__band");
+            band.style.backgroundColor = Gold;
+            card.Add(band);
+
+            var heading = new Label("ELO RATINGS · 1v1");
+            heading.AddToClassList("card__heading");
+            heading.style.fontSize = Agent_UIStyle.FontM;
             heading.style.color = Agent_UIStyle.TextPrimary;
-            heading.style.marginBottom = Agent_UIStyle.Space3;
-            panel.Add(heading);
+            card.Add(heading);
 
             var table = Agent_Elo.Table();
-            if (table.Count == 0) panel.Add(Row("No matches recorded yet.", Agent_UIStyle.TextMuted));
+            if (table.Count == 0) card.Add(Row("No matches recorded yet.", Agent_UIStyle.TextMuted));
             for (int rank = 0; rank < table.Count && rank < 16; rank++)
             {
                 var entry = table[rank];
-                panel.Add(Row($"{rank + 1,2}. {entry.name,-10} {entry.rating,5:0}   {entry.wins}W {entry.losses}L {entry.draws}D",
-                    Agent_UIStyle.TextPrimary));
+                card.Add(Row($"{rank + 1,2}. {entry.name,-10} {entry.rating,5:0}   {entry.wins}W {entry.losses}L {entry.draws}D",
+                    rank == 0 ? Gold : Agent_UIStyle.TextPrimary));
             }
-            return panel;
+            scrim.Add(card);
+
+            var close = new Button(onTap) { text = "CLOSE", name = "elo-close" };
+            close.AddToClassList("btn");
+            close.AddToClassList("btn--ghost");
+            Agent_UIStyle.WireTapFeedback(close, 0.92f);
+            scrim.Add(close);
+
+            return scrim;
         }
 
         static Label Row(string text, Color color)
