@@ -37,6 +37,11 @@ namespace PoSoccer.EditorTools
             string defines = PlayerSettings.GetScriptingDefineSymbols(NamedBuildTarget.WebGL);
             PlayerSettings.SetScriptingDefineSymbols(NamedBuildTarget.WebGL,
                 string.Join(";", defines.Split(';').Where(d => !d.Trim().StartsWith("UNITY_MCP_"))));
+            string prevEmscriptenArgs = PlayerSettings.WebGL.emscriptenArgs;
+            if (string.IsNullOrEmpty(prevEmscriptenArgs) || !prevEmscriptenArgs.Contains("--bind"))
+                PlayerSettings.WebGL.emscriptenArgs = string.IsNullOrWhiteSpace(prevEmscriptenArgs)
+                    ? "--bind"
+                    : prevEmscriptenArgs + " --bind";
             BuildSummary summary;
             try
             {
@@ -44,6 +49,7 @@ namespace PoSoccer.EditorTools
             }
             finally
             {
+                PlayerSettings.WebGL.emscriptenArgs = prevEmscriptenArgs;
                 PlayerSettings.SetScriptingDefineSymbols(NamedBuildTarget.WebGL, defines);
             }
             Finish($"{summary.result} | v{PlayerSettings.bundleVersion} | {scenes.Length} scenes | {summary.totalErrors} errors | " +
