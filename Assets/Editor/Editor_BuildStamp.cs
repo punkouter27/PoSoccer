@@ -31,6 +31,12 @@ namespace PoSoccer.EditorTools
         public void OnPreprocessBuild(BuildReport report)
         {
             string stamp = System.DateTime.Now.ToString(FORMAT, CultureInfo.InvariantCulture);
+            // The WebGL page template prints v{PRODUCT_VERSION} bottom-right, so a web build carries
+            // the same YYMMDD. Android keeps the version name Editor_BuildAabCommand gives it.
+            if (report.summary.platform == BuildTarget.WebGL)
+            {
+                PlayerSettings.bundleVersion = stamp;
+            }
             string existing = File.Exists(PATH) ? File.ReadAllText(PATH).Trim() : null;
             if (existing == stamp) return;
 
