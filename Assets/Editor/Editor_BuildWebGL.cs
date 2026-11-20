@@ -8,13 +8,14 @@ namespace PoSoccer.EditorTools
 {
     /// <summary>
     /// The game in a browser: a WebGL player in Builds/WebGL, served from the Azure Static Web App
-    /// "posoccer" (resource group PoSoccer) by Tools/deploy_webgl.ps1. Menu PoSoccer/Build WebGL (browser), or headless:
+    /// "posoccer" (resource group PoSoccer) by scripts/publish_webgl.ps1 (or scripts/deploy_webgl.ps1). Menu PoSoccer/Build WebGL (browser), or headless:
     ///   Unity.exe -batchmode -quit -projectPath . -buildTarget WebGL -executeMethod PoSoccer.EditorTools.Editor_BuildWebGL.Build
     /// The outcome is the "WEBGL BUILD RESULT:" log line (and the exit code in batch mode).
     ///
     /// Gzip with the decompression fallback: Static Web Apps does not send the Content-Encoding
     /// header a compressed Unity build otherwise needs, so the loader unpacks the files itself.
-    /// The canvas is 540 x 960, the 9:16 portrait the game is laid out for on the phone.
+    /// The page (Assets/WebGLTemplates/Po) sizes the canvas to the whole viewport at any aspect;
+    /// the default size below only matters to Unity's own templates.
     /// The MCP bridge's UNITY_MCP_* defines are stripped for the build, as for Android, so its
     /// runtime (and the NuGet closure behind it) stays out of the player.
     /// </summary>
@@ -30,8 +31,8 @@ namespace PoSoccer.EditorTools
             string[] scenes = Editor_BuildAndroidAAB.SHIP_SCENES;
             PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Gzip;
             PlayerSettings.WebGL.decompressionFallback = true;
-            PlayerSettings.defaultWebScreenWidth = 540;
-            PlayerSettings.defaultWebScreenHeight = 960;
+            PlayerSettings.defaultWebScreenWidth = 1600;
+            PlayerSettings.defaultWebScreenHeight = 900;
             PlayerSettings.WebGL.template = "PROJECT:Po";
 
             string defines = PlayerSettings.GetScriptingDefineSymbols(NamedBuildTarget.WebGL);

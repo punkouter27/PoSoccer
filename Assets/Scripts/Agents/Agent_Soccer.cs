@@ -686,6 +686,14 @@ namespace PoSoccer
 
         public override void CollectObservations(VectorSensor sensor)
         {
+            // The TAB overlay's inference latency is bracketed from here to the next
+            // OnActionReceived (Agent_InferenceClock); nothing about the observation changes.
+            try { CollectObservationsCore(sensor); }
+            finally { Agent_InferenceClock.ObservationsCollected(); }
+        }
+
+        void CollectObservationsCore(VectorSensor sensor)
+        {
             Vector2 half = env != null ? env.PitchHalfExtents : new Vector2(10f, 6f);
             float invMax = 1f / Mathf.Max(half.x, half.y);
 
@@ -1023,6 +1031,7 @@ namespace PoSoccer
 
         public override void OnActionReceived(ActionBuffers actions)
         {
+            Agent_InferenceClock.ActionReceived();
             LastRawActions = new Vector4(
                 SanitizeFinite(actions.ContinuousActions[0]),
                 SanitizeFinite(actions.ContinuousActions[1]),
@@ -1187,13 +1196,23 @@ namespace PoSoccer
         // config sets `team_spacing`, and always zero on a 1v1 pitch.
         // 11 -> 12 on 2026-10-10: `turn_churn`. Zero unless the profile sets
         // turnChurnScale or the trainer config sets `turn_churn`.
-        internal const int TermCount = 12;
+        // 12 -> 14 on 2026-11-20: `action_rate_sq` and `energy` (Po Game Standard C9). Both
+        // zero unless the profile or the trainer config sets a weight.
+        internal const int TermCount = 14;
         internal static readonly string[] TermNames =
         {
             "step", "proximity", "facing", "ball_to_goal", "crossbar",
             "jitter", "wall", "corner", "defense", "possession", "spacing",
-            "turn_churn",
+            "turn_churn", "action_rate_sq", "energy",
         };
+
+        /// <summary>Energy term per physics step: (saturation^2 + turn^2) / 2, in [0, 1].</summary>
+        internal static float EnergyCost(float tractionSaturation, float turn)
+        {
+            float s = Mathf.Clamp01(tractionSaturation);
+            float t = Mathf.Clamp(turn, -1f, 1f);
+            return (s * s + t * t) * 0.5f;
+        }
 
         void Account(int term, float value)
         {
@@ -1360,6 +1379,29 @@ namespace PoSoccer
                 ? env.ActionRateOverride
                 : rewards.actionJitterScale;
             Account(5, -jitterScale * jitter);
+
+            // Po Game Standard C9 (2026-11-20). The body is one rigid disc: there are no
+            // joints, so joint torque^2 and joint angular-velocity^2 have nothing to measure
+            // (docs/rules-exemptions.md 2). What does apply: the SQUARED action rate, and an
+            // energy term on what the feet and the turn actuator are asked to deliver -
+            // traction saturation^2 (|applied foot force| / mu m g) plus turn^2. Weights come
+            // from the profile unless the trainer config names `action_rate_sq` /
+            // `energy_penalty`. Both default to 0, so shipped profiles train as before.
+            {
+                float d0 = move - _prevActions[0], d1 = lateral - _prevActions[1];
+                float d2 = turn - _prevActions[2], d3 = boost - _prevActions[3];
+                float rateSq = (d0 * d0 + d1 * d1 + d2 * d2 + d3 * d3) / 4f;
+                float rateSqScale = env.ActionRateSquaredOverride >= 0f
+                    ? env.ActionRateSquaredOverride
+                    : rewards.actionRateSquaredScale;
+                if (rateSqScale > 0f) Account(12, -rateSqScale * rateSq);
+
+                float energyScale = env.EnergyPenaltyOverride >= 0f
+                    ? env.EnergyPenaltyOverride
+                    : rewards.energyPenaltyScale;
+                if (energyScale > 0f)
+                    Account(13, -energyScale * EnergyCost(TractionSaturation, turn));
+            }
             _prevActions[0] = move; _prevActions[1] = lateral;
             _prevActions[2] = turn; _prevActions[3] = boost;
 

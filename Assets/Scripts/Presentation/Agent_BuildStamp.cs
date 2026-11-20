@@ -4,8 +4,9 @@ using UnityEngine;
 namespace PoSoccer
 {
     /// <summary>
-    /// The build date as YYMMDD, shown in the lower-right corner next to the
-    /// version (Agent_Chrome's "chrome-version" label).
+    /// The build date as YYMMDD. Since 2026-11-20 the web page shows it (vYYMMDD in its
+    /// footer, from PlayerSettings.bundleVersion); this copy stays for the player itself
+    /// (match logs, bug reports).
     ///
     /// A PLAYER reads it from Resources/BuildStamp.txt, which
     /// Editor_BuildStamp writes at the start of every build, so the date is the

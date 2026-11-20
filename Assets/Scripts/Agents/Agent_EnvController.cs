@@ -145,6 +145,12 @@ namespace PoSoccer
         /// </summary>
         public float ActionRateOverride { get; private set; } = -1f;
 
+        /// <summary>`action_rate_sq` environment parameter, or -1 (profile's actionRateSquaredScale).</summary>
+        public float ActionRateSquaredOverride { get; private set; } = -1f;
+
+        /// <summary>`energy_penalty` environment parameter, or -1 (profile's energyPenaltyScale).</summary>
+        public float EnergyPenaltyOverride { get; private set; } = -1f;
+
         /// <summary>Teammates closer than this (metres) pay the spacing penalty.</summary>
         internal const float TEAM_SPACING_RADIUS = 4f;
 
@@ -1302,6 +1308,11 @@ namespace PoSoccer
             // actionJitterScale in charge.
             ActionRateOverride = Academy.Instance.EnvironmentParameters
                 .GetWithDefault("action_rate", -1f);
+            // Squared action rate and energy (Po Game Standard C9, 2026-11-20). -1 = the profile's.
+            ActionRateSquaredOverride = Academy.Instance.EnvironmentParameters
+                .GetWithDefault("action_rate_sq", -1f);
+            EnergyPenaltyOverride = Academy.Instance.EnvironmentParameters
+                .GetWithDefault("energy_penalty", -1f);
             // Pass reward (2026-10-11). Off unless a config names it, like the rest.
             CurrentPassReward = Mathf.Max(0f, Academy.Instance.EnvironmentParameters
                 .GetWithDefault("pass_reward", 0f));

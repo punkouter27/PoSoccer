@@ -183,6 +183,7 @@ namespace PoSoccer
 
         Row _frameRow, _qualityRow, _drawRow, _errorRow, _clockRow, _physicsRow, _ballRow;
         Row _modeSeedRow, _rlTelemetryRow;
+        Row _fpsRow, _episodeRewardRow, _inferenceRow, _curriculumRow;
         Label _statsSection;
         Row _statsMatchRow, _statsModelRow, _statsFocusRow;
         readonly Row[] _playerRows = new Row[MAX_PLAYER_ROWS];
@@ -475,6 +476,13 @@ namespace PoSoccer
             head.Add(close);
             _panel.Add(head);
 
+            // The Po Game Standard's overlay (C12) leads the panel: FPS, episode reward,
+            // inference latency, curriculum stage.
+            _fpsRow = AddRow("FPS");
+            _episodeRewardRow = AddRow("Episode reward");
+            _inferenceRow = AddRow("Inference latency");
+            _curriculumRow = AddRow("Curriculum stage");
+            _panel.Add(Section("HEALTH"));
             _frameRow = AddRow("Frame time (95th percentile)");
             _qualityRow = AddRow("Effects quality");
             _drawRow = AddRow("Draw calls · batches");
@@ -721,6 +729,7 @@ namespace PoSoccer
                     .Append(" ms · ").Append((mean > 0.001f ? 1000f / mean : 0f).ToString("0"))
                     .Append(" fps");
             Set(_frameRow, _builder.ToString(), frameState);
+            RenderStandard(mean);
 
             // What was DONE about a breach. Agent_Quality sheds effects when the
             // frame budget goes over, and a panel that reports the frame time
@@ -973,6 +982,54 @@ namespace PoSoccer
             {
                 Set(_statsFocusRow, "—", STATE_NONE);
             }
+        }
+
+        /// <summary>FPS, episode reward, inference latency and curriculum stage (Po Game Standard C12).</summary>
+        void RenderStandard(float meanFrameMs)
+        {
+            _builder.Clear();
+            _builder.Append((meanFrameMs > 0.001f ? 1000f / meanFrameMs : 0f).ToString("0")).Append(" fps");
+            Set(_fpsRow, _builder.ToString(), STATE_NONE);
+
+            if (_env == null) _env = FindAnyObjectByType<Agent_EnvController>();
+            Agent_Soccer agent = null;
+            if (_env != null)
+            {
+                var spec = _env.GetComponent<Agent_SpectatorInput>();
+                if (spec != null) agent = spec.FocusedAgent;
+                for (int i = 0; agent == null && i < _env.agents.Count; i++)
+                {
+                    var a = _env.agents[i];
+                    if (a != null && a.team == Agent_Soccer.Team.Blue) agent = a;
+                }
+            }
+            _builder.Clear();
+            if (agent != null)
+            {
+                _builder.Append(agent.GetCumulativeReward().ToString("+0.000;-0.000;0.000")).Append(" · ")
+                        .Append(agent.rewards != null ? agent.rewards.playerName : agent.name);
+            }
+            else _builder.Append("no agent in this scene");
+            Set(_episodeRewardRow, _builder.ToString(), STATE_NONE);
+
+            double ms = Agent_InferenceClock.AverageMs;
+            _builder.Clear();
+            if (ms < 0d) _builder.Append("no decision yet");
+            else _builder.Append(ms.ToString("0.00")).Append(" ms · mean of ").Append(Agent_InferenceClock.SampleCount)
+                         .Append(" decisions");
+            Set(_inferenceRow, _builder.ToString(), ms < 0d ? STATE_NONE : ms <= FrameBudgetMs ? STATE_OK : STATE_WARN);
+
+            _builder.Clear();
+            if (_env != null)
+            {
+                bool trainer = Unity.MLAgents.Academy.IsInitialized && Unity.MLAgents.Academy.Instance.IsCommunicatorOn;
+                _builder.Append(trainer ? "trainer · " : "play (trainer defaults) · ")
+                        .Append("goal ").Append(_env.CurrentGoalWidth.ToString("0.0")).Append(" m · bot ")
+                        .Append(Mathf.RoundToInt(_env.CurrentBotStrength * 100f)).Append('%');
+                if (_env.CurrentEpisodeSteps > 0) _builder.Append(" · ").Append(_env.CurrentEpisodeSteps).Append(" steps");
+            }
+            else _builder.Append("no pitch in this scene");
+            Set(_curriculumRow, _builder.ToString(), STATE_NONE);
         }
 
         void RenderModeAndReward()

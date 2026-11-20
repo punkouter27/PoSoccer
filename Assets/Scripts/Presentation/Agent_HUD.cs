@@ -989,6 +989,15 @@ namespace PoSoccer
             UpdateBandVisibility();
         }
 
+        bool _demo;
+
+        /// <summary>Demo mode (Agent_DemoMode): hides the control band; the scoreboard stays.</summary>
+        public void SetDemoMode(bool on)
+        {
+            _demo = on;
+            UpdateBandVisibility();
+        }
+
         void UpdateBandVisibility()
         {
             bool modal = IsPaused || _ended;
@@ -996,7 +1005,7 @@ namespace PoSoccer
             if (_topBand != null)
                 _topBand.style.visibility = modal ? Visibility.Hidden : Visibility.Visible;
             if (_bottomBand != null)
-                _bottomBand.style.visibility = (modal || _replayShown) ? Visibility.Hidden : Visibility.Visible;
+                _bottomBand.style.visibility = (modal || _replayShown || _demo) ? Visibility.Hidden : Visibility.Visible;
         }
 
         void BuildOpeningWipe()

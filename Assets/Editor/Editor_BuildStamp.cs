@@ -30,7 +30,12 @@ namespace PoSoccer.EditorTools
 
         public void OnPreprocessBuild(BuildReport report)
         {
-            string stamp = System.DateTime.Now.ToString(FORMAT, CultureInfo.InvariantCulture);
+            // ONE STAMP (Po Game Standard): scripts/publish_webgl.ps1 computes UTC yyMMdd once and
+            // passes it as PO_BUILD_VERSION, so the player, index.html and diag.html agree. A
+            // build from the menu computes the same UTC date itself.
+            string stamp = System.Environment.GetEnvironmentVariable("PO_BUILD_VERSION");
+            if (string.IsNullOrEmpty(stamp) || stamp.Length != FORMAT.Length)
+                stamp = System.DateTime.UtcNow.ToString(FORMAT, CultureInfo.InvariantCulture);
             // The WebGL page template prints v{PRODUCT_VERSION} bottom-right, so a web build carries
             // the same YYMMDD. Android keeps the version name Editor_BuildAabCommand gives it.
             if (report.summary.platform == BuildTarget.WebGL)

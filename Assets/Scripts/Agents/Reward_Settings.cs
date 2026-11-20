@@ -282,6 +282,16 @@ namespace PoSoccer
                  "v2 halved from 0.001: hard cuts are *correct* for soccer (cutting inside the box) " +
                  "and the old penalty was teaching the brain to be smooth and idle.")]
         public float actionJitterScale = 0.0004f;
+        [Tooltip("Action-rate penalty, squared: -scale * mean_i (a_t,i - a_t-1,i)^2 per physics step " +
+                 "(non-zero only on the step a new decision lands). 0 = off. A trainer config's " +
+                 "`action_rate_sq` environment parameter overrides this when present.")]
+        // 0 on every shipped profile: the brains were trained without it (Po Game Standard C9,
+        // 2026-11-20). The active trainer configs set the weight; no retrain happened.
+        public float actionRateSquaredScale = 0f;
+        [Tooltip("Energy / force penalty: -scale * (tractionSaturation^2 + turn^2) / 2 per physics step, " +
+                 "the disc-body stand-in for joint torque^2 (agents have no joints). 0 = off. A trainer " +
+                 "config's `energy_penalty` environment parameter overrides this when present.")]
+        public float energyPenaltyScale = 0f;
         [Tooltip("Penalty per DECISION on the change in the raw turn action: " +
                  "-scale * |turn_now - turn_prev|. 0 = off. A trainer config's `turn_churn` " +
                  "environment parameter overrides this when present. Ceiling is scale x 2250 " +

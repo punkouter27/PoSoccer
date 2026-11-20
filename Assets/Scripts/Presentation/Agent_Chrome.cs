@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
 using UnityEngine.UIElements;
 
@@ -9,10 +10,14 @@ namespace PoSoccer
     /// and in a match. Nothing here occupies the centre of the screen - that
     /// belongs to Agent_HUD in a match and to the menu layout in SCN_Menu.
     ///
-    ///   upper-left    product name, and under it the screen's name
+    ///   upper-left    the screen's name
     ///   upper-centre  FPS / step readout - ONLY while the TAB panel is open
-    ///   upper-right   SETTINGS (the settings sheet), MENU (hidden at the menu)
-    ///   lower-right   version and YYMMDD build stamp
+    ///   upper-right   STATS (touch screens only: the TAB panel), MENU (hidden at the
+    ///                 menu), SETTINGS (the settings sheet)
+    ///
+    /// The product name and the vYYMMDD build stamp are NOT drawn here since 2026-11-20:
+    /// the web page draws them once, outside the canvas (Po Game Standard), and two
+    /// copies collided on a phone.
     ///
     /// All debug and stat overlays live behind the TAB key (Agent_Telemetry),
     /// keeping both the menu and the gameplay screen uncluttered.
@@ -115,6 +120,24 @@ namespace PoSoccer
             for (int i = 0; i <= FPS_CACHE_MAX; i++) cache[i] = i + " FPS";
             return cache;
         }
+
+        static readonly System.Collections.Generic.List<Agent_Chrome> Live = new();
+
+        void OnEnable() => Live.Add(this);
+        void OnDisable() => Live.Remove(this);
+
+        /// <summary>Demo mode hides the corner chrome (and shows it again on input).</summary>
+        public static void SetDemoHidden(bool hidden)
+        {
+            for (int i = 0; i < Live.Count; i++)
+            {
+                var root = Live[i]._doc != null ? Live[i]._doc.rootVisualElement : null;
+                if (root != null) root.style.display = hidden ? DisplayStyle.None : DisplayStyle.Flex;
+            }
+        }
+
+        /// <summary>The STATS corner button exists on touch screens, where there is no Tab key.</summary>
+        public static bool WantsStatsButton => Application.isMobilePlatform || Touchscreen.current != null;
 
         void Start()
         {
@@ -231,11 +254,7 @@ namespace PoSoccer
             // is not allowed to grow collapses the label to ~7 px: laid out, not
             // clipped, and reported as present by any test that only asks whether
             // the label exists. Both must go back to auto here.
-            var productLabel = CornerLabel(Application.productName, Agent_UIStyle.TextPrimary, Agent_UIStyle.FontM);
-            productLabel.name = "chrome-title";
-            productLabel.style.flexGrow = 0;
-            productLabel.style.flexBasis = StyleKeyword.Auto;
-            leftCorner.Add(productLabel);
+            // No product-name label (2026-11-20): the page's top bar carries the name.
 
             // The screen's own name, small, under the product name. It lives in
             // this corner's column, which is inside the chrome's reserved bar -
@@ -243,7 +262,7 @@ namespace PoSoccer
             // scoreboard however long it gets. Two lines (FontM + FontXS, about
             // 95 px) fit the 120 px row; the sizes are inline, so the type-scale
             // setting cannot grow the column out of the bar.
-            var sceneLabel = CornerLabel(SceneTitle(), Agent_UIStyle.TextMuted, Agent_UIStyle.FontXS);
+            var sceneLabel = CornerLabel(SceneTitle(), Agent_UIStyle.TextPrimary, Agent_UIStyle.FontS);
             sceneLabel.name = "chrome-scene";
             sceneLabel.style.flexGrow = 0;
             sceneLabel.style.flexBasis = StyleKeyword.Auto;
@@ -258,6 +277,17 @@ namespace PoSoccer
             // MENU first, SETTINGS last: SETTINGS is the rightmost control, so it sits
             // in the corner on every screen (it used to float a button-width in from
             // the edge on the menu, beside MENU's empty slot).
+            // STATS: the TAB panel's way in on a touch screen (Po Game Standard C12). At
+            // the 1080-wide reference a 120-unit button is >= 44 CSS px on any phone.
+            if (WantsStatsButton)
+            {
+                var stats = ChromeButton("STATS", ToggleStats);
+                stats.name = "chrome-stats";
+                stats.style.marginRight = Agent_UIStyle.Space2;
+                Agent_UIStyle.WireTapFeedback(stats, 0.94f);
+                top.Add(stats);
+            }
+
             _menuButton = ChromeButton("MENU", ReturnToMenu);
             _menuButton.name = "chrome-menu";
             _menuButton.style.marginRight = Agent_UIStyle.Space2;
@@ -330,14 +360,9 @@ namespace PoSoccer
             // the day the binary was built (Agent_BuildStamp), so a screenshot in a
             // bug report says which build it came from even when nobody bumped the
             // version number.
-            var version = CornerLabel(
-                "v" + Application.version + " · " + Agent_BuildStamp.Stamp,
-                Agent_UIStyle.TextMuted, Agent_UIStyle.FontXS);
-            version.name = "chrome-version";
-            version.style.unityTextAlign = TextAnchor.MiddleRight;
-            version.style.unityFontStyleAndWeight = FontStyle.Normal;
-            version.style.opacity = 0.65f;
-            bottom.Add(version);
+            // The version + build stamp label left the canvas on 2026-11-20: the web page's
+            // footer shows vYYMMDD (Application.version, stamped by the publish script). The
+            // row stays so the reserved bottom strip keeps its height.
         }
 
         /// <summary>
@@ -393,6 +418,12 @@ namespace PoSoccer
             button.style.fontSize = Agent_UIStyle.FontS;
             button.style.flexGrow = 0;
             return button;
+        }
+
+        void ToggleStats()
+        {
+            var telemetry = FindAnyObjectByType<Agent_Telemetry>();
+            if (telemetry != null) telemetry.SetVisible(!telemetry.IsVisible);
         }
 
         void ReturnToMenu()

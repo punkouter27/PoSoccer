@@ -169,6 +169,7 @@ namespace PoSoccer
             _characters = Compact(characters);
             if (_characters.Length == 0) _characters = Compact(matt, kim, nick);
             _trained = TrainedOnly(_characters);
+            Agent_DemoMode.Pool = (Reward_Settings[])Pickable.Clone();
         }
 
         bool AnyUsableBrain => _trained.Length > 0;

@@ -151,6 +151,7 @@ namespace PoSoccer
 
         static string RecordExhibition(int blue, int red)
         {
+            if (Agent_DemoMode.DemoMatch) return "";   // an unattended demo is not a result
             var blueProfile = Agent_MatchSetup.Get(Agent_Soccer.Team.Blue, 0);
             var redProfile = Agent_MatchSetup.Get(Agent_Soccer.Team.Red, 0);
             if (blueProfile == null || redProfile == null || blueProfile.playerName == redProfile.playerName) return "";

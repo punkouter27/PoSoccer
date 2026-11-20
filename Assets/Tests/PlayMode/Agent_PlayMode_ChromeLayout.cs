@@ -103,19 +103,22 @@ namespace PoSoccer.Tests
                 Assert.Greater(panel.width, 1f, $"[{sceneName}] chrome panel never resolved");
 
                 float third = panel.width / 3f;
-                // Clean corner map: title + screen name upper-left, SETTINGS and
-                // MENU upper-right, version + build stamp lower-right.
+                // Clean corner map: screen name upper-left, SETTINGS and MENU
+                // upper-right. The product name and the vYYMMDD stamp are the web
+                // page's (Po Game Standard, 2026-11-20) and must not be on the canvas.
                 // DEBUG is hidden behind TAB (Agent_Telemetry), and the FPS
                 // readout is upper-centre only while the TAB panel is open.
                 Assert.IsNull(document.rootVisualElement.Q<VisualElement>("chrome-debug"),
                     $"[{sceneName}] chrome-debug must not clutter the gameplay/menu corners (use TAB).");
+                Assert.IsNull(document.rootVisualElement.Q<VisualElement>("chrome-title"),
+                    $"[{sceneName}] the product name is drawn by the page's top bar, not the canvas");
+                Assert.IsNull(document.rootVisualElement.Q<VisualElement>("chrome-version"),
+                    $"[{sceneName}] the version is drawn by the page's footer, not the canvas");
                 var checks = new (string Name, bool Left, bool Top)[]
                 {
-                    ("chrome-title", true, true),
                     ("chrome-scene", true, true),
                     ("open-settings", false, true),
                     ("chrome-menu", false, true),
-                    ("chrome-version", false, false),
                 };
 
                 foreach ((string name, bool left, bool top) in checks)
@@ -256,10 +259,10 @@ namespace PoSoccer.Tests
                 // is what makes the position stable without measuring anything:
                 // if the readout ever leaves that row, it is loose on the screen
                 // again and the next thing it lands on is a matter of luck.
-                Rect title = Corner(document, "chrome-title").worldBound;
+                Rect title = Corner(document, "open-settings").worldBound;
                 Assert.That(bounds.center.y, Is.EqualTo(title.center.y).Within(title.height + 8f),
                     $"[{sceneName}] the readout has left the top bar " +
-                    $"(readout centre y={bounds.center.y:0}, title centre y={title.center.y:0})");
+                    $"(readout centre y={bounds.center.y:0}, SETTINGS centre y={title.center.y:0})");
 
                 // THE ASSERTION THIS FILE EXISTS FOR. No text drawn by any other
                 // document sharing this panel may sit under the readout.
@@ -272,17 +275,19 @@ namespace PoSoccer.Tests
             Agent_Chrome.ShowFps = previousFps;
         }
 
-        /// <summary>The lower-right label carries the YYMMDD build stamp next to the version.</summary>
+        /// <summary>
+        /// The build stamp left the canvas for the page footer (2026-11-20); the stamp itself
+        /// is still produced for the player and still YYMMDD.
+        /// </summary>
         [UnityTest]
-        public IEnumerator TheVersionLabel_CarriesTheBuildStamp()
+        public IEnumerator TheBuildStamp_IsOffTheCanvasButStillValid()
         {
             SceneManager.LoadScene("SCN_Menu");
             yield return Frames(3);
             yield return Settle(0.5f);
 
-            var version = (Label)Corner(ChromeDocument(), "chrome-version");
-            StringAssert.EndsWith(Agent_BuildStamp.Stamp, version.text,
-                "The version label does not end with the build stamp.");
+            Assert.IsNull(ChromeDocument().rootVisualElement.Q<Label>("chrome-version"),
+                "The version label is back on the canvas; the page footer carries it.");
             Assert.IsTrue(Agent_BuildStamp.IsValid(Agent_BuildStamp.Stamp),
                 $"'{Agent_BuildStamp.Stamp}' is not a YYMMDD stamp.");
         }
@@ -366,8 +371,7 @@ namespace PoSoccer.Tests
 
             foreach (string name in new[]
                      {
-                         "chrome-title", "chrome-scene", "chrome-fps", "open-settings",
-                         "chrome-menu", "chrome-version",
+                         "chrome-scene", "chrome-fps", "open-settings", "chrome-menu",
                      })
             {
                 Rect bounds = Corner(document, name).worldBound;
