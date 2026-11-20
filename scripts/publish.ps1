@@ -77,7 +77,7 @@ if (-not $SkipBuild) {
 }
 
 if (-not (Test-Path $Aab)) { Write-Error "No AAB at $Aab - run without -SkipBuild first" }
-$pyArgs = @((Join-Path $Proj 'Tools\play_publish.py'),
+$pyArgs = @((Join-Path $Proj 'scripts\play_publish.py'),
             '--credentials', $Creds, '--track', $Track, '--status', $Status)
 if ($DryRun) { $pyArgs += '--dry-run' }
 & $Python @pyArgs

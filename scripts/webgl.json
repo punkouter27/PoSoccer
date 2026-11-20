@@ -1,0 +1,16 @@
+{
+  "title": "PoSoccer",
+  "buildMethod": "PoSoccer.EditorTools.Editor_BuildWebGL.Build",
+  "staticWebApp": "posoccer",
+  "resourceGroup": "PoSoccer",
+  "subscription": "14d963a2-badc-4a1f-9900-553bf01f8de2",
+  "diagChecks": [
+    {
+      "section": "API",
+      "name": "Live weather (Open-Meteo, Agent_Weather)",
+      "url": "https://api.open-meteo.com/v1/forecast?latitude=51.5074&longitude=-0.1278&current_weather=true",
+      "expect": "json",
+      "jsonKey": "current_weather"
+    }
+  ]
+}

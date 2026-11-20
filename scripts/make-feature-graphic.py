@@ -16,8 +16,10 @@ packed into the build)
 
 Run:  .venv/Scripts/python.exe scripts/make-feature-graphic.py
 """
+
 import math
 import os
+
 from PIL import Image, ImageDraw, ImageFont
 
 SS = 3  # supersample, then LANCZOS down
@@ -44,27 +46,29 @@ def _font(size):
 
 
 def _pentagon(cx, cy, r, rot=0.0):
-    return [(cx + r * math.cos(rot + i * 2 * math.pi / 5),
-             cy + r * math.sin(rot + i * 2 * math.pi / 5)) for i in range(5)]
+    return [
+        (cx + r * math.cos(rot + i * 2 * math.pi / 5), cy + r * math.sin(rot + i * 2 * math.pi / 5)) for i in range(5)
+    ]
 
 
 def draw_ball(d, cx, cy, r):
-    d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=WHITE,
-              outline=BACKGROUND, width=max(1, int(r * 0.06)))
+    d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=WHITE, outline=BACKGROUND, width=max(1, int(r * 0.06)))
     core = r * 0.34
     d.polygon(_pentagon(cx, cy, core, -math.pi / 2), fill=BACKGROUND)
     for i in range(5):
         a = -math.pi / 2 + i * 2 * math.pi / 5 + math.pi / 5
         px, py = cx + math.cos(a) * r * 0.80, cy + math.sin(a) * r * 0.80
         d.polygon(_pentagon(px, py, r * 0.30, a + math.pi / 2), fill=BACKGROUND)
-        d.line([(cx + math.cos(a) * core * 1.05, cy + math.sin(a) * core * 1.05),
-                (px, py)], fill=BACKGROUND, width=max(1, int(r * 0.08)))
+        d.line(
+            [(cx + math.cos(a) * core * 1.05, cy + math.sin(a) * core * 1.05), (px, py)],
+            fill=BACKGROUND,
+            width=max(1, int(r * 0.08)),
+        )
 
 
 def draw_player(d, cx, cy, r, colour):
     """A player as the game draws them: coloured body, thick team-colour frame."""
-    d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=colour,
-              outline=WHITE, width=max(2, int(r * 0.18)))
+    d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=colour, outline=WHITE, width=max(2, int(r * 0.18)))
 
 
 def main():

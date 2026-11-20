@@ -1,19 +1,23 @@
-name: Deploy WebGL
+name: PoSoccer
 
-# SAME FILE IN EVERY PO UNITY GAME. The reference copy is PoBox's; copy it with
-# PoPunkouterSoftware/scripts/sync-ci.ps1, never edit one game's copy.
+# The only workflow of this repo.
 #
-# The WebGL player is built LOCALLY (Unity needs a licence; CI has none) by Tools/publish_webgl.ps1,
-# which uploads it as webgl.zip on a GitHub Release tagged webgl-*. Publishing that release runs
-# this workflow on a GitHub-hosted runner: download the zip -> deploy to the game's Azure Static
-# Web App -> check the live page. No Unity, no self-hosted runner.
+# push to master  -> Python checks: ruff check, ruff format --check, pytest (tests/).
+# release webgl-* -> deploy: download the release's webgl.zip -> Azure Static Web App -> check the
+#                    live page and its /diag.
 #
-# Re-deploy an existing build: Actions -> Deploy WebGL -> Run workflow, with its tag
+# The WebGL player is built LOCALLY with the exact pinned Unity (Unity cannot be licensed in CI) by
+# scripts/publish_webgl.ps1, which runs the EditMode tests first, then builds, zips and publishes the
+# zip on a GitHub Release tagged webgl-*. Publishing that release runs the deploy job below.
+#
+# Re-deploy an existing build: Actions -> PoSoccer -> Run workflow, with its tag
 # (empty = the newest webgl-* release).
 #
 # Repo secret it needs:
 #   AZURE_STATIC_WEB_APPS_API_TOKEN   the game's Static Web App deployment token
 on:
+  push:
+    branches: [master]
   release:
     types: [published]
   workflow_dispatch:
@@ -26,12 +30,26 @@ permissions:
   contents: read
 
 concurrency:
-  group: webgl-${{ github.repository }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  python:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - run: pip install "ruff==0.17.6" "pytest>=8"
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: pytest
+
   deploy:
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.release.tag_name, 'webgl-')
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'release' && startsWith(github.event.release.tag_name, 'webgl-'))
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -44,11 +62,12 @@ jobs:
             TAG=$(gh release list -R "$GITHUB_REPOSITORY" --limit 100 --json tagName,createdAt \
               --jq '[.[] | select(.tagName | startswith("webgl-"))] | sort_by(.createdAt) | last | .tagName')
           fi
-          test -n "$TAG" || { echo "No webgl-* release. Run Tools/publish_webgl.ps1 first."; exit 1; }
+          test -n "$TAG" || { echo "No webgl-* release. Run scripts/publish_webgl.ps1 first."; exit 1; }
           echo "Deploying $TAG"
           gh release download "$TAG" -R "$GITHUB_REPOSITORY" -p webgl.zip -D .
           mkdir site && unzip -q webgl.zip -d site
           test -f site/index.html || { echo "webgl.zip of $TAG has no index.html at its root"; exit 1; }
+          test -f site/diag.html || { echo "webgl.zip of $TAG has no diag.html"; exit 1; }
           test -f site/staticwebapp.config.json || { echo "webgl.zip of $TAG has no staticwebapp.config.json (.unityweb would 404)"; exit 1; }
 
       - name: Deploy to Azure Static Web App
@@ -61,13 +80,18 @@ jobs:
           skip_app_build: true
           skip_api_build: true
 
-      # The page is live and is a Unity WebGL page, not an old or empty site.
-      - name: Check the live page
+      # The page is live and is this build's Unity WebGL page, and /diag answers.
+      - name: Check the live page and /diag
         env:
           URL: ${{ steps.deploy.outputs.static_web_app_url }}
         run: |
+          ver=$(grep -o 'v[0-9]\{6\}<' site/index.html | head -1 | tr -d '<')
           for i in $(seq 1 20); do
-            if curl -fsS --max-time 30 "$URL" | grep -q 'loader.js'; then echo "Live: $URL"; exit 0; fi
+            page=$(curl -fsS --max-time 30 "$URL" || true)
+            if echo "$page" | grep -q 'loader.js' && echo "$page" | grep -q "$ver"; then
+              curl -fsS --max-time 30 "$URL/diag" | grep -q 'System status' || { echo "$URL/diag is not the status page"; exit 1; }
+              echo "Live: $URL ($ver) and $URL/diag"; exit 0
+            fi
             sleep 15
           done
-          echo "$URL did not serve the WebGL page"; exit 1
+          echo "$URL did not serve the $ver WebGL page"; exit 1

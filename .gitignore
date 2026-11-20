@@ -127,7 +127,7 @@ desktop.ini
 
 # Play publishing tooling venv — deliberately not .venv, which carries
 # load-bearing ml-agents/torch pins.
-Tools/publish-venv/
+scripts/publish-venv/
 
 # Recorded demonstrations (scripts/record-demo.ps1).
 # A .demo stores the full observation vector per step, and this environment emits 178

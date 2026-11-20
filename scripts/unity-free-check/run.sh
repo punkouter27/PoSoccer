@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Compile the Unity-free parts of PoSoccer and run their tests with plain .NET.
-# Usage: Tools/unity-free-check/run.sh      (installs a local .NET 8 SDK if none is found)
+# Usage: scripts/unity-free-check/run.sh      (installs a local .NET 8 SDK if none is found)
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 

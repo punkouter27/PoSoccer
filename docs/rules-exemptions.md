@@ -254,7 +254,7 @@ entry points carry `Agent_`.
 **Why it stays.** Renaming them would break a documented CLI contract for no
 functional gain. `Editor_BuildAndroidAAB.Build` is named in CLAUDE.md's headless
 build command and is invoked by `-executeMethod` from `scripts/build-android-aab.ps1`
-and `Tools/play_publish.py`'s documented flow; `-executeMethod` resolves a
+and `scripts/play_publish.py`'s documented flow; `-executeMethod` resolves a
 fully-qualified name, so a rename is a breaking change to every caller inside and
 outside the repo. The prefix also carries real information here — `Editor_` means
 "editor tooling, never in a player build", which is exactly what the folder's
@@ -269,7 +269,7 @@ do-not-break-callers reason, which is the one genuine inconsistency remaining.
 
 **Cost.** Two naming schemes in one folder, nine files. If the CLI contracts are
 ever revised, rename the whole folder to `Agent_` in the same change and update
-`scripts/*.ps1`, `Tools/play_publish.py` and CLAUDE.md's headless command together.
+`scripts/*.ps1`, `scripts/play_publish.py` and CLAUDE.md's headless command together.
 
 ## Runtime-installed presentation components (AGENTS.md "Scene Construction") — EXEMPT (2026-10-10)
 

@@ -152,7 +152,7 @@ the track has testers. After that a service account can own every upload.
 | Version | `1.0` (code 3) — set a release version before uploading |
 | Upload keystore | **Not created** — no `<name>-Release/` folder yet |
 | Android build script | **Not present** — no signed-AAB builder |
-| Publish tool | **Not present** — no `Tools/play_publish.py` |
+| Publish tool | **Not present** — no `scripts/play_publish.py` |
 | Target/min SDK | Must be 36 / 26 for a new Play upload |
 | Launcher icons | `Assets/Icons/` — art is in place, still needs wiring into PlayerSettings |
 

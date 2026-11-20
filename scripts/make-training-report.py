@@ -9,6 +9,7 @@ results\\eval\\*.json and the runs' TensorBoard event files. The prose around th
 charts is written for the p32pass / p33team runs and needs editing for a different pair.
 The file embeds its images and needs no network.
 """
+
 import argparse
 import base64
 import glob
@@ -84,14 +85,18 @@ def bar_chart(title, rows, unit, note):
     """rows: (label, value, css class). Horizontal bars, value printed at the end."""
     top = max((v for _, v, _ in rows), default=1) or 1
     h = 34 * len(rows) + 16
-    parts = [f'<figure class="viz"><figcaption>{esc(title)}</figcaption>',
-             f'<svg viewBox="0 0 360 {h}" role="img" aria-label="{esc(title)}">']
+    parts = [
+        f'<figure class="viz"><figcaption>{esc(title)}</figcaption>',
+        f'<svg viewBox="0 0 360 {h}" role="img" aria-label="{esc(title)}">',
+    ]
     for i, (label, value, cls) in enumerate(rows):
         y = 8 + i * 34
         w = max(2, 170 * value / top)
         parts.append(f'<text x="102" y="{y + 17}" text-anchor="end" class="lbl">{esc(label)}</text>')
         parts.append(f'<rect x="110" y="{y}" width="{w:.1f}" height="24" rx="4" class="{cls}"/>')
-        parts.append(f'<text x="{110 + w + 8:.1f}" y="{y + 17}" class="val">{esc(value if isinstance(value, int) else f"{value:.1f}")}{esc(unit)}</text>')
+        parts.append(
+            f'<text x="{110 + w + 8:.1f}" y="{y + 17}" class="val">{esc(value if isinstance(value, int) else f"{value:.1f}")}{esc(unit)}</text>'
+        )
     parts.append("</svg>")
     parts.append(f'<p class="note">{esc(note)}</p></figure>')
     return "\n".join(parts)
@@ -107,8 +112,10 @@ def band_table(tag, label, fmt):
     if not rows:
         return ""
     head = "".join(f"<th>{a // 1_000_000}–{b // 1_000_000}M</th>" for a, b, _, _ in bands(RUNS[1][1], tag))
-    return (f'<table class="bands"><caption>{esc(label)}, averaged over each 2M training steps</caption>'
-            f"<thead><tr><th>Run</th>{head}</tr></thead><tbody>{''.join(rows)}</tbody></table>")
+    return (
+        f'<table class="bands"><caption>{esc(label)}, averaged over each 2M training steps</caption>'
+        f"<thead><tr><th>Run</th>{head}</tr></thead><tbody>{''.join(rows)}</tbody></table>"
+    )
 
 
 def annotated(uri, size, marks, alt):
@@ -118,9 +125,13 @@ def annotated(uri, size, marks, alt):
     w, h = size
     pins = "".join(
         f'<g transform="translate({w * x / 100:.0f},{h * y / 100:.0f})"><circle r="26" class="pin"/>'
-        f'<text y="10" text-anchor="middle" class="pin-n">{n}</text></g>' for x, y, n in marks)
-    return (f'<div class="shot"><img src="{uri}" alt="{esc(alt)}" width="{w}" height="{h}">'
-            f'<svg viewBox="0 0 {w} {h}" aria-hidden="true">{pins}</svg></div>')
+        f'<text y="10" text-anchor="middle" class="pin-n">{n}</text></g>'
+        for x, y, n in marks
+    )
+    return (
+        f'<div class="shot"><img src="{uri}" alt="{esc(alt)}" width="{w}" height="{h}">'
+        f'<svg viewBox="0 0 {w} {h}" aria-hidden="true">{pins}</svg></div>'
+    )
 
 
 def main():
@@ -138,18 +149,30 @@ def main():
 
     def row(label, e2, e1):
         n = e2["episodes"]
-        one = f'{e1["blueWins"]} ({pct(e1["blueWins"], e1["episodes"])})' if e1 and e1.get("squad", "1") in ("1", "") else "not graded"
-        return (f"<tr><th>{esc(label)}</th><td>{e2['blueWins']} ({pct(e2['blueWins'], n)})</td>"
-                f"<td>{e2['bluePasses']}</td><td>{e2['bluePassProgressM']:.0f} m</td>"
-                f"<td>{e2['blueAssistedGoals']} of {e2['blueWins']}</td><td>{one}</td></tr>")
+        one = (
+            f"{e1['blueWins']} ({pct(e1['blueWins'], e1['episodes'])})"
+            if e1 and e1.get("squad", "1") in ("1", "")
+            else "not graded"
+        )
+        return (
+            f"<tr><th>{esc(label)}</th><td>{e2['blueWins']} ({pct(e2['blueWins'], n)})</td>"
+            f"<td>{e2['bluePasses']}</td><td>{e2['bluePassProgressM']:.0f} m</td>"
+            f"<td>{e2['blueAssistedGoals']} of {e2['blueWins']}</td><td>{one}</td></tr>"
+        )
 
     table_rows = [row(f"{k}: {desc}", ev2[k], ev1[k]) for k, _, desc in RUNS if ev2[k]]
     if bot2:
         table_rows.append(row("Scripted bots, for scale", bot2, None).replace("not graded", "—"))
 
     pass_rows = [(f"{k}", ev2[k]["bluePasses"], "b-run" if k != first else "b-before") for k, _, _ in RUNS if ev2[k]]
-    assist_rows = [(f"{k}", ev2[k]["blueAssistedGoals"], "b-run" if k != first else "b-before") for k, _, _ in RUNS if ev2[k]]
-    win_rows = [(f"{k}", round(100.0 * ev2[k]["blueWins"] / ev2[k]["episodes"], 1), "b-run" if k != first else "b-before") for k, _, _ in RUNS if ev2[k]]
+    assist_rows = [
+        (f"{k}", ev2[k]["blueAssistedGoals"], "b-run" if k != first else "b-before") for k, _, _ in RUNS if ev2[k]
+    ]
+    win_rows = [
+        (f"{k}", round(100.0 * ev2[k]["blueWins"] / ev2[k]["episodes"], 1), "b-run" if k != first else "b-before")
+        for k, _, _ in RUNS
+        if ev2[k]
+    ]
     if bot2:
         pass_rows.append(("scripted bots", bot2["bluePasses"], "b-bot"))
         assist_rows.append(("scripted bots", bot2["blueAssistedGoals"], "b-bot"))
@@ -157,17 +180,22 @@ def main():
 
     a, z = ev2[first], ev2[latest]
     n = z["episodes"]
-    pass_x = (z["bluePasses"] / a["bluePasses"]) if a["bluePasses"] else float("inf")
-    headline = (f"After team training the brain completes {z['bluePasses']} passes per {n} two-a-side matches, "
-                f"up from {a['bluePasses']}, and wins {pct(z['blueWins'], n)} of them, up from {pct(a['blueWins'], a['episodes'])}.")
+    headline = (
+        f"After team training the brain completes {z['bluePasses']} passes per {n} two-a-side matches, "
+        f"up from {a['bluePasses']}, and wins {pct(z['blueWins'], n)} of them, up from {pct(a['blueWins'], a['episodes'])}."
+    )
     short = ""
     o1 = ev1[latest]
     if o1 and ev1[first]:
-        short = (f"At one-a-side, the benchmark, it wins {pct(o1['blueWins'], o1['episodes'])}, against "
-                 f"{pct(ev1[first]['blueWins'], ev1[first]['episodes'])} before. ")
+        short = (
+            f"At one-a-side, the benchmark, it wins {pct(o1['blueWins'], o1['episodes'])}, against "
+            f"{pct(ev1[first]['blueWins'], ev1[first]['episodes'])} before. "
+        )
     if bot2:
-        short += (f"It still passes less than the scripted bots ({bot2['bluePasses']}), and "
-                 f"{z['blueAssistedGoals']} of its {z['blueWins']} goals came from a teammate's pass.")
+        short += (
+            f"It still passes less than the scripted bots ({bot2['bluePasses']}), and "
+            f"{z['blueAssistedGoals']} of its {z['blueWins']} goals came from a teammate's pass."
+        )
 
     s_pass, sz_pass = shot_data_uri(args.shots, "passes")
     s_ast, sz_ast = shot_data_uri(args.shots, "assisted")
@@ -204,91 +232,149 @@ code{background:rgba(127,127,127,.15);padding:1px 5px;border-radius:4px;font-siz
 """
 
     def tiers(toddler, child, adult):
-        return (f'<div class="tiers"><div class="tier"><b>For a toddler</b>{toddler}</div>'
-                f'<div class="tier"><b>For a child</b>{child}</div><div class="tier"><b>For an adult</b>{adult}</div></div>')
+        return (
+            f'<div class="tiers"><div class="tier"><b>For a toddler</b>{toddler}</div>'
+            f'<div class="tier"><b>For a child</b>{child}</div><div class="tier"><b>For an adult</b>{adult}</div></div>'
+        )
 
     def chart(num, title, uri, size, marks, keys, explain, tier_html, extra):
         key_items = "".join(f"<li>{k}</li>" for k in keys)
-        return (f'<section class="chart"><h2 style="margin-top:0">{num}. {esc(title)}</h2><div class="grid">'
-                f"{annotated(uri, size, marks, title)}<div><p>{explain}</p><h3>What the numbers on the picture mark</h3>"
-                f'<ol class="keys">{key_items}</ol></div></div>{tier_html}<div class="wrap">{extra}</div></section>')
+        return (
+            f'<section class="chart"><h2 style="margin-top:0">{num}. {esc(title)}</h2><div class="grid">'
+            f"{annotated(uri, size, marks, title)}<div><p>{explain}</p><h3>What the numbers on the picture mark</h3>"
+            f'<ol class="keys">{key_items}</ol></div></div>{tier_html}<div class="wrap">{extra}</div></section>'
+        )
 
     body = []
-    body.append(f"<h1>PoSoccer team-play training report</h1><p class=\"sub\">Generated {date.today().isoformat()} · runs "
-                + ", ".join(esc(rid) for k, rid, _ in RUNS if ev2[k]) + " · graded over "
-                + f"{n} matches each</p>")
+    body.append(
+        f'<h1>PoSoccer team-play training report</h1><p class="sub">Generated {date.today().isoformat()} · runs '
+        + ", ".join(esc(rid) for k, rid, _ in RUNS if ev2[k])
+        + " · graded over "
+        + f"{n} matches each</p>"
+    )
     body.append(f'<p class="lead">{esc(headline)} {esc(short)}</p>')
-    body.append('<p class="note">A completed pass here means the ball went from one player to a teammate over at least 3 m with no opponent touching it in between.</p>')
+    body.append(
+        '<p class="note">A completed pass here means the ball went from one player to a teammate over at least 3 m with no opponent touching it in between.</p>'
+    )
 
     body.append("<h2>Graded results</h2>")
-    body.append('<div class="wrap"><table><thead><tr><th>Brain (blue side)</th><th>2v2 wins</th><th>2v2 passes</th>'
-                "<th>Ground gained by passes</th><th>Goals from a teammate's pass</th><th>1v1 wins</th></tr></thead><tbody>"
-                + "".join(table_rows) + "</tbody></table></div>")
-    body.append('<p class="note">These come from the evaluation harness, not from the training curves below. '
-                "Training curves on this project have pointed the wrong way before, so the grade is what counts. "
-                "The benchmark bar is 80% wins at 1v1; no brain is near it.</p>")
+    body.append(
+        '<div class="wrap"><table><thead><tr><th>Brain (blue side)</th><th>2v2 wins</th><th>2v2 passes</th>'
+        "<th>Ground gained by passes</th><th>Goals from a teammate's pass</th><th>1v1 wins</th></tr></thead><tbody>"
+        + "".join(table_rows)
+        + "</tbody></table></div>"
+    )
+    body.append(
+        '<p class="note">These come from the evaluation harness, not from the training curves below. '
+        "Training curves on this project have pointed the wrong way before, so the grade is what counts. "
+        "The benchmark bar is 80% wins at 1v1; no brain is near it.</p>"
+    )
 
-    body.append('<div class="three" style="margin-top:16px">'
-                + bar_chart(f"Completed passes in {n} matches", pass_rows, "", "Higher is more teamwork.")
-                + bar_chart("Goals set up by a teammate", assist_rows, "", "A goal whose last two touches were two players of the same side.")
-                + bar_chart("Two-a-side wins", win_rows, "%", "Share of matches won against the scripted bots.")
-                + "</div>")
+    body.append(
+        '<div class="three" style="margin-top:16px">'
+        + bar_chart(f"Completed passes in {n} matches", pass_rows, "", "Higher is more teamwork.")
+        + bar_chart(
+            "Goals set up by a teammate",
+            assist_rows,
+            "",
+            "A goal whose last two touches were two players of the same side.",
+        )
+        + bar_chart("Two-a-side wins", win_rows, "%", "Share of matches won against the scripted bots.")
+        + "</div>"
+    )
 
-    body.append("<h2>The three TensorBoard charts that matter</h2>"
-                '<p class="sub">Screenshots of the live TensorBoard at smoothing 0.9. The faint line is the raw value, the bold line the smoothed one. '
-                "Green is the first team run, orange the second.</p>")
+    body.append(
+        "<h2>The three TensorBoard charts that matter</h2>"
+        '<p class="sub">Screenshots of the live TensorBoard at smoothing 0.9. The faint line is the raw value, the bold line the smoothed one. '
+        "Green is the first team run, orange the second.</p>"
+    )
 
-    body.append(chart(
-        1, "Completed passes per match (PoSoccer/blue_passes)", s_pass, sz_pass,
-        [(26, 63, 1), (47, 17, 2), (80, 41, 3), (50, 94, 4)],
-        ["Start of the first team run: the brain had only ever played alone, so it almost never passed.",
-         "Passing rises as training goes on. The raw line swings a lot because each point covers only a few dozen matches.",
-         "The second run (orange) starts where the first ended and stays in the same 0.2 to 0.3 band during training. Its graded pass count is still higher: see the results table.",
-         "The table under the chart gives each run's latest smoothed value."],
-        "How many completed passes the trained side made in each two-a-side match during training. "
-        "This is the most direct measure of whether the players are combining.",
-        tiers("The players learned to share the ball a little.",
-              "At first each player kept the ball to itself. After practice they pass to a friend about once every three or four games, which is more than before but less than the robot team.",
-              "Passes per episode rose from near zero to roughly 0.2 to 0.3 in the first run and stayed in that band in the second. In the graded matches the count rose again between the two runs, so the training curve understates the second run. The scripted bots sit near 0.5."),
-        band_table("PoSoccer/blue_passes", "Passes per match", lambda v: f"{v:.2f}")))
+    body.append(
+        chart(
+            1,
+            "Completed passes per match (PoSoccer/blue_passes)",
+            s_pass,
+            sz_pass,
+            [(26, 63, 1), (47, 17, 2), (80, 41, 3), (50, 94, 4)],
+            [
+                "Start of the first team run: the brain had only ever played alone, so it almost never passed.",
+                "Passing rises as training goes on. The raw line swings a lot because each point covers only a few dozen matches.",
+                "The second run (orange) starts where the first ended and stays in the same 0.2 to 0.3 band during training. Its graded pass count is still higher: see the results table.",
+                "The table under the chart gives each run's latest smoothed value.",
+            ],
+            "How many completed passes the trained side made in each two-a-side match during training. "
+            "This is the most direct measure of whether the players are combining.",
+            tiers(
+                "The players learned to share the ball a little.",
+                "At first each player kept the ball to itself. After practice they pass to a friend about once every three or four games, which is more than before but less than the robot team.",
+                "Passes per episode rose from near zero to roughly 0.2 to 0.3 in the first run and stayed in that band in the second. In the graded matches the count rose again between the two runs, so the training curve understates the second run. The scripted bots sit near 0.5.",
+            ),
+            band_table("PoSoccer/blue_passes", "Passes per match", lambda v: f"{v:.2f}"),
+        )
+    )
 
-    body.append(chart(
-        2, "Share of goals set up by a teammate (PoSoccer/blue_assisted_goal_rate)", s_ast, sz_ast,
-        [(27, 30, 1), (50, 50, 2), (84, 55, 3), (50, 94, 4)],
-        ["Each point is the fraction of the trained side's goals, in that stretch of training, whose last two touches were two teammates.",
-         "The line is jumpy because goals are rare: a single assisted goal moves a point a long way.",
-         "Read the level, not the wiggles: both runs sit in a low band.",
-         "The second run reads lower here, yet in the graded matches it scored twice as many assisted goals. The two runs trained against different bot strengths, so their curves are not like for like; the grades are."],
-        "Passing only matters if it leads to goals. This chart shows how often a goal came straight from a teammate's pass.",
-        tiers("Sometimes one player helps another score.",
-              "When the team scores, we check whether a friend passed the ball just before. That happens for about one goal in eight during practice.",
-              "The assisted-goal share during training is roughly 5 to 17% and noisy. The first run began against half-strength bots and the second against strong ones, so the curves cannot be compared directly; use the graded counts in the results table."),
-        band_table("PoSoccer/blue_assisted_goal_rate", "Assisted-goal share", lambda v: f"{100 * v:.0f}%")))
+    body.append(
+        chart(
+            2,
+            "Share of goals set up by a teammate (PoSoccer/blue_assisted_goal_rate)",
+            s_ast,
+            sz_ast,
+            [(27, 30, 1), (50, 50, 2), (84, 55, 3), (50, 94, 4)],
+            [
+                "Each point is the fraction of the trained side's goals, in that stretch of training, whose last two touches were two teammates.",
+                "The line is jumpy because goals are rare: a single assisted goal moves a point a long way.",
+                "Read the level, not the wiggles: both runs sit in a low band.",
+                "The second run reads lower here, yet in the graded matches it scored twice as many assisted goals. The two runs trained against different bot strengths, so their curves are not like for like; the grades are.",
+            ],
+            "Passing only matters if it leads to goals. This chart shows how often a goal came straight from a teammate's pass.",
+            tiers(
+                "Sometimes one player helps another score.",
+                "When the team scores, we check whether a friend passed the ball just before. That happens for about one goal in eight during practice.",
+                "The assisted-goal share during training is roughly 5 to 17% and noisy. The first run began against half-strength bots and the second against strong ones, so the curves cannot be compared directly; use the graded counts in the results table.",
+            ),
+            band_table("PoSoccer/blue_assisted_goal_rate", "Assisted-goal share", lambda v: f"{100 * v:.0f}%"),
+        )
+    )
 
-    body.append(chart(
-        3, "Distance between teammates (PoSoccer/blue_teammate_gap_m)", s_gap, sz_gap,
-        [(25, 64, 1), (55, 44, 2), (80, 13, 3), (50, 94, 4)],
-        ["Early in the first run the two teammates stay close together, both chasing the ball.",
-         "The gap widens steadily through the first run (green): the players are taking up separate positions.",
-         "The second run (orange) carries on from there and ends near 12 m.",
-         "Latest smoothed value for each run."],
-        "The average distance between the two teammates. A small gap means both are swarming the ball; a wider gap means they hold different positions.",
-        tiers("The players stopped bunching up.",
-              "At first both players ran at the ball together. Now one goes to the ball and the other waits in a good spot.",
-              "Mean teammate separation rose from about 6 m to about 9 m in the first run and to about 12 m in the second. This is the clearest and smoothest learned change. Which reward term drove it was not isolated."),
-        band_table("PoSoccer/blue_teammate_gap_m", "Teammate gap", lambda v: f"{v:.1f} m")))
+    body.append(
+        chart(
+            3,
+            "Distance between teammates (PoSoccer/blue_teammate_gap_m)",
+            s_gap,
+            sz_gap,
+            [(25, 64, 1), (55, 44, 2), (80, 13, 3), (50, 94, 4)],
+            [
+                "Early in the first run the two teammates stay close together, both chasing the ball.",
+                "The gap widens steadily through the first run (green): the players are taking up separate positions.",
+                "The second run (orange) carries on from there and ends near 12 m.",
+                "Latest smoothed value for each run.",
+            ],
+            "The average distance between the two teammates. A small gap means both are swarming the ball; a wider gap means they hold different positions.",
+            tiers(
+                "The players stopped bunching up.",
+                "At first both players ran at the ball together. Now one goes to the ball and the other waits in a good spot.",
+                "Mean teammate separation rose from about 6 m to about 9 m in the first run and to about 12 m in the second. This is the clearest and smoothest learned change. Which reward term drove it was not isolated.",
+            ),
+            band_table("PoSoccer/blue_teammate_gap_m", "Teammate gap", lambda v: f"{v:.1f} m"),
+        )
+    )
 
-    body.append("<h2>How to read this, and what is still missing</h2><ul class=\"plain\">"
-                "<li><b>What worked:</b> starting from a brain that could already play, then training two-a-side against bots that hold positions and pass.</li>"
-                "<li><b>What the second run added:</b> sharing the goal reward more evenly between scorer, passer and teammate. Graded passes and assisted goals both rose, and so did the one-a-side win rate. It was one run, so how much is the reward change and how much is simply more training is not separated.</li>"
-                "<li><b>Why mean reward is not shown:</b> on this project it has repeatedly disagreed with the graded result, so it is not used to judge a run.</li>"
-                "<li><b>Not measured:</b> whether passes are chosen at the right moment. The counts say passes happen more often, not that each one was the better option than shooting.</li>"
-                "<li><b>Where the files are:</b> grades in <code>results/eval/*.json</code>, curves in <code>results/&lt;run&gt;/STANDARD/</code>, history in <code>docs/training-history.md</code>.</li>"
-                "</ul>")
+    body.append(
+        '<h2>How to read this, and what is still missing</h2><ul class="plain">'
+        "<li><b>What worked:</b> starting from a brain that could already play, then training two-a-side against bots that hold positions and pass.</li>"
+        "<li><b>What the second run added:</b> sharing the goal reward more evenly between scorer, passer and teammate. Graded passes and assisted goals both rose, and so did the one-a-side win rate. It was one run, so how much is the reward change and how much is simply more training is not separated.</li>"
+        "<li><b>Why mean reward is not shown:</b> on this project it has repeatedly disagreed with the graded result, so it is not used to judge a run.</li>"
+        "<li><b>Not measured:</b> whether passes are chosen at the right moment. The counts say passes happen more often, not that each one was the better option than shooting.</li>"
+        "<li><b>Where the files are:</b> grades in <code>results/eval/*.json</code>, curves in <code>results/&lt;run&gt;/STANDARD/</code>, history in <code>docs/training-history.md</code>.</li>"
+        "</ul>"
+    )
 
-    doc = ("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
-           f"<title>PoSoccer team-play training report</title><style>{css}</style></head><body><main>"
-           + "\n".join(body) + "</main></body></html>")
+    doc = (
+        '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+        f"<title>PoSoccer team-play training report</title><style>{css}</style></head><body><main>"
+        + "\n".join(body)
+        + "</main></body></html>"
+    )
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
     with open(args.out, "w", encoding="utf-8") as f:
         f.write(doc)

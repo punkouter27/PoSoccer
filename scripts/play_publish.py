@@ -46,9 +46,9 @@ SETUP (one time, and it needs a human in a browser):
 
 USAGE
 
-  python Tools/play_publish.py --dry-run
-  python Tools/play_publish.py --track internal --status completed
-  python Tools/play_publish.py --track production --status draft
+  python scripts/play_publish.py --dry-run
+  python scripts/play_publish.py --track internal --status completed
+  python scripts/play_publish.py --track production --status draft
 """
 
 import argparse
@@ -89,14 +89,14 @@ def access_token(credentials_path):
     both would still need refresh handling.
     """
     try:
-        from google.oauth2 import service_account
         from google.auth.transport.requests import Request
+        from google.oauth2 import service_account
     except ImportError:
         fail(
             "google-auth is not installed. Create the isolated tooling venv:\n"
-            "  py -3 -m venv Tools/publish-venv\n"
-            "  Tools/publish-venv/Scripts/python.exe -m pip install "
-            "-r Tools/requirements-publish.txt\n"
+            "  py -3 -m venv scripts/publish-venv\n"
+            "  scripts/publish-venv/Scripts/python.exe -m pip install "
+            "-r scripts/requirements-publish.txt\n"
             "then re-run this script with that interpreter. Do NOT install it "
             "into .venv — that venv's pins are load-bearing for ML-Agents training."
         )
@@ -109,14 +109,12 @@ def access_token(credentials_path):
             "there is no way around that step."
         )
 
-    credentials = service_account.Credentials.from_service_account_file(
-        credentials_path, scopes=[SCOPE])
+    credentials = service_account.Credentials.from_service_account_file(credentials_path, scopes=[SCOPE])
     credentials.refresh(Request())
     return credentials.token
 
 
-def call(token, method, url, body=None, content_type="application/json",
-         raw=False):
+def call(token, method, url, body=None, content_type="application/json", raw=False):
     data = None
     headers = {"Authorization": "Bearer " + token}
     if body is not None:
@@ -124,8 +122,7 @@ def call(token, method, url, body=None, content_type="application/json",
         headers["Content-Type"] = content_type
         headers["Content-Length"] = str(len(data))
 
-    request = urllib.request.Request(url, data=data, headers=headers,
-                                     method=method)
+    request = urllib.request.Request(url, data=data, headers=headers, method=method)
     try:
         with urllib.request.urlopen(request) as response:
             payload = response.read().decode("utf-8")
@@ -134,83 +131,81 @@ def call(token, method, url, body=None, content_type="application/json",
         detail = error.read().decode("utf-8", "replace")
         # The API's own message is far more useful than the status line —
         # "versionCode 2 has already been used" versus a bare 400.
-        fail("Play API {} on {} {}\n{}".format(error.code, method, url, detail))
+        fail(f"Play API {error.code} on {method} {url}\n{detail}")
     except urllib.error.URLError as error:
-        fail("could not reach the Play API: {}".format(error.reason))
+        fail(f"could not reach the Play API: {error.reason}")
 
 
 def describe_track(token, edit_id, track):
     """Print what is already on the track. A versionCode must be strictly higher
     than everything Play has ever seen for this package, and the overwhelmingly
     common failure is bumping from the LOCAL value while the live one is ahead."""
-    url = "{}/applications/{}/edits/{}/tracks/{}".format(
-        API_ROOT, PACKAGE_NAME, edit_id, track)
+    url = f"{API_ROOT}/applications/{PACKAGE_NAME}/edits/{edit_id}/tracks/{track}"
     try:
         current = call(token, "GET", url)
     except SystemExit:
         # A track with nothing on it 404s. That is information, not an error.
-        print("  track '{}' has no existing releases".format(track))
+        print(f"  track '{track}' has no existing releases")
         return
 
     releases = current.get("releases", [])
     if not releases:
-        print("  track '{}' has no existing releases".format(track))
+        print(f"  track '{track}' has no existing releases")
         return
     for release in releases:
-        print("  track '{}' currently: status={} versionCodes={} name={}".format(
-            track,
-            release.get("status", "?"),
-            release.get("versionCodes", []),
-            release.get("name", "")))
+        print(
+            "  track '{}' currently: status={} versionCodes={} name={}".format(
+                track, release.get("status", "?"), release.get("versionCodes", []), release.get("name", "")
+            )
+        )
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Upload a signed AAB to Google Play.")
-    parser.add_argument("--aab", default=DEFAULT_AAB,
-                        help="path to the .aab (default: Builds/Android/PoSoccer.aab)")
-    parser.add_argument("--credentials",
-                        default=os.environ.get("POSOCCER_PLAY_CREDENTIALS",
-                                               DEFAULT_CREDENTIALS),
-                        help="service account JSON key")
-    parser.add_argument("--track", default="internal",
-                        choices=["internal", "alpha", "beta", "production"],
-                        help="release track (default: internal — production is opt-in)")
-    parser.add_argument("--status", default="draft",
-                        choices=["draft", "completed"],
-                        help="draft uploads without rolling out (default: draft)")
-    parser.add_argument("--notes", default=None,
-                        help="release notes (en-US)")
-    parser.add_argument("--dry-run", action="store_true",
-                        help="do everything except commit, then delete the edit")
+    parser = argparse.ArgumentParser(description="Upload a signed AAB to Google Play.")
+    parser.add_argument("--aab", default=DEFAULT_AAB, help="path to the .aab (default: Builds/Android/PoSoccer.aab)")
+    parser.add_argument(
+        "--credentials",
+        default=os.environ.get("POSOCCER_PLAY_CREDENTIALS", DEFAULT_CREDENTIALS),
+        help="service account JSON key",
+    )
+    parser.add_argument(
+        "--track",
+        default="internal",
+        choices=["internal", "alpha", "beta", "production"],
+        help="release track (default: internal — production is opt-in)",
+    )
+    parser.add_argument(
+        "--status",
+        default="draft",
+        choices=["draft", "completed"],
+        help="draft uploads without rolling out (default: draft)",
+    )
+    parser.add_argument("--notes", default=None, help="release notes (en-US)")
+    parser.add_argument("--dry-run", action="store_true", help="do everything except commit, then delete the edit")
     args = parser.parse_args()
 
     if not os.path.exists(args.aab):
         fail("no AAB at " + args.aab + " — run PoSoccer → Build Android AAB first")
 
     size_mb = os.path.getsize(args.aab) / (1024.0 * 1024.0)
-    print("AAB:   {} ({:.1f} MB)".format(args.aab, size_mb))
-    print("App:   {}".format(PACKAGE_NAME))
-    print("Track: {}  status={}{}".format(
-        args.track, args.status, "  [DRY RUN]" if args.dry_run else ""))
+    print(f"AAB:   {args.aab} ({size_mb:.1f} MB)")
+    print(f"App:   {PACKAGE_NAME}")
+    print("Track: {}  status={}{}".format(args.track, args.status, "  [DRY RUN]" if args.dry_run else ""))
 
     token = access_token(args.credentials)
 
-    edit = call(token, "POST",
-                "{}/applications/{}/edits".format(API_ROOT, PACKAGE_NAME))
+    edit = call(token, "POST", f"{API_ROOT}/applications/{PACKAGE_NAME}/edits")
     edit_id = edit["id"]
-    print("Edit:  {}".format(edit_id))
+    print(f"Edit:  {edit_id}")
 
     describe_track(token, edit_id, args.track)
 
     with open(args.aab, "rb") as handle:
         blob = handle.read()
-    upload_url = "{}/applications/{}/edits/{}/bundles?uploadType=media".format(
-        UPLOAD_ROOT, PACKAGE_NAME, edit_id)
-    bundle = call(token, "POST", upload_url, body=blob,
-                  content_type="application/octet-stream", raw=True)
+    upload_url = f"{UPLOAD_ROOT}/applications/{PACKAGE_NAME}/edits/{edit_id}/bundles?uploadType=media"
+    bundle = call(token, "POST", upload_url, body=blob, content_type="application/octet-stream", raw=True)
     version_code = bundle.get("versionCode")
-    print("Uploaded bundle versionCode={}".format(version_code))
+    print(f"Uploaded bundle versionCode={version_code}")
 
     release = {
         "status": args.status,
@@ -219,25 +214,24 @@ def main():
     if args.notes:
         release["releaseNotes"] = [{"language": "en-US", "text": args.notes}]
 
-    call(token, "PUT",
-         "{}/applications/{}/edits/{}/tracks/{}".format(
-             API_ROOT, PACKAGE_NAME, edit_id, args.track),
-         body={"track": args.track, "releases": [release]})
-    print("Track '{}' set to versionCode {} ({})".format(
-        args.track, version_code, args.status))
+    call(
+        token,
+        "PUT",
+        f"{API_ROOT}/applications/{PACKAGE_NAME}/edits/{edit_id}/tracks/{args.track}",
+        body={"track": args.track, "releases": [release]},
+    )
+    print(f"Track '{args.track}' set to versionCode {version_code} ({args.status})")
 
     if args.dry_run:
-        call(token, "DELETE", "{}/applications/{}/edits/{}".format(
-            API_ROOT, PACKAGE_NAME, edit_id))
-        print("PLAY PUBLISH RESULT: Dry run OK — edit discarded, nothing published. "
-              "versionCode {} would have gone to '{}' as {}.".format(
-                  version_code, args.track, args.status))
+        call(token, "DELETE", f"{API_ROOT}/applications/{PACKAGE_NAME}/edits/{edit_id}")
+        print(
+            "PLAY PUBLISH RESULT: Dry run OK — edit discarded, nothing published. "
+            f"versionCode {version_code} would have gone to '{args.track}' as {args.status}."
+        )
         return
 
-    call(token, "POST", "{}/applications/{}/edits/{}:commit".format(
-        API_ROOT, PACKAGE_NAME, edit_id))
-    print("PLAY PUBLISH RESULT: Committed versionCode {} to '{}' as {}.".format(
-        version_code, args.track, args.status))
+    call(token, "POST", f"{API_ROOT}/applications/{PACKAGE_NAME}/edits/{edit_id}:commit")
+    print(f"PLAY PUBLISH RESULT: Committed versionCode {version_code} to '{args.track}' as {args.status}.")
     if args.status == "draft":
         print("It is a DRAFT — open the Play Console and roll it out when ready.")
 

@@ -4,7 +4,23 @@ version = "0.1.0"
 requires-python = ">=3.10"
 
 [dependency-groups]
-dev = ["pytest>=8.0"]
+dev = ["pytest>=8.0", "ruff==0.17.6"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+extend-exclude = [
+    "Library", "Packages", "Builds", "results", ".venv", ".tooling", "Temp", "Logs", "UserSettings",
+    "Assets", "scripts/publish-venv", ".claude", "SCREENSHOTS", "StoreAssets",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = ["E501"]  # the formatter owns line length; long string literals stay readable
+
+[tool.ruff.format]
+quote-style = "double"
 
 [tool.pytest.ini_options]
+testpaths = ["tests"]
 pythonpath = [".", "scripts"]

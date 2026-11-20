@@ -5,7 +5,7 @@ under plain .NET 8 + NUnit. It exists for machines with no Unity editor, such as
 cloud session, where otherwise nothing can be compiled at all.
 
 ```bash
-Tools/unity-free-check/run.sh        # installs a local .NET 8 SDK into .dotnet/ if none is on PATH
+scripts/unity-free-check/run.sh        # installs a local .NET 8 SDK into .dotnet/ if none is on PATH
 ```
 
 ## What it covers

@@ -18,17 +18,19 @@ visible, so the ball is sized to sit inside that safe zone.
 
 Run:  .venv/Scripts/python.exe scripts/make-icons.py
 """
+
 import math
 import os
+
 from PIL import Image, ImageDraw
 
 SS = 4  # supersample factor; drawn large then LANCZOS-downsampled for clean edges
 
 # Agent_UIStyle.cs, converted from linear 0-1 floats to 8-bit sRGB-ish ints.
-BACKGROUND = (13, 23, 18)     # new(0.05f, 0.09f, 0.07f)
-ACCENT = (41, 140, 71)        # new(0.16f, 0.55f, 0.28f)  - pitch green
-BLUE_TEAM = (51, 128, 255)    # new(0.2f,  0.5f,  1f)
-RED_TEAM = (255, 64, 51)      # new(1f,    0.25f, 0.2f)
+BACKGROUND = (13, 23, 18)  # new(0.05f, 0.09f, 0.07f)
+ACCENT = (41, 140, 71)  # new(0.16f, 0.55f, 0.28f)  - pitch green
+BLUE_TEAM = (51, 128, 255)  # new(0.2f,  0.5f,  1f)
+RED_TEAM = (255, 64, 51)  # new(1f,    0.25f, 0.2f)
 WHITE = (255, 255, 255)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -37,9 +39,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 def _pentagon(cx, cy, r, rot=0.0):
     """Five points, first vertex at `rot` radians (-pi/2 = pointing up)."""
     return [
-        (cx + r * math.cos(rot + i * 2 * math.pi / 5),
-         cy + r * math.sin(rot + i * 2 * math.pi / 5))
-        for i in range(5)
+        (cx + r * math.cos(rot + i * 2 * math.pi / 5), cy + r * math.sin(rot + i * 2 * math.pi / 5)) for i in range(5)
     ]
 
 
@@ -76,8 +76,7 @@ def draw_ball(size, diameter_frac):
     r = s * diameter_frac / 2
 
     # Body with a soft dark rim so it reads against a light pitch.
-    d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=WHITE,
-              outline=BACKGROUND, width=max(1, int(s * 0.010)))
+    d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=WHITE, outline=BACKGROUND, width=max(1, int(s * 0.010)))
 
     # Centre pentagon.
     core_r = r * 0.34
@@ -92,13 +91,15 @@ def draw_ball(size, diameter_frac):
         py = cy + math.sin(a) * r * 0.80
         od.polygon(_pentagon(px, py, r * 0.30, a + math.pi / 2), fill=BACKGROUND)
         # Seam from the centre pentagon out to each outer patch.
-        od.line([(cx + math.cos(a) * core_r * 1.05, cy + math.sin(a) * core_r * 1.05),
-                 (px, py)], fill=BACKGROUND, width=max(1, int(s * 0.014)))
+        od.line(
+            [(cx + math.cos(a) * core_r * 1.05, cy + math.sin(a) * core_r * 1.05), (px, py)],
+            fill=BACKGROUND,
+            width=max(1, int(s * 0.014)),
+        )
 
     mask = Image.new("L", (s, s), 0)
     ImageDraw.Draw(mask).ellipse([cx - r, cy - r, cx + r, cy + r], fill=255)
-    img.paste(outer, (0, 0), Image.composite(mask, Image.new("L", (s, s), 0),
-                                             outer.split()[3]))
+    img.paste(outer, (0, 0), Image.composite(mask, Image.new("L", (s, s), 0), outer.split()[3]))
 
     return img.resize((size, size), Image.LANCZOS)
 
@@ -127,10 +128,12 @@ def main():
     store.alpha_composite(draw_ball(512, 0.70))
     store.convert("RGB").save(os.path.join(store_dir, "icon_store_512.png"))
 
-    for p in [os.path.join(icons_dir, "icon_background.png"),
-              os.path.join(icons_dir, "icon_foreground.png"),
-              os.path.join(icons_dir, "icon_legacy.png"),
-              os.path.join(store_dir, "icon_store_512.png")]:
+    for p in [
+        os.path.join(icons_dir, "icon_background.png"),
+        os.path.join(icons_dir, "icon_foreground.png"),
+        os.path.join(icons_dir, "icon_legacy.png"),
+        os.path.join(store_dir, "icon_store_512.png"),
+    ]:
         im = Image.open(p)
         print(f"{os.path.relpath(p, ROOT):<46} {im.size[0]}x{im.size[1]} {im.mode}")
 
