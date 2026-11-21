@@ -149,3 +149,6 @@ Assets/Demonstrations/*.demo.meta
 
 # Generated Unity C# project files
 /*.csproj
+
+# .NET build output of helper tools
+Tools/**/obj/
