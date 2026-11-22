@@ -1,5 +1,5 @@
 # ---- The roster (2026-11-08) --------------------------------------------------
-# One table for every script: profile name -> asset folder under Assets/Agents.
+# One table for every script: profile name -> asset folder under Assets/_Project/RL_Models.
 # STANDARD is the reference brain (benched from play, still trained and graded);
 # the other 16 are the face characters (docs/players.md). Scripts take any name
 # here; -Profile parameters use ValidatePattern and call Assert-Profile, because a
@@ -109,7 +109,7 @@ function Get-ConfigHash {
 # SOURCE, like ActionGain in update-model.ps1: a copy in a script is how a stamp drifts.
 function Get-RealismConstant {
     param([Parameter(Mandatory = $true)][string]$Root, [Parameter(Mandatory = $true)][string]$Name)
-    $source = Join-Path $Root "Assets\Scripts\Agents\Agent_Realism.cs"
+    $source = Join-Path $Root "Assets\_Project\Agents\Agent_Realism.cs"
     $m = Select-String -Path $source -Pattern ("public\s+const\s+string\s+" + [regex]::Escape($Name) + "\s*=\s*""([^""]+)""") |
          Select-Object -First 1
     if (-not $m) { throw "Agent_Realism.$Name not found in $source" }

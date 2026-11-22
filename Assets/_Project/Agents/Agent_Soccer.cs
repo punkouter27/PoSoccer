@@ -1,0 +1,1653 @@
+using Unity.MLAgents;
+using Unity.MLAgents.Actuators;
+using Unity.MLAgents.Policies;
+using Unity.MLAgents.Sensors;
+using Unity.MLAgents.Demonstrations;
+using UnityEngine;
+using UnityEngine.Serialization;
+
+namespace PoSoccer
+{
+    /// <summary>
+    /// Top-down 2D soccer agent (SoccerAgent_v01).
+    ///
+    /// Continuous actions (4): [0] drive along the +Y eye axis, [1] lateral strafe,
+    /// [2] turn torque, [3] boost.
+    /// Vector observations: <see cref="BaseObservationSize"/>, stacked
+    /// <see cref="StackedObservations"/> times. Ray observations come from
+    /// Sensor_Vision and are NOT stacked.
+    /// Pure momentum ball interaction — all ball control is physics contact.
+    ///
+    /// This docstring previously claimed three actions and "14 base floats", against
+    /// four actions and 27 observations. Agent_EditMode_ObsContract pins the numbers;
+    /// the prose is now written in terms of those same constants so it cannot drift
+    /// away from them again.
+    /// </summary>
+    [RequireComponent(typeof(Rigidbody2D))]
+    [RequireComponent(typeof(Agent_Stamina))]
+    public sealed class Agent_Soccer : Agent
+    {
+        public enum Team { Blue = 0, Red = 1 }
+
+        [Header("Identity")]
+        public Team team = Team.Blue;
+        [Tooltip("ML behavior / brain name. STANDARD is the base brain; personality " +
+                 "brains (MATT, KIM, NICK) get their own name + reward profile + policy.")]
+        public string brainName = "STANDARD";
+
+        [Header("Actuation (SI units - 75 kg body)")]
+        [Tooltip("Drive force (N) at action = 1. 236 N on a 75 kg body with damping 0.7 " +
+                 "gives a ~4.5 m/s jog reached over ~4 s, matching human sprint build-up.")]
+        [FormerlySerializedAs("moveForce")]
+        [SerializeField] private float _moveForce = 236f;
+
+        [Header("Ground contact (traction)")]
+        [Tooltip("Runtime linear damping. Low value = long coast; braking is done actively " +
+                 "by the feet within the traction budget rather than by fake global drag.")]
+        [SerializeField] private float _linearDamping = 0.7f;
+        [Tooltip("Coefficient of friction, studs on turf (~1.0-1.5). Total foot force is " +
+                 "capped at mu * m * g, so cuts, launches and braking are all traction-limited.")]
+        [SerializeField] private float _tractionMu = 1.2f;
+        [Tooltip("Extra sideways damping (body-frame). A real body skids less laterally than " +
+                 "it rolls forward, but at the original 1.5 the drag was overwhelming the drive " +
+                 "force for any action with a strafe component (lateral drag = 2.1x linear drag, " +
+                 "so even a brain intent of magnitude 0.4 with mostly-lateral split could not " +
+                 "accelerate). 0.4 keeps strafing slower than running (~64% of forward) without " +
+                 "stranding cautious-trained brains at <0.3 m/s.")]
+        [SerializeField] private float _lateralDrag = 0.4f;
+        [Tooltip("Fraction of the standing turn rate still available at full sprint. " +
+                 "Humans pivot freely at rest and barely at all at top speed.")]
+        [Range(0.05f, 1f)]
+        [SerializeField] private float _sprintTurnFactor = 0.25f;
+        [Tooltip("Speed (m/s) treated as full sprint when scaling the turn rate.")]
+        [SerializeField] private float _turnScaleSpeed = 10f;
+        [Tooltip("Turn torque (N*m) at action = 1.")]
+        [FormerlySerializedAs("turnTorque")]
+        [SerializeField] private float _turnTorque = 250f;
+        [Tooltip("Force multiplier while boosting with stamina available (PRD: 2.2x -> ~10 m/s sprint).")]
+        [FormerlySerializedAs("boostMultiplier")]
+        [SerializeField] private float _boostMultiplier = 2.2f;
+        [Tooltip("Boost action activation threshold (PRD: 0.1).")]
+        [FormerlySerializedAs("boostThreshold")]
+        [SerializeField] private float _boostThreshold = 0.1f;
+        [Tooltip("Rotation limit (deg/s) at rest. A standing athlete pivots at roughly " +
+                 "400-600 deg/s; 360 was under-modelling a plant-and-turn. The sprint turn " +
+                 "factor already collapses this at speed, which is where the real limit is.")]
+        [FormerlySerializedAs("maxAngularVelocityDeg")]
+        [SerializeField] private float _maxAngularVelocityDeg = 500f;
+        [Tooltip("How fast the applied drive force can change (N/s). Muscle ramps over ~0.2s at jog, ~0.45s to full sprint.")]
+        [FormerlySerializedAs("forceSlewRate")]
+        [SerializeField] private float _forceSlewRate = 1200f;
+        [Range(0.3f, 1f)]
+        [Tooltip("Power fraction remaining at zero stamina (exhausted agents visibly slow).")]
+        [FormerlySerializedAs("tiredPowerFloor")]
+        [SerializeField] private float _tiredPowerFloor = 0.6f;
+
+        [Header("Wall kick-out (corner escape)")]
+        [Tooltip("Impulse (N*s) that pops the ball toward open field when a player touches it inside the wall band. 6 N*s on the 0.43 kg ball is a ~14 m/s pop in corners; straight walls get half.")]
+        [FormerlySerializedAs("wallKickImpulse")]
+        [SerializeField] private float _wallKickImpulse = 6f;
+        [Tooltip("Distance from a wall inside which the pop triggers.")]
+        [FormerlySerializedAs("wallKickBand")]
+        [SerializeField] private float _wallKickBand = 1.0f;
+        [Tooltip("Seconds between pops from the same player (corner scrums are continuous contact).")]
+        [FormerlySerializedAs("wallKickCooldown")]
+        [SerializeField] private float _wallKickCooldown = 0.5f;
+
+        /// <summary>
+        /// Fires when the corner-escape wall kick pops the ball back into open
+        /// play. Presentation only - Agent_ParticleFX draws the shockwave that
+        /// makes this real mechanic visible, which it previously was not.
+        /// Instance event, not static: SCN_Training clones 16 pitches and a static
+        /// one would cross-talk between them.
+        /// </summary>
+        public event System.Action<Vector2, Vector2> WallKicked;
+
+        [Header("Wiring (set by env controller at runtime)")]
+        public Agent_EnvController env;
+        public Reward_Settings rewards;
+
+        public Rigidbody2D Body { get; private set; }
+        public Agent_Stamina Stamina { get; private set; }
+        public bool IsBoosting { get; private set; }
+        public bool TouchedBallThisEpisode { get; private set; }
+
+        /// <summary>
+        /// True when this agent is driven by <see cref="Agent_HeuristicBot"/> instead of a
+        /// trained brain. Reads the policy that was actually installed (by Agent_MatchLoader
+        /// or <see cref="ApplyEvalMode"/>), so it stays honest when a profile carries no
+        /// brainModel and silently falls back to the bot. Valid from Awake onward.
+        /// </summary>
+        public bool RuleBased =>
+            !HumanControlled && (_behavior == null || _behavior.BehaviorType != BehaviorType.InferenceOnly);
+
+        /// <summary>True when this agent is driven live by <see cref="Agent_HumanController"/>.</summary>
+        public bool HumanControlled => _human != null && _human.enabled;
+
+        Agent_HeuristicBot _bot;
+        Agent_HumanController _human;
+        BehaviorParameters _behavior;
+        Transform _label;                              // identity letter, kept upright
+        Vector2 _driveVec;                             // slew-limited foot force (N), world space
+        float _nextWallKick;                           // kick-out cooldown timestamp
+        readonly float[] _prevActions = new float[4];  // for the jitter penalty
+        float _prevRawTurn;                            // for the turn-churn penalty
+        bool _hasPrevRawTurn;                          // false until the episode's first action
+        float _prevBallDist = float.PositiveInfinity;  // for differential-proximity reward
+        // Potential for the ball->goal shaping term. Same telescoping trick as
+        // _prevBallDist, applied to the BALL's distance to the attacking goal.
+        float _prevBallGoalDist = float.PositiveInfinity;
+        // Which target the proximity term was measuring last step (see ApplyDenseRewards):
+        // the role, plus whether the job was the ball itself. A change swaps the distance
+        // being differenced, so that step pays nothing.
+        int _prevApproachKey = -1;
+
+        /// <summary>Standard gravity, used for the traction budget (mu * m * g).</summary>
+        const float Gravity = 9.81f;
+
+        /// <summary>Body mass the tuning constants are quoted against.</summary>
+        const float ReferenceMass = 75f;
+
+        // Drive force scales with mass (constant N/kg), so every physique reaches
+        // the same top speed and acceleration - bigger muscles move a bigger body -
+        // while heavier players still carry more momentum into contact.
+        float _driveForce;
+        Agent_Contact _contact;
+
+        void CacheDriveForce()
+        {
+            float mass = Body != null ? Body.mass : ReferenceMass;
+            _driveForce = _moveForce * (mass / ReferenceMass);
+        }
+
+        /// <summary>
+        /// Vector observation count: 14 self/ball/goal floats + 4 teammate floats
+        /// + 8 opponent floats (2 slots x rel-position/velocity) + 1 time-remaining
+        /// scalar, each zero-padded when the slot is empty so one brain contract
+        /// covers 1v1, 2v2 and 3v3.
+        ///
+        /// 2026-08-04: 18 -> 26. Every .onnx exported before that date expects 18 and is
+        /// obsolete - the inference loader rejects a shape mismatch outright, which is
+        /// the safe failure (unlike a sensor-arc change, which silently reinterprets).
+        ///
+        /// 2026-08-11: Sensor_Vision split into 4 specialized ray sensors (Ball, Goal,
+        /// Opponents, Walls). Ray inputs went 66 -> 54 (the split narrowed each
+        /// sensor to one tag) and vector obs 52 -> 54, so total model inputs went
+        /// 118 -> 108. Obsoletes every .onnx again. The +1 vector float is the
+        /// time-remaining scalar (1 - StepCount/MaxStep) that biases the policy
+        /// toward late-episode urgency; matches the "time remaining" direct obs
+        /// from the "AI Learns to Play Soccer" cheat sheet.
+        ///
+        /// 2026-08-27: 27 -> 29. The two new floats make the corner-escape wall kick
+        /// OBSERVABLE. TryWallKick applies a large scripted impulse to the ball
+        /// whenever a player touches it inside a 1-unit band at the boundary, but
+        /// nothing in the observation space encoded "I am in that band" - the wall
+        /// ray only guaranteed detection within ~0.7 units, so from the policy's
+        /// point of view a big impulse arrived at unpredictable moments. That is
+        /// unmodellable dynamics, not difficulty. Now the policy can see the band
+        /// and the cooldown, so the mechanic becomes a tool rather than noise.
+        ///
+        /// 2026-08-28: still 29, but the FRAME changed and that is far more dangerous
+        /// than a count change. Every relative position/velocity is now emitted in the
+        /// agent's BODY frame (see ToBodyFrame) instead of world frame, and the two
+        /// world eye-axis floats became yaw rate + signed bearing to the ball. The
+        /// tensor shape is identical, so every .onnx trained before this date LOADS
+        /// WITHOUT A WARNING and silently reads a different world - the same class of
+        /// failure as a sensor-arc change. Treat this as a full retrain of all four
+        /// personalities; a pre-2026-08-28 checkpoint is not comparable to a later one
+        /// no matter what its eval JSON says.
+        ///
+        /// 2026-09-28: 29 -> 34. The TEAM ROLE (Agent_TeamRoles) became observable: a
+        /// goalie / defender / attacker one-hot (all zero when alone on the side) and the
+        /// role's target in the body frame - the ball for the presser, the post for
+        /// everyone else. Until then a brain in a squad was shaped toward a role it could
+        /// not see and had to infer it from teammate geometry, which it cannot do for the
+        /// episode-long goalie assignment at all. Model inputs 178 -> 188: every .onnx
+        /// trained before this date no longer loads (see DropIncompatibleModel).
+        ///
+        /// 2026-10-10: still 34 here, but model inputs 188 -> 173. The vector half is
+        /// untouched; Sensor_Vision dropped its goal ray sensor (15 inputs - the goals
+        /// are the "Goals (5)" block below) and every remaining ray sensor now casts
+        /// against a single physics layer (Agent_Layers), which changes what a ray
+        /// reading means without changing its shape. No .onnx existed for 188, so
+        /// nothing was obsoleted; anything trained before this date would be.
+        /// </summary>
+        public const int BaseObservationSize = 34;
+
+        /// <summary>
+        /// Stacked vector frames. 2 gives the policy velocity/trend context at the
+        /// slower decision cadence (period 8). This stacks the VectorSensor ONLY -
+        /// ray sensors stack via RayPerceptionSensorComponentBase.ObservationStacks,
+        /// which Sensor_Vision leaves at 1. Conflating the two is what produced the
+        /// wrong "162 model inputs" figure; see Sensor_Vision and
+        /// Agent_EditMode_ObsContract for the arithmetic that is actually checked.
+        /// </summary>
+        public const int StackedObservations = 2;
+
+        /// <summary>
+        /// Opponent slots in the vector observation, nearest first, 4 floats each
+        /// (relative position + velocity). Zero-padded when fewer opponents exist, so
+        /// 1v1 / 2v2 / 3v3 all share one contract.
+        /// </summary>
+        public const int OpponentSlots = 2;
+
+        // Reused across CollectObservations calls - zero alloc in the hot path
+        // (performance.md). Never nulled, so the array survives episode resets.
+        readonly Agent_Soccer[] _opponentBuffer = new Agent_Soccer[OpponentSlots];
+
+        /// <summary>
+        /// Continuous actions: [0] forward drive, [1] lateral drive (strafe),
+        /// [2] turn, [3] boost. Lateral was added so the body no longer has to
+        /// rotate in order to translate - real players sidestep and backpedal.
+        /// </summary>
+        public const int ContinuousActionCount = 4;
+
+        /// <summary>
+        /// Multiplier applied to the three steering channels before clamping, in
+        /// <see cref="OnActionReceived"/>. See the long note at its use site for why
+        /// this is 1.0 and what the 1.6 it replaced cost.
+        ///
+        /// Public because it is load-bearing provenance: changing it changes the
+        /// action-to-force mapping without changing a single tensor shape, so every
+        /// .onnx trained under the old value loads clean and then under-drives.
+        /// <see cref="Reward_Settings.trainedActionGain"/> records what each deployed
+        /// brain was trained against and Agent_EditMode_ActionGain compares the two.
+        /// </summary>
+        public const float ActionGain = 1.0f;
+
+        // Team frame (the colored border drawn around each player) - server-side
+        // tunable so the designer can thicken or thin it without recompiling.
+        [Header("Team Frame")]
+        [SerializeField] private float _frameInset = 0.18f;     // how far OUTSIDE the body sprite the frame sits
+        [SerializeField] private float _frameThickness = 0.10f;  // line width
+        [SerializeField] private float _frameZ = 0.01f;          // behind the body, in front of the pitch
+        // 2026-08-11: opt-out for the "S/M/K/N" identity letter. The chassis
+        // sprite, body tint, team eye, and team frame still draw; only the
+        // TextMesh letter is skipped when false. Defaults to ON so existing
+        // serialized agents stay visually identical until the user toggles
+        // it in the Inspector. Use this for clean-pitch exhibition scenes.
+        [Tooltip("Show the S/M/K/N identity letter on the agent body. Turn off in clean-pitch exhibition scenes.")]
+        [SerializeField] private bool _showPlayerLabel = true;
+        protected override void Awake()
+        {
+            base.Awake();
+
+            // Before anything else: the team tag and team layer are what the opponent
+            // ray sensor keys on, so they have to exist before any sensor casts a ray.
+            ApplyTeamTag();
+
+            // Added here rather than via [RequireComponent]: that attribute logs
+            // "Creating missing Agent_Contact component ..." for every agent on
+            // every scene load - 24 lines per load in the exhibition scene - and
+            // log noise on that scale is how a real warning gets missed.
+            _contact = GetComponent<Agent_Contact>();
+            if (_contact == null) _contact = gameObject.AddComponent<Agent_Contact>();
+
+            // Sensor_Vision owns the RayPerceptionSensor2D battery - one sensor per
+            // object class, each with a single detectable tag - that produces the
+            // obs_0 slot. DefaultExecutionOrder(-100) on Sensor_Vision guarantees
+            // its Awake runs before Agent initialization, so the RayPerceptionSensor
+            // is attached + configured before DecisionRequester fires.
+            if (GetComponent<Sensor_Vision>() == null)
+            {
+                gameObject.AddComponent<Sensor_Vision>();
+            }
+            // Configure the policy contract in code (runs before Agent.OnEnable
+            // initializes the policy) so scene serialization can never drift from it.
+            _behavior = GetComponent<BehaviorParameters>();
+            if (_behavior != null)
+            {
+                _behavior.BehaviorName = string.IsNullOrEmpty(brainName) ? "STANDARD" : brainName;
+                _behavior.TeamId = (int)team;
+                _behavior.BrainParameters.VectorObservationSize = BaseObservationSize;
+                _behavior.BrainParameters.NumStackedVectorObservations = StackedObservations;
+                _behavior.BrainParameters.ActionSpec =
+                    ActionSpec.MakeContinuous(ContinuousActionCount);
+                DropIncompatibleModel();
+                ApplyEvalMode();
+                ApplyTrainingOpponent();
+                ApplyDemoRecording();
+            }
+        }
+
+        /// <summary>
+        /// Records the SCRIPTED BOT playing, into a .demo file that behavioral cloning
+        /// (and GAIL) can train against. Opt-in via POSOCCER_RECORD_DEMO=1.
+        ///
+        /// WHY (2026-09-07). The acceptance bar is >=80% wins, but the honest near-term
+        /// target is BOT PARITY: bot-vs-bot measures 42.5%, and the best brain this
+        /// project has produced grades 26.6% - still 16 points WORSE than the opponent it
+        /// is trying to beat. Seven reward/curriculum/perception levers have been tried
+        /// and exactly one (p21's curriculum, +9.1 pp) cleared the n=350 detection
+        /// threshold of +/-4.7 pp. Another coefficient is not going to close 53 points.
+        ///
+        /// The bot is an ideal demonstrator and nobody has used it as one: it plays the
+        /// SAME observation and action space, in-process, at the same 12.5 Hz decision
+        /// rate (both agents carry DecisionRequester period 8, verified), and it can
+        /// generate unlimited episodes. `behavioral_cloning` has been `None` in every
+        /// config this project has ever run, while the trainer has supported it all along.
+        ///
+        /// TEAM TRANSFER IS SOUND, and only because of an earlier fix. Observations are
+        /// team-relative (goals come from GetGoalPosition(team)) AND body-frame (the
+        /// 2026-08-28 change). So a demo recorded from RED - which is the side the bot
+        /// plays under POSOCCER_OPPONENT=bot - is valid training data for BLUE. Under the
+        /// old world-frame observations it would NOT have been, which is worth knowing
+        /// before anyone tries this against a pre-2026-08-28 checkpoint.
+        /// </summary>
+        void ApplyDemoRecording()
+        {
+            if (!Agent_RunConfig.IsSet(Agent_RunConfig.RECORD_DEMO)) return;
+
+            // BOTH sides play the bot during a recording run, so the demonstrations are
+            // drawn from BOT-VS-BOT - the same distribution that produces the 42.5%
+            // symmetric baseline.
+            //
+            // This is not automatic and I had it wrong first: SCN_Training serializes a
+            // brainModel on both agents, so without this line BLUE runs the trained
+            // policy under inference and the demos become "bot beating a weak opponent".
+            // That is a one-sided distribution missing exactly the contested states a
+            // learner needs to imitate - it would teach the clone how to walk the ball in
+            // against someone who is not defending.
+            _behavior.BehaviorType = BehaviorType.HeuristicOnly;
+
+            // Record ONE side only. Both are the same controller, so a second recorder
+            // would just double the file for no new information - and each recorder
+            // opens its own file, so it also doubles the bookkeeping.
+            if (team != Team.Red) return;
+
+            // A recording run has NO TRAINER, so nothing applies the config's
+            // `time_scale: 20` - the player would step physics at wall-clock speed and
+            // 200k steps at a 0.01s timestep would take over half an hour of real time
+            // for a few minutes of data. Training runs never hit this because
+            // mlagents-learn sets the timescale over the communicator.
+            // Guarded so 16 cloned pitches don't fight over it (they can't here - the
+            // grid stays at one pitch without a communicator - but this method is the
+            // only place that knows a recording is happening).
+            // Setting this once here did NOT hold - measured 2026-09-07, the first
+            // recording ran at ~12.5 entries/s, exactly the period-8 decision rate at
+            // timeScale 1.0, so something later in startup puts the clock back.
+            // Agent_DemoClock re-asserts it every LateUpdate instead, which is correct
+            // against any one-shot writer including one nobody has identified yet.
+            {
+                var clock = gameObject.AddComponent<Agent_DemoClock>();
+                clock.Scale =
+                    Agent_RunConfig.TryGetFloat(Agent_RunConfig.DEMO_TIMESCALE, out float scale)
+                    && scale > 0f ? scale : 20f;
+                Application.targetFrameRate = -1;
+                QualitySettings.vSyncCount = 0;
+            }
+
+            var recorder = gameObject.AddComponent<DemonstrationRecorder>();
+            recorder.Record = true;
+            recorder.DemonstrationName = "BotExpert";
+
+            // Relative paths resolve against the process working directory, so a headless
+            // run launched from the repo root writes straight into the project. The env
+            // var exists so the recording script can place it explicitly rather than
+            // depending on where it happened to be invoked from.
+            recorder.DemonstrationDirectory =
+                Agent_RunConfig.GetString(Agent_RunConfig.DEMO_DIR, "Assets/Demonstrations");
+
+            // The recorder calls Application.Quit once this many steps are written, so a
+            // recording run terminates ITSELF rather than needing a timeout to kill it.
+            // 0 would mean "record forever", which in a headless run means "until someone
+            // notices" - the failure mode that leaves orphaned players behind.
+            recorder.NumStepsToRecord =
+                Agent_RunConfig.TryGetInt(Agent_RunConfig.DEMO_STEPS, out int parsed)
+                && parsed > 0 ? parsed : 200000;
+        }
+
+        /// <summary>
+        /// Phase-1 contract: the RED team is the scripted opponent while a trainer is
+        /// attached. Opt-in via POSOCCER_OPPONENT=bot, which scripts/train-phase1.ps1
+        /// sets before launching.
+        ///
+        /// Without this, both agents in SCN_Training keep BehaviorType.Default, which
+        /// routes every agent to the trainer - so "phase 1 vs the heuristic bot"
+        /// silently became symmetric self-play, Agent_HeuristicBot never ran, and the
+        /// bot_strength curriculum had nothing to act on. Eval was then the first time
+        /// a policy ever met the bot, which is why four runs produced strong training
+        /// reward and a flat 15-19% win rate against it.
+        ///
+        /// Leave the variable unset for genuine self-play runs (phase 2 POCA, 3c).
+        /// </summary>
+        /// <summary>
+        /// True when an agent on <paramref name="side"/> will be driven by
+        /// <see cref="Agent_HeuristicBot"/> AND nothing will ever read the
+        /// observations it produces - so building them is pure waste.
+        ///
+        /// WHY THIS EXISTS (2026-09-13). ML-Agents does not skip perception for a
+        /// heuristic agent. <c>Agent.SendInfoToBrain</c> calls <c>UpdateSensors()</c>
+        /// unconditionally - which is where <c>RayPerceptionSensor.Update()</c> fires
+        /// every cast - and then <c>HeuristicPolicy.RequestDecision</c> calls
+        /// <c>StepSensors</c>, which writes each sensor into a <c>NullList</c>
+        /// whose <c>Add</c> is an empty method. Verified in the embedded package at
+        /// Runtime/Policies/HeuristicPolicy.cs. So in every phase-1 run the scripted
+        /// RED agent casts its full 40-ray battery and runs CollectObservations at
+        /// 12.5 Hz, and all of it is written to a sink and discarded. Across 4 env
+        /// processes x 16 pitches that is 64 agents' worth of perception - HALF the
+        /// perception in the run - computed for nothing.
+        ///
+        /// <see cref="Agent_HeuristicBot.ComputeActions"/> reads transforms and
+        /// rigidbodies directly and consults no sensor, so skipping them cannot
+        /// change how the opponent plays. That is what makes this safe: the learner
+        /// faces the identical opponent, and only the discard gets cheaper.
+        ///
+        /// THE THREE EXCLUSIONS ARE THE WHOLE CONTRACT, and each one is a case where
+        /// a heuristic agent's observations genuinely are read:
+        ///  - a demo-recording run (POSOCCER_RECORD_DEMO), whose entire product is
+        ///    the bot's observation/action pairs;
+        ///  - self-play (POSOCCER_OPPONENT unset), where RED is on the trainer;
+        ///  - any match or menu scene, where neither env var is set at all and a
+        ///    slot may hold an InferenceOnly brain that needs its rays.
+        /// Get one of those wrong and the symptom is a trainer rejecting the env on
+        /// an observation-shape mismatch, or a demo file full of zeros.
+        /// </summary>
+        public static bool IsSensorlessScriptedSide(Team side)
+        {
+            // A recording run is the one case where the bot's observations ARE the
+            // deliverable. Checked first so it can never be overridden below.
+            if (Agent_RunConfig.IsSet(Agent_RunConfig.RECORD_DEMO)) return false;
+
+            // Eval: ApplyEvalMode puts BLUE on inference (needs rays) unless this is a
+            // bot-vs-bot baseline, where neither side is ever read.
+            if (Agent_EvalStats.EvalMode)
+            {
+                return Agent_EvalStats.BaselineMode || side == Team.Red;
+            }
+
+            // Training: mirrors ApplyTrainingOpponent exactly - RED only, and only
+            // when the run has opted in to the scripted opponent.
+            if (side != Team.Red) return false;
+            return Agent_RunConfig.Is(Agent_RunConfig.OPPONENT, OPPONENT_BOT);
+        }
+
+        /// <summary>Value of POSOCCER_OPPONENT that makes RED the scripted bot.</summary>
+        const string OPPONENT_BOT = "bot";
+
+        void ApplyTrainingOpponent()
+        {
+            // Eval owns policy assignment; it forces the opponent to heuristic itself.
+            if (Agent_EvalStats.EvalMode) return;
+
+            if (team != Team.Red) return;
+
+            if (!Agent_RunConfig.Is(Agent_RunConfig.OPPONENT, OPPONENT_BOT)) return;
+
+            _behavior.BehaviorType = BehaviorType.HeuristicOnly;
+            var bot = GetComponent<Agent_HeuristicBot>();
+            if (bot != null) bot.enabled = true;
+            // Printed once per red agent into the env player log. Silence here means
+            // the run is self-play, which is the failure this method exists to catch.
+            Debug.Log($"[Agent_Soccer] {name}: scripted opponent (POSOCCER_OPPONENT=bot).");
+        }
+
+        // Evaluation switch (v1 spec): env vars are set by scripts/evaluate.ps1 before
+        // launch and read here, before Agent.OnEnable initializes the policy.
+        void ApplyEvalMode()
+        {
+            if (!Agent_EvalStats.EvalMode) return;
+
+            if (Agent_EvalStats.BaselineMode)
+            {
+                _behavior.BehaviorType = BehaviorType.HeuristicOnly;
+            }
+            else if (team == Team.Blue)
+            {
+                if (_behavior.Model != null)
+                {
+                    _behavior.BehaviorType = BehaviorType.InferenceOnly;
+                }
+                else
+                {
+                    Debug.LogError("[Agent_Soccer] Eval mode but no model assigned - " +
+                                   "run scripts/update-model.ps1 and assign the .onnx. " +
+                                   "Falling back to heuristic; run marked invalid.");
+                    Agent_EvalStats.MarkInvalid();
+                    _behavior.BehaviorType = BehaviorType.HeuristicOnly;
+                }
+            }
+            else
+            {
+                _behavior.BehaviorType = BehaviorType.HeuristicOnly;
+            }
+        }
+
+        public override void Initialize()
+        {
+            Body = GetComponent<Rigidbody2D>();
+            Stamina = GetComponent<Agent_Stamina>();
+            _bot = GetComponent<Agent_HeuristicBot>();
+            _human = GetComponent<Agent_HumanController>();
+        }
+
+        // Runs after Agent_EnvController.Start (execution order -50) has assigned
+        // the reward profile, so the personality's look is available.
+        void Start()
+        {
+            if (rewards == null) return;
+
+            // Physique: size and mass from the profile. Drive force and drag are
+            // shared, so mass trades acceleration/top speed for shove resistance
+            // while top-speed momentum stays identical across the roster.
+            if (rewards.bodyScale > 0f && !Mathf.Approximately(rewards.bodyScale, 1f))
+            {
+                Vector3 s = transform.localScale;
+                transform.localScale = new Vector3(
+                    s.x * rewards.bodyScale, s.y * rewards.bodyScale, s.z);
+            }
+            if (rewards.bodyMass > 0f && Body != null) Body.mass = rewards.bodyMass;
+            // Damping is owned by code, not the scene: the traction model brakes
+            // actively, so global drag must stay low or it double-counts.
+            if (Body != null) Body.linearDamping = _linearDamping;
+            CacheDriveForce();
+
+            // Opt-in realism (Agent_Realism). Both resolve to "off" unless an env var or
+            // the profile turns them on, and off leaves the shipped path untouched.
+            if (Stamina != null) Stamina.ApplyModel(Agent_Realism.EffectiveStaminaModel(rewards));
+            ConfigureReactionDelay();
+
+            // Cosmetics (body colour, team eye, frame outline, identity letter)
+            // live in Agent_SoccerView so this file stays observations, actions,
+            // locomotion and rewards.
+            //
+            // Skipped entirely on a headless run. The training grid clones 16
+            // pitches, so this was building four LineRenderers and a TextMesh per
+            // agent, 32 times over, for pixels no one will ever see - pure cost on
+            // the throughput that decides how long a run takes.
+            if (!Agent_EvalStats.EvalMode && !Unity.MLAgents.Academy.Instance.IsCommunicatorOn)
+            {
+                _label = Agent_SoccerView.Build(
+                    transform, rewards, team, _frameInset, _frameThickness, _frameZ,
+                    _showPlayerLabel);
+            }
+        }
+
+        // Reaction latency (Agent_Realism, opt-in). Null and 0 on the default path, where
+        // OnActionReceived reads the policy's action exactly as before.
+        Vector4[] _actionQueue;
+        int _actionQueueHead;
+        int _reactionDelayTicks;
+
+        /// <summary>Physics ticks between a decision and the feet acting on it. 0 = no latency.</summary>
+        public int ReactionDelayTicks => _reactionDelayTicks;
+
+        void ConfigureReactionDelay()
+        {
+            // Never on the scripted side: the bot is the benchmark opponent. HeuristicOnly
+            // is the scripted bot (or keyboard play); Default is a learner on the trainer,
+            // InferenceOnly a deployed brain.
+            bool learner = _behavior != null && _behavior.BehaviorType != BehaviorType.HeuristicOnly;
+            _reactionDelayTicks = learner
+                ? Agent_Realism.ReactionDelayTicks(
+                    Agent_Realism.EffectiveReactionMs(rewards), Time.fixedDeltaTime)
+                : 0;
+            // Allocated once here, never in the physics loop (performance.md).
+            _actionQueue = _reactionDelayTicks > 0 ? new Vector4[_reactionDelayTicks + 1] : null;
+            _actionQueueHead = 0;
+        }
+
+        /// <summary>
+        /// Pushes this tick's action and returns the one decided <see cref="_reactionDelayTicks"/>
+        /// ticks ago. The queue holds delay + 1 entries, so the slot after the head is the
+        /// oldest. It starts zeroed each episode: the body stands still for the first
+        /// latency window, as a person would before reacting to the kickoff.
+        /// </summary>
+        Vector4 DelayAction(Vector4 fresh)
+        {
+            int size = _actionQueue.Length;
+            _actionQueueHead = (_actionQueueHead + 1) % size;
+            _actionQueue[_actionQueueHead] = fresh;
+            return _actionQueue[(_actionQueueHead + 1) % size];
+        }
+
+        void Update()
+        {
+            // Null on headless runs, where no cosmetics were built at all.
+            if (_label != null) _label.rotation = Quaternion.identity;
+        }
+
+        // Cached at episode start so the time-remaining obs and the goalSpeedBonus
+        // both measure from the same anchor (a slow start would otherwise cost the
+        // episode seconds of "remaining time" before any decision is made).
+        int _episodeStartStep;
+
+        public override void OnEpisodeBegin()
+        {
+            LastEpisodeReward = GetCumulativeReward();
+            TouchedBallThisEpisode = false;
+            IsBoosting = false;
+            _driveVec = Vector2.zero;
+            _nextWallKick = 0f;
+            System.Array.Clear(_prevActions, 0, _prevActions.Length);
+            _prevRawTurn = 0f;
+            _hasPrevRawTurn = false;
+            _prevBallDist = float.PositiveInfinity;
+            _prevBallGoalDist = float.PositiveInfinity;
+            _prevApproachKey = -1;
+            if (_actionQueue != null)
+            {
+                System.Array.Clear(_actionQueue, 0, _actionQueue.Length);
+                _actionQueueHead = 0;
+            }
+            Stamina.ResetForEpisode();
+            if (_contact == null) _contact = GetComponent<Agent_Contact>();
+            if (_contact != null) _contact.ResetForEpisode();
+            Body.linearVelocity = Vector2.zero;
+            Body.angularVelocity = 0f;
+            _episodeStartStep = StepCount;
+        }
+
+        /// <summary>
+        /// Stamps the team tag so the opponent ray sensor can tell friend from
+        /// foe. Applied here rather than serialized in the scene because the team
+        /// itself can be reassigned at runtime by Agent_MatchLoader, and a stale
+        /// tag would silently make an agent invisible to one side's sensor.
+        ///
+        /// The team LAYER is stamped with it (2026-10-10) and for the same reason: the
+        /// opposing side's opponent sensor casts against exactly that layer (see
+        /// Agent_Layers). Root object only - that is where the body collider lives -
+        /// and in Awake, so POSOCCER_SQUAD clones and gallery pitches get it too.
+        /// </summary>
+        void ApplyTeamTag()
+        {
+            string wanted = Sensor_Vision.TeamTag(team);
+            if (!gameObject.CompareTag(wanted)) gameObject.tag = wanted;
+            Agent_Layers.Stamp(gameObject, Agent_Layers.TeamLayerName(team));
+        }
+
+        /// <summary>
+        /// Rotates a world-frame vector into this agent's body frame:
+        /// x = sideways (+ = to the agent's right), y = forward (+ = where it faces).
+        ///
+        /// 2026-08-28: THIS is why nine phases of training could not reach the ball.
+        /// The action space has always been body-frame - OnActionReceived builds
+        /// intent as (transform.up * move + transform.right * lateral) - while every
+        /// relative observation was emitted in WORLD frame. So "drive at the ball"
+        /// was not a lookup, it was a product the network had to synthesise:
+        /// move = dot(relBall_world, up_world), lateral = dot(relBall_world, right_world).
+        /// An MLP approximates that bilinear rotation only piecewise, and the body
+        /// spins through the full circle (184 deg of heading churn measured), so the
+        /// policy had to learn a different linear map for every heading it ever held.
+        /// The ray sensors were egocentric the whole time, so the network was also
+        /// handed two contradictory coordinate systems for the same world.
+        ///
+        /// That is exactly the "misdirected, not collapsed" signature probed in
+        /// 50d235f: confident action magnitudes pointed the wrong way. It is a
+        /// representation defect, not a reward or perception or capacity defect,
+        /// which is why phases 6-17 (opponent obs, reward rebalance, curriculum
+        /// gating, wider rays, POCA, curiosity, more capacity, 30M steps) each moved
+        /// the win rate by less than noise.
+        ///
+        /// Cheap and zero-alloc: two dot products, no trig, no allocation.
+        /// </summary>
+        static Vector2 ToBodyFrame(Vector2 world, Vector2 rightAxis, Vector2 forwardAxis)
+            => new Vector2(Vector2.Dot(world, rightAxis), Vector2.Dot(world, forwardAxis));
+
+        public override void CollectObservations(VectorSensor sensor)
+        {
+            // The TAB overlay's inference latency is bracketed from here to the next
+            // OnActionReceived (Agent_InferenceClock); nothing about the observation changes.
+            try { CollectObservationsCore(sensor); }
+            finally { Agent_InferenceClock.ObservationsCollected(); }
+        }
+
+        void CollectObservationsCore(VectorSensor sensor)
+        {
+            Vector2 half = env != null ? env.PitchHalfExtents : new Vector2(10f, 6f);
+            float invMax = 1f / Mathf.Max(half.x, half.y);
+
+            // Body axes, resolved once. Every relative vector below is expressed
+            // against these so the observation frame matches the action frame.
+            Vector2 rightAxis = transform.right;
+            Vector2 forwardAxis = transform.up;
+
+            // Wall-kick affordance (2): how close the ball is to the kick band,
+            // and whether the cooldown has elapsed. See BaseObservationSize.
+            {
+                float bandProximity = 0f;
+                if (env != null && env.Ball != null)
+                {
+                    Vector2 ballLocal = env.Ball.position - (Vector2)env.transform.position;
+                    float slack = Mathf.Min(half.x - Mathf.Abs(ballLocal.x),
+                                            half.y - Mathf.Abs(ballLocal.y));
+                    // 1 at the boundary, 0 at the band edge and beyond.
+                    bandProximity = 1f - Mathf.Clamp01(slack / Mathf.Max(0.01f, _wallKickBand));
+                }
+                sensor.AddObservation(bandProximity);
+                sensor.AddObservation(Time.time >= _nextWallKick ? 1f : 0f);
+            }
+
+            // Time remaining (1) - 1.0 at episode start, 0.0 at the stalemate cap.
+            // Drives late-episode urgency so the policy learns to take shots instead
+            // of parking the bus when the clock is running out. Cheaper than adding
+            // a per-step time penalty (which washes the reward gradient) and more
+            // informative than the stalemate terminal reward alone.
+            {
+                int cap = env != null ? env.MaxEnvironmentSteps : 5000;
+                int elapsed = StepCount - _episodeStartStep;
+                sensor.AddObservation(1f - Mathf.Clamp01((float)elapsed / Mathf.Max(1, cap)));
+            }
+
+            // Ball, resolved early - the steering channels below key off it.
+            Vector2 toBall = Vector2.zero, ballVel = Vector2.zero;
+            bool haveBall = env != null && env.Ball != null;
+            if (haveBall)
+            {
+                toBall = env.Ball.position - Body.position;
+                ballVel = env.Ball.linearVelocity;
+            }
+
+            // Self state (4). Body-frame velocity: y is how fast it is running
+            // FORWARD, x how fast it is sliding sideways - both directly comparable
+            // to the move/lateral actions that produce them.
+            sensor.AddObservation(ToBodyFrame(Body.linearVelocity, rightAxis, forwardAxis) * 0.1f);
+
+            // The world eye axis used to live here. Under a body frame it is the
+            // constant (0,1) and carries no information, so the two floats now feed
+            // the turn channel, which had no proprioception at all:
+            //   - current yaw rate, normalised by the turn cap
+            //   - signed bearing to the ball in [-1,1] (-1 = hard left, +1 = hard right)
+            // The turn action can now track a target instead of inferring one from a
+            // world-frame heading it also had to rotate.
+            sensor.AddObservation(Mathf.Clamp(
+                Body.angularVelocity / Mathf.Max(1f, _maxAngularVelocityDeg), -1f, 1f));
+            {
+                float bearing01 = 0f;
+                if (haveBall && toBall.sqrMagnitude > 1e-6f)
+                {
+                    // Sign is chosen to match the torque, not intuition: AddTorque
+                    // takes + as counter-clockwise (left) in Unity 2D, and
+                    // SignedAngle(forward, toBall) is likewise + when the ball is to
+                    // the LEFT. Leaving both unnegated means the turn head can be
+                    // close to the identity - "bearing +0.3" wants "turn +0.3" -
+                    // instead of having to learn a sign flip on top of everything else.
+                    bearing01 = Vector2.SignedAngle(forwardAxis, toBall) / 180f;
+                }
+                sensor.AddObservation(bearing01);
+            }
+
+            // Stamina (1)
+            sensor.AddObservation(Stamina.Ratio);
+
+            // Ball (4) - body frame.
+            sensor.AddObservation(ToBodyFrame(toBall, rightAxis, forwardAxis) * invMax);
+            sensor.AddObservation(ToBodyFrame(ballVel, rightAxis, forwardAxis) * 0.1f);
+
+            // Goals (5) - body frame. Distance stays a scalar (frame-invariant).
+            Vector2 relOpp = Vector2.zero, relOwn = Vector2.zero;
+            float distToOppGoal = 0f;
+            if (env != null)
+            {
+                Vector2 opp = env.GetGoalPosition(Opponent(team));
+                Vector2 own = env.GetGoalPosition(team);
+                relOpp = ToBodyFrame(opp - Body.position, rightAxis, forwardAxis) * invMax;
+                relOwn = ToBodyFrame(own - Body.position, rightAxis, forwardAxis) * invMax;
+                distToOppGoal = Mathf.Clamp01((opp - Body.position).magnitude * invMax);
+            }
+            sensor.AddObservation(relOpp);
+            sensor.AddObservation(relOwn);
+            sensor.AddObservation(distToOppGoal);
+
+            // Teammate (4, zero-padded in 1v1) - body frame.
+            Agent_Soccer mate = env != null ? env.GetTeammate(this) : null;
+            if (mate != null && mate.Body != null)
+            {
+                sensor.AddObservation(
+                    ToBodyFrame(mate.Body.position - Body.position, rightAxis, forwardAxis) * invMax);
+                sensor.AddObservation(
+                    ToBodyFrame(mate.Body.linearVelocity, rightAxis, forwardAxis) * 0.1f);
+            }
+            else
+            {
+                sensor.AddObservation(Vector2.zero);
+                sensor.AddObservation(Vector2.zero);
+            }
+
+            // Opponents (4 x OpponentSlots, nearest first, zero-padded) - body frame.
+            // The ray sensor nominally covers opponents but only guarantees detection
+            // within ~1.9 units, while the scripted bot reads opponents exactly at any
+            // range. These slots close that gap - see Agent_EnvController.GetOpponents.
+            int found = env != null ? env.GetOpponents(this, _opponentBuffer) : 0;
+            for (int slot = 0; slot < OpponentSlots; slot++)
+            {
+                if (slot < found && _opponentBuffer[slot] != null && _opponentBuffer[slot].Body != null)
+                {
+                    var foe = _opponentBuffer[slot].Body;
+                    sensor.AddObservation(
+                        ToBodyFrame(foe.position - Body.position, rightAxis, forwardAxis) * invMax);
+                    sensor.AddObservation(
+                        ToBodyFrame(foe.linearVelocity, rightAxis, forwardAxis) * 0.1f);
+                }
+                else
+                {
+                    sensor.AddObservation(Vector2.zero);
+                    sensor.AddObservation(Vector2.zero);
+                }
+                _opponentBuffer[slot] = null;   // drop refs so resets cannot leak stale agents
+            }
+
+            // Team role (5) - 2026-09-28. One-hot goalie / defender / attacker, all zero
+            // when alone on the side (Role.None, i.e. every 1v1). Then the role's target,
+            // body frame: the ball for the presser and a lone player, the post for a
+            // goalie, defender or support attacker - the same point the team_roles reward
+            // pays toward and the scripted bot steers to, so a brain can read "where my
+            // job is" directly instead of reconstructing the assignment rules.
+            Agent_TeamRoles.Role role = env != null ? env.RoleOf(this) : Agent_TeamRoles.Role.None;
+            sensor.AddObservation(role == Agent_TeamRoles.Role.Goalie ? 1f : 0f);
+            sensor.AddObservation(role == Agent_TeamRoles.Role.Defender ? 1f : 0f);
+            sensor.AddObservation(role == Agent_TeamRoles.Role.Attacker ? 1f : 0f);
+            Vector2 toRoleTarget = env != null ? env.RoleTarget(this) - Body.position : toBall;
+            sensor.AddObservation(ToBodyFrame(toRoleTarget, rightAxis, forwardAxis) * invMax);
+        }
+
+        // ── Model compatibility ────────────────────────────────────────────
+
+        static readonly System.Collections.Generic.Dictionary<Unity.InferenceEngine.ModelAsset, int>
+            ModelInputCache = new();
+
+        /// <summary>Model inputs this runtime produces: every ray sensor plus the stacked vector.</summary>
+        internal static int ExpectedModelInputSize =>
+            Sensor_Vision.TotalRayObservationSize + BaseObservationSize * StackedObservations;
+
+        /// <summary>
+        /// True when <paramref name="model"/> declares exactly the inputs this runtime
+        /// produces. Loads each model once per process and caches the answer.
+        /// </summary>
+        public static bool ModelFitsContract(Unity.InferenceEngine.ModelAsset model)
+        {
+            if (model == null) return false;
+            if (!ModelInputCache.TryGetValue(model, out int total))
+            {
+                var loaded = Unity.InferenceEngine.ModelLoader.Load(model);
+                total = 0;
+                for (int inputIndex = 0; inputIndex < loaded.inputs.Count; inputIndex++)
+                {
+                    // Axis -1 is the feature count; axis 0 is the dynamic batch dim.
+                    total += loaded.inputs[inputIndex].shape.Get(-1);
+                }
+                ModelInputCache[model] = total;
+            }
+            return total == ExpectedModelInputSize;
+        }
+
+        /// <summary>
+        /// Refuse a brain whose input shape disagrees with this runtime, BEFORE ML-Agents
+        /// builds a policy from it.
+        ///
+        /// WHY (2026-09-28). The team-role observation took the contract from 178 to 188
+        /// inputs, which obsoletes every .onnx on disk until it is retrained. Left alone,
+        /// ML-Agents rejects the shape when the policy is built: the agent does nothing,
+        /// an Error lands in the log, and the match plays on around a statue. Dropping the
+        /// model here instead fields the rule-based bot, which is what an untrained slot
+        /// does anyway, and says so once. Training is unaffected (a trainer-driven agent
+        /// never runs the model), and eval still fails loudly: ApplyEvalMode, which runs
+        /// after this, finds no model and marks the run invalid.
+        /// </summary>
+        void DropIncompatibleModel()
+        {
+            var model = _behavior.Model;
+            if (model == null || ModelFitsContract(model)) return;
+
+            ModelInputCache.TryGetValue(model, out int declared);
+            Debug.LogWarning(
+                $"[Agent_Soccer] {name}: brain '{model.name}' declares {declared} inputs but this " +
+                $"runtime produces {ExpectedModelInputSize}. It was trained on an older observation " +
+                "contract and cannot run - fielding the rule-based bot instead. Retrain, then " +
+                "scripts/update-model.ps1.");
+
+            // Type first, then model: building an InferenceOnly policy with no model throws.
+            if (_behavior.BehaviorType == BehaviorType.InferenceOnly)
+            {
+                _behavior.BehaviorType = BehaviorType.HeuristicOnly;
+                var bot = GetComponent<Agent_HeuristicBot>();
+                if (bot != null) bot.enabled = true;
+            }
+            _behavior.Model = null;
+        }
+
+        /// <summary>
+        /// Draws a 4-line, team-colored rectangle around the body sprite so the
+        /// team reads at a glance even on the small portrait phone view. One
+        /// LineRenderer per border (4 child GameObjects) is the cleanest way to
+        /// get a closed, filled-edge frame that scales with the body sprite.
+        /// Sits behind the body (sortingOrder = -2) so it never covers the eye
+        /// or the identity letter.
+        /// </summary>
+        /// <summary>
+        /// Raw continuous actions from the most recent decision, BEFORE ActionGain
+        /// and clamping. Diagnostic only - nothing in gameplay reads it.
+        ///
+        /// This exists because "the agent barely moves" has two completely different
+        /// causes that the speed traces cannot tell apart: a collapsed policy emitting
+        /// near-zero magnitudes, versus a thrashing one emitting large sign-flipping
+        /// values that cancel through the traction budget. The comments on ActionGain
+        /// below assert the former, but that was never measured on a probe run - and
+        /// phases 6-16 were all built on unmeasured assumptions about this policy.
+        /// </summary>
+        public Vector4 LastRawActions { get; private set; }
+
+        /// <summary>
+        /// World-frame movement intent from the most recent decision, already
+        /// clamped to the unit power budget - the direction the policy is asking
+        /// its feet to push, not the direction the body is actually going.
+        ///
+        /// Exists for the spectator layer (<see cref="Agent_Intent"/> draws it).
+        /// It is the one signal that separates "wants the wrong thing" from
+        /// "wants the right thing and cannot get there", which is exactly the
+        /// distinction nine phases of aggregate counters could not make.
+        /// </summary>
+        public Vector2 IntentWorld { get; private set; }
+
+        /// <summary>
+        /// Foot force actually delivered this tick (N, world frame), AFTER the
+        /// traction clamp. It diverges from <see cref="IntentWorld"/> whenever
+        /// the friction circle is the binding constraint rather than the policy.
+        /// </summary>
+        public Vector2 AppliedFootForce { get; private set; }
+
+        /// <summary>
+        /// Everything the ground did to this body last tick: drive, active braking and
+        /// the sideways drag that arrests a slide, in newtons. Divide by weight for g.
+        /// </summary>
+        public Vector2 GroundForce { get; private set; }
+
+        /// <summary>
+        /// Signed speed (m/s) across the direction the body faces. Non-zero while the
+        /// body is sliding sideways, which is what Agent_Skids draws.
+        /// </summary>
+        public float LateralSlipSpeed { get; private set; }
+
+        /// <summary>
+        /// Fraction of the friction circle (mu * m * g) the feet are using, 0..1.
+        /// At 1 the player is at the limit of grip and any further demand costs
+        /// speed instead of buying it. Drives the scuff FX and the traction ring.
+        /// </summary>
+        public float TractionSaturation { get; private set; }
+
+        /// <summary>Gained, clamped turn command from the last decision (-1..1).</summary>
+        public float TurnCommand { get; private set; }
+
+        /// <summary>Total NaN/Inf action or reward anomalies caught across all agents this session.</summary>
+        public static int TotalNanInfCount { get; private set; }
+
+        /// <summary>NaN/Inf anomalies caught on this agent instance.</summary>
+        public int NanInfCount { get; private set; }
+
+        /// <summary>Last episode's cumulative reward recorded before reset.</summary>
+        public float LastEpisodeReward { get; private set; }
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetTelemetryStatics()
+        {
+            TotalNanInfCount = 0;
+        }
+
+        float SanitizeFinite(float value)
+        {
+            if (!float.IsNaN(value) && !float.IsInfinity(value)) return value;
+            NanInfCount++;
+            TotalNanInfCount++;
+            return 0f;
+        }
+
+        /// <summary>
+        /// Appends <paramref name="count"/> zero-initialized observation floats after the
+        /// base contract without reordering existing observation slots.
+        /// </summary>
+        public static void AppendZeroInitObservations(VectorSensor sensor, int count)
+        {
+            if (sensor == null) return;
+            for (int i = 0; i < count; i++) sensor.AddObservation(0f);
+        }
+
+        /// <summary>
+        /// Hot-swaps this agent's active profile/policy at runtime without reloading the scene.
+        /// Falls back to the rule-based bot when the profile carries no compatible ONNX brain.
+        /// </summary>
+        public void HotSwapPolicy(Reward_Settings profile)
+        {
+            if (profile == null) return;
+            rewards = profile;
+            brainName = profile.playerName;
+            if (_behavior == null) _behavior = GetComponent<BehaviorParameters>();
+            if (_bot == null) _bot = GetComponent<Agent_HeuristicBot>();
+            if (_behavior == null) return;
+
+            _behavior.BehaviorName = string.IsNullOrEmpty(brainName) ? "STANDARD" : brainName;
+            if (profile.brainModel != null && ModelFitsContract(profile.brainModel))
+            {
+                _behavior.Model = profile.brainModel;
+                _behavior.BehaviorType = BehaviorType.InferenceOnly;
+                if (_bot != null) _bot.enabled = false;
+            }
+            else
+            {
+                _behavior.Model = null;
+                _behavior.BehaviorType = BehaviorType.HeuristicOnly;
+                if (_bot != null) _bot.enabled = true;
+            }
+        }
+
+        public override void OnActionReceived(ActionBuffers actions)
+        {
+            Agent_InferenceClock.ActionReceived();
+            LastRawActions = new Vector4(
+                SanitizeFinite(actions.ContinuousActions[0]),
+                SanitizeFinite(actions.ContinuousActions[1]),
+                SanitizeFinite(actions.ContinuousActions[2]),
+                SanitizeFinite(actions.ContinuousActions[3]));
+
+            // What the feet act on this tick. Identical to the policy output unless reaction
+            // latency is on (Agent_Realism), in which case it is the output from that many
+            // ticks ago. LastRawActions stays the policy's own output: the turn-churn term
+            // and every spectator tap describe what the brain decided, not what landed.
+            Vector4 acted = _actionQueue != null ? DelayAction(LastRawActions) : LastRawActions;
+
+            // Action gain. WAS 1.6 from 2026-08 until 2026-09-07, added when trained
+            // brains crept at ~0.1-0.5 and raw driveForce * intentMag died to drag
+            // before the body built visible speed. That premise expired: p21 measures
+            // the policy mean at |move| = 0.658.
+            //
+            // The gain multiplies THEN clamps, so every raw output >= 0.625 collapses
+            // to 1.0 - the policy has no way to express any magnitude between 0.625
+            // and 1.0, and p21 sits exactly in that dead band. It also gains the TURN
+            // channel, where a 0.6 turn becomes 0.96 (near full rate). Measured on the
+            // live p21 brains 2026-09-07 (Agent_PlayMode_MovementProbe, PROBE-D):
+            // headingChurn 174 deg / 4 s against the scripted bot's 83 deg - the
+            // trained agent spins at 2.1x the bot while covering 80% of the distance
+            // the bot covers at 126%.
+            //
+            // 1.0 restores the identity contract: what the policy asks for is what the
+            // feet get, in all three channels. This CHANGES THE ACTION->FORCE MAPPING,
+            // so every .onnx trained under 1.6 is out of distribution - a full retrain,
+            // exactly like the 2026-08-28 frame boundary. Treat pre-2026-09-07
+            // checkpoints as incomparable to later ones.
+            // Public so a profile's recorded provenance can be compared against it
+            // WITHOUT entering play mode - see Reward_Settings.trainedActionGain and
+            // Agent_EditMode_ActionGain. Kept as a const local before; a private
+            // constant meant the one number that silently invalidates a checkpoint
+            // was unreadable by the guard that should have been watching it.
+            float move = Mathf.Clamp(acted.x * ActionGain, -1f, 1f);
+            float lateral = Mathf.Clamp(acted.y * ActionGain, -1f, 1f);
+            float turn = Mathf.Clamp(acted.z * ActionGain, -1f, 1f);
+            float boost = Mathf.Clamp01(acted.w);
+
+            float dt = Time.fixedDeltaTime;
+            Vector2 forwardAxis = transform.up;
+            Vector2 rightAxis = transform.right;
+
+            // Intent in body frame. Clamped to length 1 so diagonal input cannot
+            // exceed the straight-ahead power budget.
+            Vector2 intent = Vector2.ClampMagnitude(
+                forwardAxis * move + rightAxis * lateral, 1f);
+
+            // Spectator/diagnostic taps. Two stores, no branch, no allocation -
+            // see .claude/rules/performance.md before adding anything heavier here.
+            IntentWorld = intent;
+            TurnCommand = turn;
+
+            // v2: boost gating - require intent to be at least half-forward before
+            // boost activates. A full strafe with boost would otherwise burn stamina
+            // without accelerating the agent (lateral drag immediately arrests the
+            // boost-supplied motion). The heuristic bot already does this implicitly
+            // (boost only fires when signedAngle < driveAngleDeg).
+            float forwardShare = intent.sqrMagnitude > 0.001f
+                ? Vector2.Dot(intent.normalized, forwardAxis)
+                : 0f;
+            IsBoosting = boost > _boostThreshold && Stamina.HasStamina && forwardShare > 0.5f;
+
+            // Exhaustion scales available power; foot force slews rather than
+            // stepping, so direction reversals take human-like time.
+            float staminaPower = _tiredPowerFloor + (1f - _tiredPowerFloor) * Stamina.Ratio;
+            if (_driveForce <= 0f) CacheDriveForce();
+            if (_contact == null) _contact = GetComponent<Agent_Contact>();
+            // A player rocked by a heavy collision drives with less authority for a
+            // moment. Multiplicative, never zero - see Agent_Contact.
+            float authority = _contact != null ? _contact.DriveAuthority : 1f;
+            Vector2 targetDrive =
+                intent * (_driveForce * (IsBoosting ? _boostMultiplier : 1f) * staminaPower * authority);
+            _driveVec = Vector2.MoveTowards(_driveVec, targetDrive, _forceSlewRate * dt);
+
+            // Traction budget: everything the feet do - launching, cutting, braking -
+            // shares one friction circle of mu * m * g. This is what makes hard
+            // direction changes cost speed instead of being free.
+            float tractionBudget = _tractionMu * Agent_Weather.ActiveTractionMultiplier(env) * Body.mass * Gravity;
+            Vector2 applied = Vector2.ClampMagnitude(_driveVec, tractionBudget);
+            Body.AddForce(applied);
+
+            AppliedFootForce = applied;
+            TractionSaturation = tractionBudget > 0.01f
+                ? Mathf.Clamp01(applied.magnitude / tractionBudget)
+                : 0f;
+
+            // Active braking: when the brain is genuinely idle the feet arrest
+            // residual motion using whatever traction is left, rather than
+            // relying on fake global drag. Threshold is intentionally TIGHT
+            // (intent magnitude < 0.05) so cautious-trained actions
+            // (intent ~0.1-0.3) can still build speed - the old 0.2-magnitude
+            // threshold insta-stopped any body whose trained brain wasn't
+            // pinned at full throttle (net force ~-480 N against a ~45 N drive
+            // when STANDARD produced forward=0.11, lateral=-0.16). The brake
+            // itself also decelerates over ~0.5s rather than one timestep so
+            // residual motion drifts a little (human coast, not instant snap).
+            const float BrakeIntentMag = 0.05f;
+            const float BrakeStopSeconds = 0.5f;
+            Vector2 velocity = Body.linearVelocity;
+            float intentMag = intent.magnitude;
+            Vector2 brake = Vector2.zero;
+            if (intentMag < BrakeIntentMag && velocity.sqrMagnitude > 0.0001f)
+            {
+                float spare = Mathf.Max(0f, tractionBudget - applied.magnitude);
+                float stopping = velocity.magnitude * Body.mass / BrakeStopSeconds;
+                brake = -velocity.normalized * Mathf.Min(spare, stopping);
+                Body.AddForce(brake);
+            }
+
+            // Anisotropic drag: a body skids far less sideways than it rolls forward.
+            float lateralSpeed = Vector2.Dot(velocity, rightAxis);
+            Vector2 lateralDrag = -rightAxis * (lateralSpeed * _lateralDrag * Body.mass);
+            Body.AddForce(lateralDrag);
+
+            // Spectator tap, same rule as the two above: one store. The forces are the
+            // ones just applied, so nothing about the motion changes.
+            GroundForce = applied + brake + lateralDrag;
+            LateralSlipSpeed = lateralSpeed;
+
+            // Turning authority falls off with speed - free pivot at rest, almost
+            // none at full sprint.
+            float speed01 = Mathf.Clamp01(velocity.magnitude / Mathf.Max(0.01f, _turnScaleSpeed));
+            float turnCap = Mathf.Lerp(
+                _maxAngularVelocityDeg, _maxAngularVelocityDeg * _sprintTurnFactor, speed01);
+            Body.AddTorque(turn * _turnTorque);
+            Body.angularVelocity = Mathf.Clamp(Body.angularVelocity, -turnCap, turnCap);
+
+            Stamina.Tick(IsBoosting, dt);
+
+            if (Academy.Instance.IsCommunicatorOn)
+                ApplyDenseRewards(move, lateral, turn, boost);
+        }
+
+        /// <summary>
+        /// REALIZED per-episode total of each dense reward term, in the order below.
+        /// Reported to TensorBoard at episode end (see <see cref="ReportRewardAccounting"/>).
+        ///
+        /// WHY THIS EXISTS (2026-09-07). The reward-budget audit computed each term's
+        /// CEILING - scale x 9000 steps - and found four terms that could individually
+        /// outrank a goal. That arithmetic is right, but a ceiling requires the term's
+        /// condition to hold on EVERY step, and nothing measured how often it actually
+        /// does. If an agent hugs a wall on 5% of steps, `wallProximityPenalty` is
+        /// contributing -0.22, not the -4.5 the ceiling implies - a theoretical risk that
+        /// never binds, and capping it then removes real gradient for no realized gain.
+        ///
+        /// A ceiling is an argument. This is a measurement. Anyone tuning this table
+        /// should read these numbers first rather than repeat the inference.
+        /// </summary>
+        readonly float[] _rewardAccounting = new float[TermCount];
+
+        // 8 -> 10 on 2026-09-13. `defense` and `possession` are KIM's and NICK's
+        // SIGNATURE terms - the one scale that makes each of them a distinct player -
+        // and they were the only two dense terms paying through AddReward directly
+        // instead of Account. So the reward accounting this array exists to produce
+        // was blind to exactly the two coefficients anyone tuning a personality would
+        // want to read, and a KIM run's TensorBoard showed seven terms summing to less
+        // than her realized dense reward with nothing naming the difference.
+        // 10 -> 11 on 2026-09-28: `spacing`, the team term. Zero unless the trainer
+        // config sets `team_spacing`, and always zero on a 1v1 pitch.
+        // 11 -> 12 on 2026-10-10: `turn_churn`. Zero unless the profile sets
+        // turnChurnScale or the trainer config sets `turn_churn`.
+        // 12 -> 14 on 2026-11-20: `action_rate_sq` and `energy` (Po Game Standard C9). Both
+        // zero unless the profile or the trainer config sets a weight.
+        // 14 -> 17 on 2026-11-22: `torque_sq`, `spin_sq` and `foot_slide`, the disc-body
+        // forms of the standard's joint-torque^2, angular-velocity^2 and foot-sliding
+        // penalties. Each has its own weight; all three are zero unless a weight is set.
+        internal const int TermCount = 17;
+        internal static readonly string[] TermNames =
+        {
+            "step", "proximity", "facing", "ball_to_goal", "crossbar",
+            "jitter", "wall", "corner", "defense", "possession", "spacing",
+            "turn_churn", "action_rate_sq", "energy",
+            "torque_sq", "spin_sq", "foot_slide",
+        };
+
+        /// <summary>Sideways skid speed (m/s) at which <see cref="SlideCost"/> reaches 1.</summary>
+        internal const float SLIDE_REFERENCE_SPEED = 2f;
+
+        /// <summary>Turn actuator torque as a fraction of its maximum, squared: turn^2 in [0, 1].</summary>
+        internal static float TorqueCost(float turn)
+        {
+            float t = Mathf.Clamp(turn, -1f, 1f);
+            return t * t;
+        }
+
+        /// <summary>Body angular velocity against the turn cap, squared: in [0, 1].</summary>
+        internal static float SpinCost(float angularVelocityDeg, float maxAngularVelocityDeg)
+        {
+            float w = Mathf.Clamp(angularVelocityDeg / Mathf.Max(1f, maxAngularVelocityDeg), -1f, 1f);
+            return w * w;
+        }
+
+        /// <summary>Foot sliding: the feet's sideways skid speed against
+        /// <see cref="SLIDE_REFERENCE_SPEED"/>, squared: in [0, 1].</summary>
+        internal static float SlideCost(float lateralSlipSpeed)
+        {
+            float v = Mathf.Clamp01(Mathf.Abs(lateralSlipSpeed) / SLIDE_REFERENCE_SPEED);
+            return v * v;
+        }
+
+        /// <summary>The realized episode total of one dense term (index into <see cref="TermNames"/>).</summary>
+        internal float RewardTerm(int term) => _rewardAccounting[term];
+
+        /// <summary>Energy term per physics step: (saturation^2 + turn^2) / 2, in [0, 1].</summary>
+        internal static float EnergyCost(float tractionSaturation, float turn)
+        {
+            float s = Mathf.Clamp01(tractionSaturation);
+            float t = Mathf.Clamp(turn, -1f, 1f);
+            return (s * s + t * t) * 0.5f;
+        }
+
+        void Account(int term, float value)
+        {
+            float clean = SanitizeFinite(value);
+            _rewardAccounting[term] += clean;
+            AddReward(clean);
+        }
+
+        /// <summary>
+        /// Streams the realized dense-reward totals for the episode just ended, so the
+        /// TensorBoard run carries what each term ACTUALLY paid next to the reward curve.
+        /// </summary>
+        internal void ReportRewardAccounting()
+        {
+            var stats = Academy.Instance.StatsRecorder;
+            for (int i = 0; i < TermCount; i++)
+            {
+                stats.Add("Reward/" + TermNames[i], _rewardAccounting[i]);
+                _rewardAccounting[i] = 0f;
+            }
+        }
+
+        /// <summary>
+        /// The control penalties, each accounted as its own term: action jitter (L1), squared
+        /// action rate, energy, torque^2 (turn actuator), angular velocity^2 and foot sliding.
+        /// Runs every physics step from ApplyDenseRewards, before the previous action is replaced;
+        /// Agent_PlayMode_ControlPenalties calls it on a live pitch to prove each term is charged.
+        /// </summary>
+        internal void ChargeControlPenalties(float move, float lateral, float turn, float boost)
+        {
+            if (rewards == null || env == null) return;
+            // Anti-twitch: penalize per-step action change so learned movement is smooth.
+            // v2: halved scale (0.001 -> 0.0004) - hard cuts are *correct* for soccer.
+            float jitter = (Mathf.Abs(move - _prevActions[0])
+                          + Mathf.Abs(lateral - _prevActions[1])
+                          + Mathf.Abs(turn - _prevActions[2])
+                          + Mathf.Abs(boost - _prevActions[3])) / 4f;
+            // Scale: the trainer's `action_rate` parameter when a config names it, else the
+            // profile's (Agent_EnvController.ActionRateOverride). This is the AGENTS.md
+            // action-rate penalty; it already existed, it is just reachable from a config now.
+            float jitterScale = env.ActionRateOverride >= 0f
+                ? env.ActionRateOverride
+                : rewards.actionJitterScale;
+            Account(5, -jitterScale * jitter);
+
+            // Po Game Standard C9 (2026-11-20). The body is one rigid disc: there are no
+            // joints, so joint torque^2 and joint angular-velocity^2 have nothing to measure
+            // (docs/rules-exemptions.md 2). What does apply: the SQUARED action rate, and an
+            // energy term on what the feet and the turn actuator are asked to deliver -
+            // traction saturation^2 (|applied foot force| / mu m g) plus turn^2. Weights come
+            // from the profile unless the trainer config names `action_rate_sq` /
+            // `energy_penalty`. Both default to 0, so shipped profiles train as before.
+            {
+                float d0 = move - _prevActions[0], d1 = lateral - _prevActions[1];
+                float d2 = turn - _prevActions[2], d3 = boost - _prevActions[3];
+                float rateSq = (d0 * d0 + d1 * d1 + d2 * d2 + d3 * d3) / 4f;
+                float rateSqScale = env.ActionRateSquaredOverride >= 0f
+                    ? env.ActionRateSquaredOverride
+                    : rewards.actionRateSquaredScale;
+                if (rateSqScale > 0f) Account(12, -rateSqScale * rateSq);
+
+                float energyScale = env.EnergyPenaltyOverride >= 0f
+                    ? env.EnergyPenaltyOverride
+                    : rewards.energyPenaltyScale;
+                if (energyScale > 0f)
+                    Account(13, -energyScale * EnergyCost(TractionSaturation, turn));
+            }
+            // Torque^2, spin^2 and foot sliding (2026-11-22). The disc has no joints, so the turn
+            // actuator's torque fraction, the body's angular velocity against its cap and the feet's
+            // sideways skid are what those penalties measure here. Each weight is the profile's
+            // unless the trainer config names `torque_sq` / `spin_sq` / `foot_slide`.
+            float torqueScale = env.TorqueSquaredOverride >= 0f ? env.TorqueSquaredOverride : rewards.torqueSquaredScale;
+            if (torqueScale > 0f) Account(14, -torqueScale * TorqueCost(turn));
+            float spinScale = env.SpinSquaredOverride >= 0f ? env.SpinSquaredOverride : rewards.spinSquaredScale;
+            if (spinScale > 0f && Body != null)
+                Account(15, -spinScale * SpinCost(Body.angularVelocity, _maxAngularVelocityDeg));
+            float slideScale = env.FootSlideOverride >= 0f ? env.FootSlideOverride : rewards.footSlideScale;
+            if (slideScale > 0f) Account(16, -slideScale * SlideCost(LateralSlipSpeed));
+        }
+
+        void ApplyDenseRewards(float move, float lateral, float turn, float boost)
+        {
+            if (rewards == null || env == null || env.Ball == null) return;
+
+            // v2: stepPenalty default is 0 (was -0.0001) - terminal reward provides temporal credit.
+            Account(0, rewards.stepPenalty);
+
+            Vector2 toBall = env.Ball.position - Body.position;
+            float d = toBall.magnitude;
+
+            // TEAM ROLES (2026-09-28, off unless the trainer sets `team_roles`). Paying
+            // every player for closing on the ball is what makes squads swarm it: every
+            // teammate earns the same gradient for the same chase, so nothing in the
+            // reward ever says "one of you should be somewhere else". With roles on, the
+            // ball-approach term is paid toward this player's ROLE target instead - the
+            // ball for the presser (and a goalie coming off its line), the post for the
+            // goalie, defenders and support attackers (Agent_TeamRoles). Same scale, so
+            // the dense budget is redirected, not enlarged; and these are exactly the
+            // posts Agent_HeuristicBot plays, so the learner is shaped toward the team
+            // shape of the opponent it is graded against. In 1v1 the lone player has no
+            // role and always chases, so a 1v1 pitch is bit-identical with roles on or off.
+            bool ballDuty = !env.TeamRolesActive || env.HasBallDuty(this);
+            float approachDist = ballDuty ? d : (env.RoleTarget(this) - Body.position).magnitude;
+            int approachKey = ballDuty ? 0 : 1 + (int)env.RoleOf(this);
+            if (approachKey != _prevApproachKey)
+            {
+                // The target just changed, so last step's distance measured something
+                // else. Differencing across the switch would pay (or charge) the gap
+                // between two unrelated distances - and a policy could farm it by
+                // trading roles. Restart the difference from here instead.
+                _prevBallDist = float.PositiveInfinity;
+                _prevApproachKey = approachKey;
+            }
+
+            // v2: differential proximity reward. Pure chasing yields ~0 reward (everyone
+            // closes on the ball at similar rates). Approaching *faster than the previous
+            // step* yields positive reward. Cures double-team crowding in 2v2 self-play.
+            // Legacy absolute mode (useDifferentialProximity=false) kept for A/B testing.
+            if (rewards.useDifferentialProximity)
+            {
+                if (!float.IsPositiveInfinity(_prevBallDist))
+                {
+                    float delta = _prevBallDist - approachDist;   // positive = closer this step
+                    Account(1, rewards.ballProximityScale * delta);
+                }
+                _prevBallDist = approachDist;
+            }
+            else
+            {
+                Account(1, rewards.ballProximityScale * (1f / (1f + approachDist)));
+            }
+
+            // facingAlignmentScale is 0 on all five shipped profiles (retired
+            // 2026-09-07 - the signed bearing to the ball became an observation, so
+            // paying for facing was paying for an input). The normalize and dot ran
+            // anyway, every physics step, for every agent. Guarded rather than
+            // deleted because the term is still a legal A/B lever.
+            if (rewards.facingAlignmentScale != 0f)
+            {
+                float align = Vector2.Dot(transform.up, toBall.normalized);
+                Account(2, rewards.facingAlignmentScale * align);
+            }
+
+            // The "shoot goalward" gradient.
+            //
+            // v6 (2026-09-07): POTENTIAL-BASED by default. The old term rewarded ball
+            // VELOCITY toward the net, which is a rate: it accumulates without bound, so
+            // over a 9000-step episode it ceilinged at 7.5x a goal, and it is farmable -
+            // knocking the ball goalward and letting it come back pays twice and costs
+            // nothing. Shrinking the coefficient (v5) bounded the damage but also starved
+            // the gradient, which matters more than it looks: at gamma 0.99 with decision
+            // period 8, a terminal reward is 1125 decisions from the episode start and
+            // arrives discounted by ~1e-5. Dense shaping IS the learning signal here.
+            //
+            // The fix is not a smaller number, it is the right FORM. Rewarding the DECREASE
+            // in the ball's distance to the goal telescopes to scale * (dStart - dEnd) over
+            // any trajectory - bounded by the pitch, unfarmable (there and back nets zero),
+            // and potential-based in the Ng/Harada/Russell sense, so it provably leaves the
+            // optimal policy unchanged at ANY magnitude. That is why this can carry a
+            // coefficient 100x the v5 velocity scale without reintroducing the defect.
+            //
+            // This is the same trick ballProximityScale already uses for agent->ball; the
+            // ball->goal half had simply never been converted.
+            {
+                Vector2 oppGoal = env.GetGoalPosition(Opponent(team));
+                if (rewards.useDifferentialBallToGoal)
+                {
+                    float ballGoalDist = (oppGoal - env.Ball.position).magnitude;
+                    if (!float.IsPositiveInfinity(_prevBallGoalDist))
+                    {
+                        // Positive = the ball got closer to the opponent net this step.
+                        Account(3, rewards.ballToGoalProgressScale
+                                     * (_prevBallGoalDist - ballGoalDist));
+                    }
+                    _prevBallGoalDist = ballGoalDist;
+                }
+                else
+                {
+                    Vector2 dir = (oppGoal - env.Ball.position).normalized;
+                    float rate = Vector2.Dot(env.Ball.linearVelocity, dir);
+                    Account(3, rewards.ballToGoalVelocityScale
+                                 * Mathf.Clamp(rate * 0.1f, -1f, 1f));
+                }
+            }
+
+            // Crossbar proximity - close-range shot gradient. Pays per step while the
+            // ball sits inside the attacking goal mouth AND is moving toward the net,
+            // so a parked-ball exploit can't farm it. The "in the mouth" test is a
+            // generous box (~1.5 units around the goal line, half-pitch wide) so the
+            // reward lights up from a realistic shooting range, not just the goalmouth.
+            //
+            // `progress` used to be computed unconditionally ABOVE this block, with a
+            // comment saying it was "retained for the crossbar term below" - a
+            // normalize and a dot charged on every agent on every physics step for a
+            // term that is 0 on all five shipped profiles (retired 2026-09-07 as
+            // redundant with ballToGoal + goalScorer). It is now computed inside the
+            // guard, which is the only place it was ever read.
+            if (rewards.crossbarProximity > 0f)
+            {
+                Vector2 toOpp = env.GetGoalPosition(Opponent(team)) - env.Ball.position;
+                float dist = toOpp.magnitude;
+                float progress = Vector2.Dot(
+                    env.Ball.linearVelocity, toOpp.normalized);
+                if (dist < 1.5f && progress > 0.05f)
+                {
+                    // Closer + faster = more reward; clamped to keep one step bounded.
+                    float shotShape = Mathf.Clamp01((1.5f - dist) / 1.5f) * Mathf.Clamp01(progress * 2f);
+                    Account(4, rewards.crossbarProximity * shotShape);
+                }
+            }
+
+            ChargeControlPenalties(move, lateral, turn, boost);
+            _prevActions[0] = move; _prevActions[1] = lateral;
+            _prevActions[2] = turn; _prevActions[3] = boost;
+
+            // Turn churn (2026-10-10, off unless the profile or the trainer's
+            // `turn_churn` parameter sets a scale): charge the change in the RAW turn
+            // output from one decision to the next. The measured basis is the movement
+            // probe - 174 deg of heading churn in a 4 s chase against the bot's 83.
+            //
+            // PER DECISION, although this method runs every physics tick: ML-Agents
+            // replays the last action between decisions (period 8), so the difference is
+            // exactly 0 on the seven repeat ticks and the term pays once, on the tick a
+            // new decision lands. RAW, not the gained/clamped `turn`: ActionGain
+            // multiplies then clamps, which would hide every change past the clamp.
+            // The first action of an episode has no predecessor and pays nothing.
+            //
+            // Budget: |change| <= 2 and a 9000-step episode holds 1125 decisions, so the
+            // ceiling is scale x 2250 - at the p30 config's 0.0002 that is -0.45, the
+            // same ceiling as stepPenalty and under half of conceding. It overlaps the
+            // jitter term above, which already charges a quarter of actionJitterScale
+            // for the same change; this isolates the one channel the probe implicates.
+            {
+                float rawTurn = LastRawActions.z;
+                float churnScale = env.TurnChurnOverride >= 0f
+                    ? env.TurnChurnOverride
+                    : rewards.turnChurnScale;
+                if (_hasPrevRawTurn && churnScale > 0f)
+                {
+                    float change = Mathf.Abs(rawTurn - _prevRawTurn);
+                    if (change > 0f) Account(11, -churnScale * change);
+                }
+                _prevRawTurn = rawTurn;
+                _hasPrevRawTurn = true;
+            }
+
+            // Wall aversion: standing in the boundary band produced wall-hug play.
+            Vector2 local = Body.position - (Vector2)env.transform.position;
+            float wallDist = Mathf.Min(
+                env.PitchHalfExtents.x - Mathf.Abs(local.x),
+                env.PitchHalfExtents.y - Mathf.Abs(local.y));
+            if (wallDist < 0.8f)
+                Account(6, -rewards.wallProximityPenalty * (0.8f - wallDist) / 0.8f);
+
+            // Corner aversion: v2 team-aware - only the team that last touched the
+            // ball into a corner zone bleeds reward. The defending team is not
+            // punished for the opponent's corner-pin (was the v1 bug).
+            if (rewards.cornerBallPenalty > 0f && env.LastToucher != null
+                && env.LastToucher.team == team)
+            {
+                Vector2 ballLocal = env.Ball.position - (Vector2)env.transform.position;
+                float cornerDist = Mathf.Max(
+                    env.PitchHalfExtents.x - Mathf.Abs(ballLocal.x),
+                    env.PitchHalfExtents.y - Mathf.Abs(ballLocal.y));
+                if (cornerDist < 2f)
+                    Account(7, -rewards.cornerBallPenalty * (1f - cornerDist / 2f));
+            }
+
+            // Personality traits (zero-cost when the profile leaves them at 0):
+            // KIM-style defense - stand on the line from the ball back to own goal.
+            if (rewards.defensivePositionScale > 0f)
+            {
+                Vector2 ballToOwnGoal = env.GetGoalPosition(team) - env.Ball.position;
+                if (ballToOwnGoal.sqrMagnitude > 0.01f && d > 0.01f)
+                {
+                    float screen = Vector2.Dot(ballToOwnGoal.normalized, (-toBall).normalized);
+                    Account(8, rewards.defensivePositionScale * Mathf.Max(0f, screen));
+                }
+            }
+
+            // NICK-style possession - close control of the ball pays continuously.
+            if (rewards.possessionScale > 0f && d < 1.2f)
+                Account(9, rewards.possessionScale);
+
+            // Team spacing (2026-09-28, off unless the trainer sets `team_spacing`):
+            // a small per-step charge for crowding a teammate. Budget arithmetic lives on
+            // Agent_EnvController.SpacingPenalty. No teammate (1v1) means no charge.
+            if (env.CurrentTeamSpacing > 0f)
+            {
+                Agent_Soccer mate = env.GetTeammate(this);
+                if (mate != null && mate.Body != null)
+                {
+                    float gap = (mate.Body.position - Body.position).magnitude;
+                    float penalty = Agent_EnvController.SpacingPenalty(gap, env.CurrentTeamSpacing);
+                    if (penalty < 0f) Account(10, penalty);
+                }
+            }
+        }
+
+        public override void Heuristic(in ActionBuffers actionsOut)
+        {
+            var continuous = actionsOut.ContinuousActions;
+
+            if (_human == null) _human = GetComponent<Agent_HumanController>();
+            if (_human != null && _human.enabled)
+            {
+                _human.WriteHeuristicActions(continuous);
+                return;
+            }
+
+            // Disable the bot component to reclaim keyboard control for play-testing.
+            if (_bot != null && _bot.enabled && env != null && env.Ball != null)
+            {
+                var mate = env.GetTeammate(this);
+
+                // Nearest opposing body, for the bot's shoulder-charge.
+                Rigidbody2D foe = null;
+                float bestSqr = float.MaxValue;
+                for (int agentIndex = 0; agentIndex < env.agents.Count; agentIndex++)
+                {
+                    var other = env.agents[agentIndex];
+                    if (other == null || other == this || other.team == team
+                        || other.Body == null) continue;
+                    float sqr = (other.Body.position - Body.position).sqrMagnitude;
+                    if (sqr < bestSqr) { bestSqr = sqr; foe = other.Body; }
+                }
+
+                // Team roles: the bot plays its post (goalie / defender / support attacker)
+                // unless its job right now is the ball. Role None (alone on its side) leaves
+                // the bot exactly as it always was.
+                Vector4 a = _bot.ComputeActions(Body, env.Ball,
+                    env.GetGoalTransform(Opponent(team)), mate != null ? mate.Body : null, foe,
+                    env.RoleOf(this), env.RoleTarget(this), env.HasBallDuty(this));
+                continuous[0] = a.x;   // forward
+                continuous[1] = a.y;   // lateral
+                continuous[2] = a.z;   // turn
+                continuous[3] = a.w;   // boost
+                return;
+            }
+
+            // Keyboard fallback for human play-testing (W/S drive, Q/E strafe,
+            // A/D turn, K boost - Shift also works). Input System package only.
+            var kb = UnityEngine.InputSystem.Keyboard.current;
+            if (kb == null) return;
+            continuous[0] = (kb.wKey.isPressed ? 1f : 0f) + (kb.sKey.isPressed ? -1f : 0f);
+            continuous[1] = (kb.eKey.isPressed ? 1f : 0f) + (kb.qKey.isPressed ? -1f : 0f);
+            continuous[2] = (kb.aKey.isPressed ? 1f : 0f) + (kb.dKey.isPressed ? -1f : 0f);
+            continuous[3] = kb.kKey.isPressed || kb.leftShiftKey.isPressed ? 1f : 0f;
+        }
+
+        void OnCollisionEnter2D(Collision2D collision)
+        {
+            if (!collision.collider.CompareTag("Ball")) return;
+
+            if (!TouchedBallThisEpisode && rewards != null)
+                AddReward(rewards.ballContact);
+            TouchedBallThisEpisode = true;
+
+            // Spin transfer: body rotation at contact puts curl on the ball
+            // (paired with the Magnus force in Agent_EnvController).
+            if (env != null && env.Ball != null)
+                env.Ball.angularVelocity += Body.angularVelocity * 0.3f;
+
+            // `env != null`, never `env?.` on a Unity object - see the rule in
+            // .claude/rules/unity-specifics.md. The line above already spells it
+            // correctly two statements earlier; this one did not.
+            if (env != null) env.NotifyBallTouch(this);
+            TryWallKick();
+        }
+
+        void OnCollisionStay2D(Collision2D collision)
+        {
+            // Corner scrums are continuous contact - Enter alone fires only once.
+            if (collision.collider.CompareTag("Ball")) TryWallKick();
+        }
+
+        // Corner escape: touching the ball inside the wall band kicks it toward
+        // open field - a deliberate "dig it out" mechanic so corners can't hold it.
+        void TryWallKick()
+        {
+            if (env == null || env.Ball == null || Time.time < _nextWallKick) return;
+
+            Vector2 half = env.PitchHalfExtents;
+            Vector2 local = env.Ball.position - (Vector2)env.transform.position;
+            Vector2 inward = Vector2.zero;
+            if (half.x - Mathf.Abs(local.x) < _wallKickBand) inward.x = -Mathf.Sign(local.x);
+            // Never kick away from a goal mouth - shots settling on the goal line stay live.
+            bool inGoalMouth = Mathf.Abs(local.x) < env.CurrentGoalWidth * 0.5f + 0.3f;
+            if (!inGoalMouth && half.y - Mathf.Abs(local.y) < _wallKickBand) inward.y = -Mathf.Sign(local.y);
+            if (inward == Vector2.zero) return;
+
+            bool corner = inward.x != 0f && inward.y != 0f;
+            // Blend in the kicker's facing so the pop can be aimed a little,
+            // but never let it point back into the boundary.
+            Vector2 dir = (inward.normalized + (Vector2)transform.up * 0.4f).normalized;
+            if (Vector2.Dot(dir, inward) <= 0f) dir = inward.normalized;
+
+            env.Ball.AddForce(dir * (corner ? _wallKickImpulse : _wallKickImpulse * 0.5f),
+                ForceMode2D.Impulse);
+            _nextWallKick = Time.time + _wallKickCooldown;
+            WallKicked?.Invoke(env.Ball.position, dir);
+        }
+
+        public static Team Opponent(Team t) => t == Team.Blue ? Team.Red : Team.Blue;
+    }
+}

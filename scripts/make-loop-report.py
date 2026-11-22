@@ -389,7 +389,7 @@ weights never get worse. "Better" means further from failing on whichever criter
 <li>350 graded matches pin a win rate to about ±2 points; the final grade uses 1000 matches (about ±1.3).</li>
 <li>Training reward and grades can disagree. This project has seen a rising curve end in a worse grade three times, so
 only the grades decide what ships.</li>
-<li>Production weights live in <code>Assets/Agents/&lt;Name&gt;_v01/&lt;NAME&gt;.onnx</code>; every round's checkpoints stay
+<li>Production weights live in <code>Assets/_Project/RL_Models/&lt;Name&gt;_v01/&lt;NAME&gt;.onnx</code>; every round's checkpoints stay
 in <code>results/&lt;run&gt;/</code>.</li>
 </ul>
 </main></body></html>"""

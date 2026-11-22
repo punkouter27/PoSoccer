@@ -6,16 +6,16 @@ profile** (`Reward_Settings` asset — the personality DNA) in a versioned folde
 
 | Player | Personality | Folder | Reward profile | Brain |
 |---|---|---|---|---|
-| **STANDARD** | Balanced baseline | `Assets/Agents/Standard_v01/` | `Reward_STANDARD.asset` | `STANDARD` (legacy-physics runs: 8%, 22%; realistic-physics 20M: 18% old / 32% corner-fixed physics) |
-| **MATT** | The Striker — biggest scoring reward + shoot gradient, lowest conceding fear, hates draws, urgent movement | `Assets/Agents/Matt_v01/` | `Reward_MATT.asset` | `MATT` (designed, untrained) |
-| **KIM** | The Wall — deepest conceding fear, screens the ball→own-goal lane (`defensivePositionScale`), patient and smooth | `Assets/Agents/Kim_v01/` | `Reward_KIM.asset` | `KIM` (designed, untrained) |
-| **NICK** | The Midfielder — paid for close control (`possessionScale`), loves the assist, stays central, passes up shots | `Assets/Agents/Nick_v01/` | `Reward_NICK.asset` | `NICK` (designed, untrained) |
-| **BOT** | The Benchmark — not a personality. The rule-based `Agent_HeuristicBot` (chase, line up ball→goal, push, unstick) that every trained brain is measured against. Reward values mirror STANDARD and are inert in exhibition play. | `Assets/Agents/Bot_v01/` | `Reward_BOT.asset` | none, permanently — `brainModel` stays null so `Agent_MatchLoader` always falls back to the bot |
+| **STANDARD** | Balanced baseline | `Assets/_Project/RL_Models/Standard_v01/` | `Reward_STANDARD.asset` | `STANDARD` (legacy-physics runs: 8%, 22%; realistic-physics 20M: 18% old / 32% corner-fixed physics) |
+| **MATT** | The Striker — biggest scoring reward + shoot gradient, lowest conceding fear, hates draws, urgent movement | `Assets/_Project/RL_Models/Matt_v01/` | `Reward_MATT.asset` | `MATT` (designed, untrained) |
+| **KIM** | The Wall — deepest conceding fear, screens the ball→own-goal lane (`defensivePositionScale`), patient and smooth | `Assets/_Project/RL_Models/Kim_v01/` | `Reward_KIM.asset` | `KIM` (designed, untrained) |
+| **NICK** | The Midfielder — paid for close control (`possessionScale`), loves the assist, stays central, passes up shots | `Assets/_Project/RL_Models/Nick_v01/` | `Reward_NICK.asset` | `NICK` (designed, untrained) |
+| **BOT** | The Benchmark — not a personality. The rule-based `Agent_HeuristicBot` (chase, line up ball→goal, push, unstick) that every trained brain is measured against. Reward values mirror STANDARD and are inert in exhibition play. | `Assets/_Project/RL_Models/Bot_v01/` | `Reward_BOT.asset` | none, permanently — `brainModel` stays null so `Agent_MatchLoader` always falls back to the bot |
 
 ## The 16 characters (2026-11-08)
 
 Sixteen characters have a face, user-supplied and cropped by
-`scripts/import-faces.py` into `Assets/Art/Faces/FACE_<NAME>.png`. `Agent_Faces` draws
+`scripts/import-faces.py` into `Assets/_Project/Environments/Art/Faces/FACE_<NAME>.png`. `Agent_Faces` draws
 each face on the square body with the **chin toward the front** (where the player
 faces) and the top of the head at the back. STANDARD stays faceless and green. The
 skills are play style only: reward weights on a STANDARD body.
@@ -75,8 +75,8 @@ Custom look: drop a per-player square texture into their folder (e.g.
 `Matt_v01/MATT_square.png`) and assign it to the agent's SpriteRenderer sprite;
 the team tint is just the SpriteRenderer color and can be removed per player.
 
-Shared engine code lives in `Assets/Scripts/`; the tracked model slot and
-physics materials live in `Assets/Agents/Standard_v01/`.
+Shared engine code lives in `Assets/_Project/`; the tracked model slot and
+physics materials live in `Assets/_Project/RL_Models/Standard_v01/`.
 
 ## Giving a placeholder a real personality
 

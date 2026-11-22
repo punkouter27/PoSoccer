@@ -21,15 +21,15 @@ GEN = os.path.join(os.path.dirname(os.path.abspath(__file__)), "gen")
 
 # Members lifted verbatim out of runtime classes that cannot compile here.
 HELPERS = {
-    "Assets/Scripts/Agents/Agent_EnvController.cs": (
+    "Assets/_Project/Agents/Agent_EnvController.cs": (
         "Agent_EnvController",
         ["TEAM_SPACING_RADIUS", "ParseSquadPattern", "SquadForPitch", "SpacingPenalty"],
     ),
-    "Assets/Scripts/Gameplay/Agent_MatchSetup.cs": ("Agent_MatchSetup", ["MAX_SQUAD"]),
+    "Assets/_Project/Core/Gameplay/Agent_MatchSetup.cs": ("Agent_MatchSetup", ["MAX_SQUAD"]),
 }
 
 # Test files to mine. Members mentioning any of these need a real editor or engine.
-TESTS = ["Assets/Tests/EditMode/Agent_EditMode_TeamTraining.cs"]
+TESTS = ["Assets/_Project/Core/Tests/EditMode/Agent_EditMode_TeamTraining.cs"]
 ENGINE_ONLY = [
     "AssetDatabase",
     "Application.",

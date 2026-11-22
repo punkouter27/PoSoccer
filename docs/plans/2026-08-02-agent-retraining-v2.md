@@ -30,7 +30,7 @@ The game is otherwise healthy:
 - Ball is FIFA-spec (r=0.11, m=0.43) with realistic damping
 - Heuristic bot is **strong** — implements closest-man pressing, boost-shot,
   shoulder-charge, unstick flanking, decelerate-into-target
-  (`Assets/Scripts/Agent_HeuristicBot.cs`)
+  (`Assets/_Project/Agent_HeuristicBot.cs`)
 
 What is broken on the training side:
 
@@ -72,7 +72,7 @@ scripts/train-phase2.ps1 ──> mlagents-learn (MA-POCA, self-play)
                        results/<run>/NICK.onnx
                               │ scripts/update-model.ps1 -Profile <name>
                               ▼
-       Assets/Agents/<Name>_v01/<NAME>.onnx  (GUID-pinned, in-place)
+       Assets/_Project/RL_Models/<Name>_v01/<NAME>.onnx  (GUID-pinned, in-place)
                               │
                               ▼
        scripts/evaluate.ps1  →  results/eval/*.json  →  80% bar
@@ -82,15 +82,15 @@ scripts/train-phase2.ps1 ──> mlagents-learn (MA-POCA, self-play)
 
 | Component | Responsibility | File Path |
 |---|---|---|
-| **STANDARD_phase2_poca.yaml** (modify) | Lower curriculum thresholds to **0.15** (Lesson0) and **0.30** (Lesson1) so the brain can advance without first learning to score; bump `num_envs: 1 → 16`; raise `buffer_size: 20480 → 102400` and `batch_size: 2048 → 4096` to use the 16 parallel pitches | `config/STANDARD_phase2_poca.yaml` |
-| `STANDARD_phase1_ppo.yaml` (modify) | Same num_envs/batch/buffer changes for Phase 1 bootstrap if used as warm-start; lower thresholds identical to phase2 | `config/STANDARD_phase1_ppo.yaml` |
-| `STANDARD_phase1c_shaped.yaml` (modify) | Same — this is the most recent successful warm-start source | `config/STANDARD_phase1c_shaped.yaml` |
-| `STANDARD_phase1e_resume.yaml` (modify) | Same | `config/STANDARD_phase1e_resume.yaml` |
-| `TRAIN_<NAME>_v2.yaml` (new, one per personality) | Mirror STANDARD_phase2_poca.yaml but with `BehaviorName` = personality name (MATT / KIM / NICK / STANDARD) and a per-profile reward shaping pointer; uses MA-POCA | `config/TRAIN_<NAME>_v2.yaml` (4 files) |
-| **`Reward_Settings`** (modify) | **Default `stepPenalty` to `0`** (was `-0.0001`); replace `ballProximityScale` semantics with a **differential proximity** helper invoked from `Agent_Soccer.ApplyDenseRewards`; team-aware `cornerBallPenalty` (only fires for the team that last touched); halve `actionJitterScale` | `Assets/Scripts/Reward_Settings.cs` |
-| **`Agent_Soccer.ApplyDenseRewards`** (modify) | Implement differential proximity: `reward += (prevDist - curDist) * scale`. Pure chasing yields ~0 reward, *approaching faster than the teammate* yields positive. Track `prevBallDist` per agent, recompute each FixedUpdate. | `Assets/Scripts/Agent_Soccer.cs` (~line 384) |
-| **`Agent_Soccer.OnActionReceived`** (modify) | Gate `IsBoosting` on `Vector2.Dot(intent, forwardAxis) > 0.5` — boost only fires when intent is at least half-forward. Prevents boost burn on strafe. | `Assets/Scripts/Agent_Soccer.cs` (~line 332) |
-| **`Agent_HeuristicBot`** (modify) | Add `POSOCCER_BOT_STRENGTH ∈ [0..1]` env-var knob read in `Awake`. Low strength = longer reaction time + simpler support-positioning logic. Curriculum opponent. | `Assets/Scripts/Agent_HeuristicBot.cs` |
+| **STANDARD_phase2_poca.yaml** (modify) | Lower curriculum thresholds to **0.15** (Lesson0) and **0.30** (Lesson1) so the brain can advance without first learning to score; bump `num_envs: 1 → 16`; raise `buffer_size: 20480 → 102400` and `batch_size: 2048 → 4096` to use the 16 parallel pitches | `Training/STANDARD_phase2_poca.yaml` |
+| `STANDARD_phase1_ppo.yaml` (modify) | Same num_envs/batch/buffer changes for Phase 1 bootstrap if used as warm-start; lower thresholds identical to phase2 | `Training/STANDARD_phase1_ppo.yaml` |
+| `STANDARD_phase1c_shaped.yaml` (modify) | Same — this is the most recent successful warm-start source | `Training/STANDARD_phase1c_shaped.yaml` |
+| `STANDARD_phase1e_resume.yaml` (modify) | Same | `Training/STANDARD_phase1e_resume.yaml` |
+| `TRAIN_<NAME>_v2.yaml` (new, one per personality) | Mirror STANDARD_phase2_poca.yaml but with `BehaviorName` = personality name (MATT / KIM / NICK / STANDARD) and a per-profile reward shaping pointer; uses MA-POCA | `Training/TRAIN_<NAME>_v2.yaml` (4 files) |
+| **`Reward_Settings`** (modify) | **Default `stepPenalty` to `0`** (was `-0.0001`); replace `ballProximityScale` semantics with a **differential proximity** helper invoked from `Agent_Soccer.ApplyDenseRewards`; team-aware `cornerBallPenalty` (only fires for the team that last touched); halve `actionJitterScale` | `Assets/_Project/Reward_Settings.cs` |
+| **`Agent_Soccer.ApplyDenseRewards`** (modify) | Implement differential proximity: `reward += (prevDist - curDist) * scale`. Pure chasing yields ~0 reward, *approaching faster than the teammate* yields positive. Track `prevBallDist` per agent, recompute each FixedUpdate. | `Assets/_Project/Agent_Soccer.cs` (~line 384) |
+| **`Agent_Soccer.OnActionReceived`** (modify) | Gate `IsBoosting` on `Vector2.Dot(intent, forwardAxis) > 0.5` — boost only fires when intent is at least half-forward. Prevents boost burn on strafe. | `Assets/_Project/Agent_Soccer.cs` (~line 332) |
+| **`Agent_HeuristicBot`** (modify) | Add `POSOCCER_BOT_STRENGTH ∈ [0..1]` env-var knob read in `Awake`. Low strength = longer reaction time + simpler support-positioning logic. Curriculum opponent. | `Assets/_Project/Agent_HeuristicBot.cs` |
 | **`scripts/train-phase2.ps1`** (modify) | Add `--initialize-from` arg (already present) and a `-BotStrength` arg that exports `POSOCCER_BOT_STRENGTH` for the env. Loop the strength 0.3 → 1.0 across curriculum lessons. | `scripts/train-phase2.ps1` |
 | **`scripts/train-all.ps1`** (new) | Run all four personality trainings sequentially, each starting from the Phase 1 STANDARD warm-start, with 16 envs and 20M-step budget per profile. Total ~80M steps wall-clock. | `scripts/train-all.ps1` |
 | **`scripts/evaluate.ps1`** (modify) | Already supports `-Profile`. Add `-PersonalityOpponent` to evaluate a trained personality against the heuristic bot (not against itself). | `scripts/evaluate.ps1` |

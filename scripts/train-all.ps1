@@ -7,7 +7,7 @@
 #   .\scripts\train-all.ps1                              # all four, sequentially
 #   .\scripts\train-all.ps1 -Profiles MATT,KIM,NICK      # just the personalities
 #
-# Personality lives ONLY in the reward DNA of Assets/Agents/*/Reward_<NAME>.asset.
+# Personality lives ONLY in the reward DNA of Assets/_Project/RL_Models/*/Reward_<NAME>.asset.
 # The four TRAIN_<NAME>_v3.yaml configs are byte-identical apart from the behavior
 # name, so any behavioural difference between the finished brains is reward DNA
 # rather than trainer tuning.
@@ -17,7 +17,7 @@ param(
     [int]$NumEnvs = 4,
     [Parameter(HelpMessage = "Run-id suffix: soccer_<Tag>_<profile>.")]
     [string]$Tag = "p30team",
-    [Parameter(HelpMessage = "Selects config\TRAIN_<NAME>_<ConfigTag>.yaml.")]
+    [Parameter(HelpMessage = "Selects Training\TRAIN_<NAME>_<ConfigTag>.yaml.")]
     [string]$ConfigTag = "p31",
     [Parameter(HelpMessage = "Leave both teams on the trainer (symmetric self-play) instead of facing the bot.")]
     [switch]$SelfPlay,
@@ -111,9 +111,9 @@ $dataDir = Join-Path (Split-Path $envExe -Parent) "PoSoccer_Data"
 if (Test-Path $dataDir) {
     $builtUtc = (Get-ChildItem $dataDir -Filter *.assets |
         Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1).LastWriteTimeUtc
-    $srcUtc = (Get-ChildItem (Join-Path $root "Assets\Scripts") -Recurse -Filter *.cs |
+    $srcUtc = (Get-ChildItem (Join-Path $root "Assets\_Project") -Recurse -Filter *.cs |
         Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1).LastWriteTimeUtc
-    $assetUtc = (Get-ChildItem (Join-Path $root "Assets\Agents") -Recurse -Filter Reward_*.asset |
+    $assetUtc = (Get-ChildItem (Join-Path $root "Assets\_Project\RL_Models") -Recurse -Filter Reward_*.asset |
         Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1).LastWriteTimeUtc
     $newestInput = if ($assetUtc -gt $srcUtc) { $assetUtc } else { $srcUtc }
     if ($builtUtc -lt $newestInput) {
@@ -153,8 +153,8 @@ try {
     $basePort = 5100
     foreach ($name in $Profiles) {
         $runId = "soccer_${Tag}_$($name.ToLower())"
-        $config = Join-Path $root "config\TRAIN_${name}_${ConfigTag}.yaml"
-        if (-not (Test-Path $config)) { $config = Join-Path $root "config\archive\TRAIN_${name}_${ConfigTag}.yaml" }
+        $config = Join-Path $root "Training\TRAIN_${name}_${ConfigTag}.yaml"
+        if (-not (Test-Path $config)) { $config = Join-Path $root "Training\archive\TRAIN_${name}_${ConfigTag}.yaml" }
         if (-not (Test-Path $config)) { throw "Missing config $config" }
 
         Write-Host ""

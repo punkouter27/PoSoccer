@@ -240,12 +240,12 @@ without uGUI, or drop the package. A floating `#main` in `manifest.json` means
 an upstream commit can break this project's builds with no local change, which
 is how this arrived. Removing the package makes this exemption unnecessary.
 
-## `Editor_` prefix in `Assets/Editor/` (Rule: `Agent_` is the blanket prefix) — EXEMPT (2026-09-13)
+## `Editor_` prefix in `Assets/_Project/Core/Editor/` (Rule: `Agent_` is the blanket prefix) — EXEMPT (2026-09-13)
 
 **Rule.** UNITY_RULES: script prefixes are `Agent_` / `Sensor_` / `Reward_`, with
 `Agent_` as the blanket project prefix "covering non-agents like `Agent_UIStyle`".
 
-**Deviation.** Seven of the nine files in `Assets/Editor/` are named `Editor_*`:
+**Deviation.** Seven of the nine files in `Assets/_Project/Core/Editor/` are named `Editor_*`:
 `Editor_BuildAndroid`, `Editor_BuildAndroidAAB`, `Editor_BuildAndroidDebugApk`,
 `Editor_BuildSpriteAtlases`, `Editor_ConfigureAndroidRelease`, `Editor_GenerateAudio`,
 `Editor_MakeAudioStems`, `Editor_PlayModeOptionsGuard`. Only the two batch-mode
@@ -261,7 +261,7 @@ outside the repo. The prefix also carries real information here — `Editor_` me
 asmdef enforces.
 
 **Why this is consistency rather than a mess.** The rule's purpose is that a reader
-can predict a file's name from its role. Within `Assets/Editor/` that holds: the
+can predict a file's name from its role. Within `Assets/_Project/Core/Editor/` that holds: the
 family is internally consistent, and the boundary is a folder with its own assembly
 definition. Reviewed 2026-09-13 while consolidating the build entry points; the two
 `Agent_Build*Command` files were kept under `Agent_` for the same

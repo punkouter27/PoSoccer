@@ -1,5 +1,5 @@
 # Run a static editor method headless: the CLI replacement for the removed editor bridge.
-# Scene, prefab and asset setup is written as an Editor_ method in Assets/Editor and run
+# Scene, prefab and asset setup is written as an Editor_ method in Assets/_Project/Core/Editor and run
 # through this script.
 #   .\scripts\unity-exec.ps1 -Method PoSoccer.EditorTools.Editor_BuildAndroidAAB.Build -BuildTarget Android
 # The method should end with EditorApplication.Exit(code) when it has a result to report;

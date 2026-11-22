@@ -1,6 +1,6 @@
 r"""Crops the root FACE_* photos into square 512 px player faces.
 
-Output: Assets/Art/Faces/FACE_<NAME>.png, upright (top of head at the top).
+Output: Assets/_Project/Environments/Art/Faces/FACE_<NAME>.png, upright (top of head at the top).
 Agent_Face rotates the sprite on the pitch so the chin points where the player
 faces. Crop boxes are hand-set: (source file, centre x, centre y, side), all as
 fractions of the EXIF-corrected image width/height (side is a fraction of width).
@@ -14,7 +14,7 @@ import sys
 from PIL import Image, ImageDraw, ImageOps
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-OUT = os.path.join(ROOT, "Assets", "Art", "Faces")
+OUT = os.path.join(ROOT, "Assets", "_Project", "Environments", "Art", "Faces")
 SIZE = 512
 
 FACES = {

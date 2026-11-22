@@ -60,7 +60,7 @@ From Punkouter Software.
 | Tablet screenshots | 7-inch and 10-inch | **TODO**, and only if you want tablet distribution |
 | Promo video | YouTube URL | Optional — skip |
 
-The launcher icon inside the app (`Assets/Icons/`) and this store icon are
+The launcher icon inside the app (`Assets/_Project/UI/Icons/`) and this store icon are
 deliberately different files: the launcher one is a squircle with transparent
 corners because the OS masks it, the store one is full-bleed because Play
 rounds it itself. Do not swap them.
@@ -154,7 +154,7 @@ the track has testers. After that a service account can own every upload.
 | Android build script | **Not present** — no signed-AAB builder |
 | Publish tool | **Not present** — no `scripts/play_publish.py` |
 | Target/min SDK | Must be 36 / 26 for a new Play upload |
-| Launcher icons | `Assets/Icons/` — art is in place, still needs wiring into PlayerSettings |
+| Launcher icons | `Assets/_Project/UI/Icons/` — art is in place, still needs wiring into PlayerSettings |
 
 Project note: Closest to ready: application id already follows the convention and version code is at 3. Mobile portrait, boots SCN_Menu.
 

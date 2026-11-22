@@ -61,9 +61,9 @@ if (-not (Test-Path $apkMarker)) {
 
 # 3. Sanity-check the scenes exist and the manifest is on disk.
 $scenes = @(
-    'Assets/Scenes/SCN_Training.unity',
-    'Assets/Scenes/SCN_Menu.unity',
-    'Assets/Scenes/SCN_Exhibition.unity'
+    'Assets/_Project/Scenes/SCN_Training.unity',
+    'Assets/_Project/Scenes/SCN_Menu.unity',
+    'Assets/_Project/Scenes/SCN_Exhibition.unity'
 )
 foreach ($s in $scenes) {
     if (-not (Test-Path (Join-Path $ProjectRoot $s))) {

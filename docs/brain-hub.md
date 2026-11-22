@@ -1,6 +1,6 @@
 # Community brains (brain hub)
 
-Added 2026-10-11. Code: `Assets/Scripts/Gameplay/Agent_BrainHub.cs`, the HUB button in
+Added 2026-10-11. Code: `Assets/_Project/Core/Gameplay/Agent_BrainHub.cs`, the HUB button in
 `Agent_MainMenu`. Tests: `Agent_EditMode_BrainHub`.
 
 A community brain is a trained policy that did not ship in the build. It is loaded from a

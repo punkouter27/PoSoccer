@@ -9,7 +9,7 @@ be switched off by - and, for the blocked one, exactly what was measured.
 | # | Item | Where |
 |---|---|---|
 | 1 | Goal impact: colour flash + expanding shockwave ring (partial - see below) | `Agent_ScreenFX` |
-| 2 | Real typefaces (Inter body, Oswald display), OFL | `Assets/Resources/Fonts/`, `PoSoccerTheme.uss` |
+| 2 | Real typefaces (Inter body, Oswald display), OFL | `Assets/_Project/Data/Resources/Fonts/`, `PoSoccerTheme.uss` |
 | 3 | Menu rebuilt as template + stylesheet | `Resources/Menu.uxml`, `Agent_MainMenu` |
 | 4 | Adaptive music: three stems crossfaded by pressure and threat | `Editor_MakeAudioStems`, `Agent_Audio` |
 | 5 | Pitch wear accumulated from traction saturation | `Agent_Wear` |
@@ -23,7 +23,7 @@ be switched off by - and, for the blocked one, exactly what was measured.
 
 ### 1. Every UV-space shader effect was reading the wrong UV
 
-`Assets/Art/Atlases/PitchAtlas` packs `pitch.png`, `ball.png`, `tile.png` and
+`Assets/_Project/Environments/Art/Atlases/PitchAtlas` packs `pitch.png`, `ball.png`, `tile.png` and
 `backdrop.png` — that is the pitch, the ball, and every player body. A packed
 sprite's mesh UVs span its **slot on the page**, not 0..1, so:
 

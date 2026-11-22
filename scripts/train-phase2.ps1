@@ -28,7 +28,7 @@ try {
     Write-Warning "TensorBoard is not reachable on :6006. Run .\scripts\tensorboard.ps1 in another terminal to watch reward convergence / policy entropy / value loss. Training will continue."
 }
 
-$mlArgs = @("$root\config\STANDARD_phase2_poca.yaml",
+$mlArgs = @("$root\Training\STANDARD_phase2_poca.yaml",
           "--run-id=$RunId", "--base-port=$BasePort", "--results-dir=$root\results")
 if ($EnvPath)  { $mlArgs += @("--env=$root\$EnvPath", "--no-graphics", "--num-envs=$NumEnvs") }
 if ($InitFrom) { $mlArgs += "--initialize-from=$InitFrom" }

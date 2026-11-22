@@ -10,7 +10,7 @@ scripts/unity-free-check/run.sh        # installs a local .NET 8 SDK into .dotne
 
 ## What it covers
 
-- `Assets/Scripts/Agents/Agent_TeamRoles.cs`, compiled whole.
+- `Assets/_Project/Agents/Agent_TeamRoles.cs`, compiled whole.
 - The static helpers `extract.py` lifts **verbatim** from `Agent_EnvController`
   (`ParseSquadPattern`, `SquadForPitch`, `SpacingPenalty`, `TEAM_SPACING_RADIUS`) and
   `Agent_MatchSetup.MAX_SQUAD`. They are re-extracted on every run, so they cannot drift

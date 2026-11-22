@@ -12,7 +12,7 @@
 #
 # What is NEVER touched, whatever the rules above say:
 #   - any run written to in the last 24 h (newest file mtime, not the folder's);
-#   - any run a deployed brain names (`trainingRunId` in Assets/Agents/*/Reward_*.asset);
+#   - any run a deployed brain names (`trainingRunId` in Assets/_Project/RL_Models/*/Reward_*.asset);
 #   - any run named in a queue file (results/queue.txt, one run id per line) - a queue will resume it;
 #   - anything tracked by git, and anything under Assets/ (the GUID-stable .onnx slots live there).
 #
@@ -65,7 +65,7 @@ if ($Report) { return }
 
 # ---------------------------------------------------------------- protected run ids
 $protected = @{}
-Get-ChildItem (Join-Path $root "Assets\Agents") -Recurse -Filter "Reward_*.asset" -ErrorAction SilentlyContinue |
+Get-ChildItem (Join-Path $root "Assets\_Project\RL_Models") -Recurse -Filter "Reward_*.asset" -ErrorAction SilentlyContinue |
     ForEach-Object {
         $m = Select-String -Path $_.FullName -Pattern '^\s*trainingRunId:\s*(\S+)' -ErrorAction SilentlyContinue
         if ($m) { $protected[$m.Matches[0].Groups[1].Value] = "deployed brain ($($_.Name))" }

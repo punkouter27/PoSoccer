@@ -18,7 +18,7 @@ def test_diag_checks_cover_every_external_call(root):
     """Each external URL the game code calls has a live /diag probe."""
     cfg = load(root, "scripts/webgl.json")
     probes = " ".join(c["url"] for c in cfg["diagChecks"])
-    sources = "\n".join(p.read_text(encoding="utf-8-sig") for p in (root / "Assets/Scripts").rglob("*.cs"))
+    sources = "\n".join(p.read_text(encoding="utf-8-sig") for p in (root / "Assets/_Project").rglob("*.cs"))
     hosts = set(re.findall(r'"https://([a-z0-9.-]+)/', sources))
     assert hosts, "expected at least the Open-Meteo call"
     for host in hosts:

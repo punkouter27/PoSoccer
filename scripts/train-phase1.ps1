@@ -85,16 +85,16 @@ $env:POSOCCER_PROFILE = if ($PSBoundParameters.ContainsKey("Profile")) { $Profil
 $env:POSOCCER_STAMINA_MODEL = $StaminaModel
 $env:POSOCCER_REACTION_MS = "$ReactionMs"
 
-# The default used to be STANDARD_phase1_ppo.yaml, which lived in config\_archive
+# The default used to be STANDARD_phase1_ppo.yaml, which lived in Training\_archive
 # and therefore never resolved - the documented default invocation of this script
 # could not start a run. Resolve and verify before handing the path to the trainer,
 # so a missing config fails here, naming the file, rather than inside mlagents-learn.
-$configPath = Join-Path "$root\config" $Config
-# Superseded recipes live in config\archive and stay runnable by name.
-if (-not (Test-Path $configPath)) { $configPath = Join-Path "$root\config\archive" $Config }
+$configPath = Join-Path "$root\Training" $Config
+# Superseded recipes live in Training\archive and stay runnable by name.
+if (-not (Test-Path $configPath)) { $configPath = Join-Path "$root\Training\archive" $Config }
 if (-not (Test-Path $configPath)) {
-    $available = (Get-ChildItem "$root\config\*.yaml" | ForEach-Object { $_.Name }) -join ", "
-    throw "Config not found: $configPath`nAvailable in config\: $available"
+    $available = (Get-ChildItem "$root\Training\*.yaml" | ForEach-Object { $_.Name }) -join ", "
+    throw "Config not found: $configPath`nAvailable in Training\: $available"
 }
 
 $mlArgs = @($configPath,

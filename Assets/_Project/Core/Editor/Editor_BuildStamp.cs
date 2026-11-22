@@ -1,0 +1,53 @@
+using System.Globalization;
+using System.IO;
+using UnityEditor;
+using UnityEditor.Build;
+using UnityEditor.Build.Reporting;
+using UnityEngine;
+
+namespace PoSoccer.EditorTools
+{
+    /// <summary>
+    /// Writes Assets/_Project/Data/Resources/BuildStamp.txt (YYMMDD) before every player build,
+    /// so the lower-right corner of the built game shows the day it was built.
+    /// Read at runtime by PoSoccer.Agent_BuildStamp.
+    ///
+    /// Runs for every build path - the MCP manage_build call, the
+    /// -buildWindows64Player CLI build in scripts/build-headless.ps1, the WebGL
+    /// and Android menu builds - because IPreprocessBuildWithReport is invoked by
+    /// BuildPipeline itself, not by any one menu item.
+    ///
+    /// The file is gitignored (a build output). This assembly does not reference
+    /// PoSoccer.Runtime, so the format string is repeated here; it must match
+    /// Agent_BuildStamp.FORMAT, which Agent_EditMode_BuildStamp pins.
+    /// </summary>
+    public sealed class Editor_BuildStamp : IPreprocessBuildWithReport
+    {
+        public const string PATH = "Assets/_Project/Data/Resources/BuildStamp.txt";
+        public const string FORMAT = "yyMMdd";
+
+        public int callbackOrder => 0;
+
+        public void OnPreprocessBuild(BuildReport report)
+        {
+            // ONE STAMP (Po Game Standard): scripts/publish_webgl.ps1 computes UTC yyMMdd once and
+            // passes it as PO_BUILD_VERSION, so the player, index.html and diag.html agree. A
+            // build from the menu computes the same UTC date itself.
+            string stamp = System.Environment.GetEnvironmentVariable("PO_BUILD_VERSION");
+            if (string.IsNullOrEmpty(stamp) || stamp.Length != FORMAT.Length)
+                stamp = System.DateTime.UtcNow.ToString(FORMAT, CultureInfo.InvariantCulture);
+            // The WebGL page template prints v{PRODUCT_VERSION} bottom-right, so a web build carries
+            // the same YYMMDD. Android keeps the version name Editor_BuildAabCommand gives it.
+            if (report.summary.platform == BuildTarget.WebGL)
+            {
+                PlayerSettings.bundleVersion = stamp;
+            }
+            string existing = File.Exists(PATH) ? File.ReadAllText(PATH).Trim() : null;
+            if (existing == stamp) return;
+
+            File.WriteAllText(PATH, stamp);
+            AssetDatabase.ImportAsset(PATH, ImportAssetOptions.ForceSynchronousImport);
+            Debug.Log($"Editor_BuildStamp: build stamp {stamp} written to {PATH}");
+        }
+    }
+}

@@ -74,9 +74,9 @@ if (-not $InEditor) {
     if (-not $firstScene) {
         $failures.Add("ProjectSettings\EditorBuildSettings.asset lists no scenes.")
     }
-    elseif ($firstScene.Matches[0].Groups[1].Value -ne "Assets/Scenes/SCN_Training.unity") {
+    elseif ($firstScene.Matches[0].Groups[1].Value -ne "Assets/_Project/Scenes/SCN_Training.unity") {
         $failures.Add("Build Settings index 0 is $($firstScene.Matches[0].Groups[1].Value), not " +
-                      "Assets/Scenes/SCN_Training.unity. A build with explicit scenes rewrote the list; re-assert it and rebuild.")
+                      "Assets/_Project/Scenes/SCN_Training.unity. A build with explicit scenes rewrote the list; re-assert it and rebuild.")
     }
     else {
         Pass "SCN_Training is Build Settings index 0"

@@ -70,8 +70,8 @@ function Resolve-InitFrom([string]$name) {
 }
 
 function Resolve-ProfileConfig([string]$name) {
-    $path = Join-Path $root "config\TRAIN_${name}_${ConfigTag}.yaml"
-    if (-not (Test-Path $path)) { $path = Join-Path $root "config\archive\TRAIN_${name}_${ConfigTag}.yaml" }
+    $path = Join-Path $root "Training\TRAIN_${name}_${ConfigTag}.yaml"
+    if (-not (Test-Path $path)) { $path = Join-Path $root "Training\archive\TRAIN_${name}_${ConfigTag}.yaml" }
     return $path
 }
 

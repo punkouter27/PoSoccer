@@ -17,10 +17,10 @@ editor had no licence on this machine, so there is no player build yet).
 
 - Why from scratch: the p31 checkpoints are not on this machine (there is no `results/`),
   and AGENTS.md now requires every character to train its own brain from scratch.
-- Recipe: `config/TRAIN_<NAME>_p38.yaml` - p31's PPO block, 30M steps, and a
+- Recipe: `Training/TRAIN_<NAME>_p38.yaml` - p31's PPO block, 30M steps, and a
   `bot_strength` ladder that advances on training PROGRESS (0.0 drill -> 1.0 by the
   halfway mark) instead of on reward, which stalled in p31 and never promoted at all in
-  p17/p18/p20. Then `config/TRAIN_<NAME>_p39bot.yaml`: 10M bot-only at full strength,
+  p17/p18/p20. Then `Training/TRAIN_<NAME>_p39bot.yaml`: 10M bot-only at full strength,
   continuing each profile's OWN p38, which is STANDARD's p34control..p37bot recipe.
 - Launch (after a fresh build of SCN_Training):
 
@@ -62,7 +62,7 @@ decision, RMS jerk) for the smoothness side of that question.
 
 ## The current recipe
 
-`config/TRAIN_STANDARD_p37bot.yaml`: PPO, 1v1, bot v1 at full strength on every pitch, no
+`Training/TRAIN_STANDARD_p37bot.yaml`: PPO, 1v1, bot v1 at full strength on every pitch, no
 team terms, no self-play, 10M steps per run, warm-started from the previous run. It runs
 at about 540 s per million steps at `-NumEnvs 4`.
 
@@ -93,11 +93,11 @@ at about 540 s per million steps at `-NumEnvs 4`.
 
 ## Configs
 
-- `config/` holds the recipes behind deployed brains (`TRAIN_STANDARD_p37bot.yaml`,
+- `Training/` holds the recipes behind deployed brains (`TRAIN_STANDARD_p37bot.yaml`,
   `TRAIN_<MATT|KIM|NICK>_p31.yaml`) and the staged ones (`TRAIN_<MATT|KIM|NICK>_p38.yaml`,
   `_p39bot.yaml`).
-- `config/archive/` holds everything superseded, including the league, control and team
-  recipes. The training scripts look in `config/` first and then in `config/archive/`, so
+- `Training/archive/` holds everything superseded, including the league, control and team
+  recipes. The training scripts look in `Training/` first and then in `Training/archive/`, so
   an archived recipe still runs by name.
 - Decision period 8 (12.5 Hz) and fixed timestep 0.01 s stay as they are. `threaded:
   false`; the `threaded: true` A/B (`archive/TRAIN_STANDARD_p28.yaml`) targets the old

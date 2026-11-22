@@ -16,7 +16,7 @@ only in a match; they never play in training, evaluation or headless runs.
 
 ## Adding a recorded sound
 
-Drop a WAV into `Assets/Resources/Voices/` named
+Drop a WAV into `Assets/_Project/Data/Resources/Voices/` named
 
     <NAME>_<MOOD>_<line>_<level>.wav        e.g.  MATT_INSULT_3_5.wav
 

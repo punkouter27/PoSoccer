@@ -226,7 +226,7 @@ from scratch (stage 1) and then against the full-strength bot (stage 2), three a
 
 <h2>Where things are</h2>
 <ul>
-<li>Production weights: <code>Assets/Agents/&lt;Name&gt;_v01/&lt;NAME&gt;.onnx</code>, overwritten in place after each stage.</li>
+<li>Production weights: <code>Assets/_Project/RL_Models/&lt;Name&gt;_v01/&lt;NAME&gt;.onnx</code>, overwritten in place after each stage.</li>
 <li>Checkpoints (one per million steps): <code>results/soccer_&lt;stage&gt;_&lt;name&gt;/&lt;NAME&gt;/</code>.</li>
 <li>Live curves: TensorBoard at <code>http://localhost:6006</code>. Queue log: <code>docs/{started:%Y%m%d}/train-roster.log</code>.</li>
 <li>Training reward can rise while the graded result falls; only grades decide what ships.</li>

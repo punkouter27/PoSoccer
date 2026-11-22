@@ -55,7 +55,7 @@ if ($Rebuild -or -not (Test-Path $exe)) {
 . "$PSScriptRoot\lib-profile.ps1"
 Assert-Profile $Profile
 $folders = $PoSoccerProfiles
-$model = Join-Path $root "Assets\Agents\$($folders[$Profile])\$Profile.onnx"
+$model = Join-Path $root "Assets\_Project\RL_Models\$($folders[$Profile])\$Profile.onnx"
 if (-not $Baseline -and -not (Test-Path $model)) {
     Write-Error "No model at $model - train first, then scripts\update-model.ps1 -RunId <run> -Profile $Profile."
     exit 2
@@ -267,7 +267,7 @@ if ($r.invalid) { Write-Error "Run marked INVALID (no model at eval time)."; exi
 # Nor a grade against bot v2, for the same reason.
 if (-not $Baseline -and -not $Squad -and $BotVersion -eq 1) {
     . "$PSScriptRoot\lib-profile.ps1"
-    $profileAsset = Join-Path $root "Assets\Agents\$($folders[$Profile])\Reward_$Profile.asset"
+    $profileAsset = Join-Path $root "Assets\_Project\RL_Models\$($folders[$Profile])\Reward_$Profile.asset"
     Set-ProfileField $profileAsset 'evalWinRate' ("{0:0.####}" -f $winRate)
     Set-ProfileField $profileAsset 'evalEpisodes' "$($r.episodes)"
     Write-Host ("  stamped Reward_{0}.asset: {1:P1} over {2} episodes" -f $Profile, $winRate, $r.episodes)

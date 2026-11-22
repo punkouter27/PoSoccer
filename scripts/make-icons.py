@@ -2,12 +2,12 @@
 Generate PoSoccer's Android launcher and store icons.
 
 Deterministic, regenerable, and colour-matched to the game: every colour below is
-read from Assets/Scripts/Presentation/Agent_UIStyle.cs so the icon and the UI cannot drift.
+read from Assets/_Project/UI/Presentation/Agent_UIStyle.cs so the icon and the UI cannot drift.
 
 Outputs
-  Assets/Sprites/Icons/icon_foreground.png   432x432 RGBA  adaptive foreground
-  Assets/Sprites/Icons/icon_background.png   432x432 RGB   adaptive background
-  Assets/Sprites/Icons/icon_legacy.png       512x512 RGB   legacy / round fallback
+  Assets/_Project/Environments/Sprites/Icons/icon_foreground.png   432x432 RGBA  adaptive foreground
+  Assets/_Project/Environments/Sprites/Icons/icon_background.png   432x432 RGB   adaptive background
+  Assets/_Project/Environments/Sprites/Icons/icon_legacy.png       512x512 RGB   legacy / round fallback
   docs/store/icon_store_512.png              512x512 RGB   Play listing (NOT shipped)
 
 The store icon deliberately lives outside Assets/ so it is never packed into the
@@ -105,7 +105,7 @@ def draw_ball(size, diameter_frac):
 
 
 def main():
-    icons_dir = os.path.join(ROOT, "Assets", "Sprites", "Icons")
+    icons_dir = os.path.join(ROOT, "Assets", "_Project", "UI", "Icons")
     store_dir = os.path.join(ROOT, "docs", "store")
     os.makedirs(icons_dir, exist_ok=True)
     os.makedirs(store_dir, exist_ok=True)

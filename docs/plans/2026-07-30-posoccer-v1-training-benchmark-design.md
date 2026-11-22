@@ -4,7 +4,7 @@
 V1 ships PoSoccer as a **training benchmark**: a headless ML-Agents pipeline that produces a 1v1 PPO policy which beats the rule-based heuristic bot in **≥80% of evaluation episodes**, plus an in-editor/spectator playback of the trained policy. No human input, no menus, no art beyond the existing programmer art. Playable mobile modes, 2v2/3v3 rosters, and visual polish are explicitly deferred.
 
 ## Context
-The environment already exists and play-tests clean: `Assets/Agents/SoccerAgent_v01/` (agent, stamina, vision sensor, heuristic bot, reward settings), `Assets/Scripts/` (env controller, goal triggers, 16-pitch grid, bootstrap, UI Toolkit HUD), scene `Assets/Scenes/SCN_Training.unity`, trainer configs `config/SoccerAgent_v01_phase1_ppo.yaml` / `_phase2_poca.yaml`, ops scripts under `scripts/`. ML-Agents C# 4.1.0 and Python mlagents 1.2.0.dev0 are pinned to the same clone commit. What v1 still lacks is an **objective finish line**: nothing measures win-rate, and no one has run the training loop end to end.
+The environment already exists and play-tests clean: `Assets/_Project/RL_Models/SoccerAgent_v01/` (agent, stamina, vision sensor, heuristic bot, reward settings), `Assets/_Project/` (env controller, goal triggers, 16-pitch grid, bootstrap, UI Toolkit HUD), scene `Assets/_Project/Scenes/SCN_Training.unity`, trainer configs `Training/SoccerAgent_v01_phase1_ppo.yaml` / `_phase2_poca.yaml`, ops scripts under `scripts/`. ML-Agents C# 4.1.0 and Python mlagents 1.2.0.dev0 are pinned to the same clone commit. What v1 still lacks is an **objective finish line**: nothing measures win-rate, and no one has run the training loop end to end.
 
 ## Design
 
@@ -13,7 +13,7 @@ The environment already exists and play-tests clean: `Assets/Agents/SoccerAgent_
 scripts/train-phase1.ps1 ──> mlagents-learn (PPO, curriculum) ──> results/<run>/SoccerAgent.onnx
                                                                       │ scripts/update-model.ps1 (in-place, GUID stable)
                                                                       ▼
-Builds/PoSoccer/PoSoccer.exe (headless, 16 pitches)   Assets/Agents/SoccerAgent_v01/SoccerAgent_v01.onnx
+Builds/PoSoccer/PoSoccer.exe (headless, 16 pitches)   Assets/_Project/RL_Models/SoccerAgent_v01/SoccerAgent_v01.onnx
                                                                       │
 scripts/evaluate.ps1 ──> eval build run (Blue=model, Red=bot) ──> results/eval/<run>.json ──> pass/fail vs 80% bar
 ```
@@ -21,17 +21,17 @@ scripts/evaluate.ps1 ──> eval build run (Blue=model, Red=bot) ──> result
 ### Components
 | Component | Responsibility | File Path |
 |---|---|---|
-| `Agent_EvalStats` (new) | Subscribes to `Agent_EnvController.EpisodeEnded` on every pitch; counts per-team goals, stalemates, episode lengths; writes JSON and calls `Application.Quit` after `POSOCCER_EPISODES` episodes | `Assets/Scripts/Agent_EvalStats.cs` |
+| `Agent_EvalStats` (new) | Subscribes to `Agent_EnvController.EpisodeEnded` on every pitch; counts per-team goals, stalemates, episode lengths; writes JSON and calls `Application.Quit` after `POSOCCER_EPISODES` episodes | `Assets/_Project/Agent_EvalStats.cs` |
 | `evaluate.ps1` (new) | Sets `$env:POSOCCER_EVAL = "1"` / `$env:POSOCCER_EPISODES` before `Start-Process` of the built player (`-batchmode -nographics`); waits (30 min timeout), parses `results/eval/<run>.json`, prints win-rate verdict vs the 80% bar, exits nonzero on fail | `scripts/evaluate.ps1` |
-| `Agent_Soccer` (modify) | In `Awake()` (already configures `BehaviorParameters` before policy init, [Agent_Soccer.cs:53–67]): when `Environment.GetEnvironmentVariable("POSOCCER_EVAL") == "1"`, set Blue → `BehaviorType.InferenceOnly` (model from the serialized `BehaviorParameters.Model` slot), Red → `BehaviorType.HeuristicOnly` | `Assets/Agents/SoccerAgent_v01/Agent_Soccer.cs` |
-| `Agent_EnvController` (modify) | Expose `public event System.Action<Agent_Soccer.Team?> EpisodeEnded` (winning team, `null` = stalemate); fire it from `OnGoalScored` / `OnStalemate` **before** `EndEpisode`/`ResetPitch`, so subscribers can still sample `agent.GetCumulativeReward()` and `StepCount` for the JSON means | `Assets/Scripts/Agent_EnvController.cs` |
-| `Agent_TrainingGrid` (modify) | Also clone the 16-pitch grid when `POSOCCER_EVAL=1` (today `onlyWhenTraining` skips cloning without a trainer connected, which would leave eval on 1 pitch) | `Assets/Scripts/Agent_TrainingGrid.cs` |
-| Model bootstrap (one-time op) | After the first training run: `update-model.ps1` copies the first `.onnx` to `Assets/Agents/SoccerAgent_v01/SoccerAgent_v01.onnx`, Unity imports it (generates the `.meta`/GUID that later overwrites preserve), assign it to both agents' `BehaviorParameters.Model` slot via MCP, save scene, commit the `.meta` | — |
+| `Agent_Soccer` (modify) | In `Awake()` (already configures `BehaviorParameters` before policy init, [Agent_Soccer.cs:53–67]): when `Environment.GetEnvironmentVariable("POSOCCER_EVAL") == "1"`, set Blue → `BehaviorType.InferenceOnly` (model from the serialized `BehaviorParameters.Model` slot), Red → `BehaviorType.HeuristicOnly` | `Assets/_Project/RL_Models/SoccerAgent_v01/Agent_Soccer.cs` |
+| `Agent_EnvController` (modify) | Expose `public event System.Action<Agent_Soccer.Team?> EpisodeEnded` (winning team, `null` = stalemate); fire it from `OnGoalScored` / `OnStalemate` **before** `EndEpisode`/`ResetPitch`, so subscribers can still sample `agent.GetCumulativeReward()` and `StepCount` for the JSON means | `Assets/_Project/Agent_EnvController.cs` |
+| `Agent_TrainingGrid` (modify) | Also clone the 16-pitch grid when `POSOCCER_EVAL=1` (today `onlyWhenTraining` skips cloning without a trainer connected, which would leave eval on 1 pitch) | `Assets/_Project/Agent_TrainingGrid.cs` |
+| Model bootstrap (one-time op) | After the first training run: `update-model.ps1` copies the first `.onnx` to `Assets/_Project/RL_Models/SoccerAgent_v01/SoccerAgent_v01.onnx`, Unity imports it (generates the `.meta`/GUID that later overwrites preserve), assign it to both agents' `BehaviorParameters.Model` slot via MCP, save scene, commit the `.meta` | — |
 | Phase 1 training run (op) | Execute `train-phase1.ps1` to `max_steps` 5M; early-stop when the eval bar passes at two consecutive checkpoints (decided — see Decision Log) | `scripts/train-phase1.ps1` (exists) |
-| EditMode tests (new) | Stamina drain/recharge/wear math; reward constants match PRD; heuristic bot turns toward ball; `Agent_EvalStats` tally/JSON logic via direct `EpisodeEnded` invocations | `Assets/Tests/EditMode_SoccerAgent.cs` |
-| PlayMode test (new) | Load `SCN_Training`, locate the `Pitch` root scene object (no prefab exists), teleport ball into `GoalBlue` trigger → episode ends, −1.0/+0.7 applied, pitch resets | `Assets/Tests/PlayMode_GoalFlow.cs` |
+| EditMode tests (new) | Stamina drain/recharge/wear math; reward constants match PRD; heuristic bot turns toward ball; `Agent_EvalStats` tally/JSON logic via direct `EpisodeEnded` invocations | `Assets/_Project/Core/Tests/EditMode_SoccerAgent.cs` |
+| PlayMode test (new) | Load `SCN_Training`, locate the `Pitch` root scene object (no prefab exists), teleport ball into `GoalBlue` trigger → episode ends, −1.0/+0.7 applied, pitch resets | `Assets/_Project/Core/Tests/PlayMode_GoalFlow.cs` |
 
-Note: `Assets/Tests/` requires an asmdef referencing `Unity.MLAgents` + `Assembly-CSharp` (folder depth 1 — within the 2-level rule).
+Note: `Assets/_Project/Core/Tests/` requires an asmdef referencing `Unity.MLAgents` + `Assembly-CSharp` (folder depth 1 — within the 2-level rule).
 
 ### Data Model
 `results/eval/<run>.json` (written by `Agent_EvalStats`):
@@ -49,7 +49,7 @@ Note: `Assets/Tests/` requires an asmdef referencing `Unity.MLAgents` + `Assembl
 Win = the opposing net's `Reward_GoalTrigger` fires; stalemate = `maxEnvironmentSteps` (5000) reached.
 
 ### Data Flow (evaluation)
-1. `evaluate.ps1 -RunId soccer_p1_00 -Episodes 100` → ensures `update-model.ps1` copied the run's `.onnx` into `Assets/Agents/SoccerAgent_v01/SoccerAgent_v01.onnx`, rebuilds headless player if stale.
+1. `evaluate.ps1 -RunId soccer_p1_00 -Episodes 100` → ensures `update-model.ps1` copied the run's `.onnx` into `Assets/_Project/RL_Models/SoccerAgent_v01/SoccerAgent_v01.onnx`, rebuilds headless player if stale.
 2. Script sets `$env:POSOCCER_EVAL = "1"` and `$env:POSOCCER_EPISODES = "100"`, then `Start-Process Builds\PoSoccer\PoSoccer.exe -ArgumentList "-batchmode","-nographics"` (env vars inherit into the child process — they are not CLI tokens).
 3. On startup, `Agent_Soccer.Awake` flips behavior types (Blue inference / Red heuristic) and `Agent_TrainingGrid` clones the 16-pitch grid because the eval var is set.
 4. `Agent_EvalStats` (on the `Pitch` root, cloned with the grid) subscribes to every pitch's `EpisodeEnded` and aggregates via a static counter; at the target episode count it writes the JSON and calls `Application.Quit`.

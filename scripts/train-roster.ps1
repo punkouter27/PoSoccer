@@ -48,7 +48,7 @@ function Save-State($state) {
 }
 
 function Test-HasBrain([string]$name) {
-    $asset = Join-Path $root "Assets\Agents\$(Get-ProfileFolder $name)\Reward_$name.asset"
+    $asset = Join-Path $root "Assets\_Project\RL_Models\$(Get-ProfileFolder $name)\Reward_$name.asset"
     if (-not (Test-Path $asset)) { return $false }
     $line = Select-String -Path $asset -Pattern '^\s*brainModel:' | Select-Object -First 1
     return $line -and ($line.Line -notmatch 'fileID: 0\b')

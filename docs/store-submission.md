@@ -6,7 +6,7 @@ what is blocked, and what only a human with the Play Console can do.
 For the **Play Console side** — the exact declarations to file (data safety,
 content rating, target audience), mirrored from the live PoSumo listing, plus
 the signing-and-build pipeline (`scripts/build-android-aab.ps1`,
-`Assets/Editor/BuildAabCommand.cs`) — see
+`Assets/_Project/Core/Editor/BuildAabCommand.cs`) — see
 [play-console-submission.md](play-console-submission.md). The two were written in
 parallel and overlap; this one is the project settings, that one is the listing.
 
@@ -68,7 +68,7 @@ Stripped. Note the attribution above was wrong: the permission does **not** come
 from ML-Agents. Unity's own generated `unityLibrary` manifest declares it
 unconditionally — verified in the previous build's merged manifest under
 `Library/Bee/Android/Prj/IL2CPP/Gradle/launcher/build/intermediates/packaged_manifests/`.
-Nothing in `Assets/Scripts` references `UnityWebRequest`, `System.Net`, `WWW` or
+Nothing in `Assets/_Project` references `UnityWebRequest`, `System.Net`, `WWW` or
 `Socket`.
 
 Removed via `Assets/Plugins/Android/LauncherManifest.xml` with
@@ -118,7 +118,7 @@ Once the keystore is configured, from the running editor:
 ```
 manage_build(action="build", target="android",
              output_path="Builds/PoSoccer/PoSoccer.aab",
-             scenes="Assets/Scenes/SCN_Menu.unity,Assets/Scenes/SCN_Exhibition.unity")
+             scenes="Assets/_Project/Scenes/SCN_Menu.unity,Assets/_Project/Scenes/SCN_Exhibition.unity")
 ```
 
 `SCN_Training` is deliberately excluded from the store build — it is the 16-pitch

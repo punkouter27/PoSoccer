@@ -43,12 +43,12 @@ that page is a real defect.
   **`git sync`** counts as the ask (commit what is pending, pull, push).
 - **Unity is driven only through the headless CLI** (since 2026-11-07; the CoplayDev,
   IvanMurzak and Unity-Skills MCP packages were removed). Scene, prefab and asset setup is
-  an `Editor_` method in `Assets/Editor` run with `scripts/unity-exec.ps1`; never a text
+  an `Editor_` method in `Assets/_Project/Core/Editor` run with `scripts/unity-exec.ps1`; never a text
   edit of `.unity` / `.prefab` YAML. Building things at runtime in gameplay code is fine
   and used heavily (see the exemption for why the global presentation components must
   stay code-installed). Do not reinstall an editor-bridge package without being asked.
-- Script prefixes `Agent_` / `Sensor_` / `Reward_` (`Editor_` inside `Assets/Editor`, exempt);
-  scenes `SCN_`; folder depth at most 2 under `Assets/`; agent assets in `<Name>_v<NN>`.
+- Script prefixes `Agent_` / `Sensor_` / `Reward_` (`Editor_` inside `Assets/_Project/Core/Editor`, exempt);
+  scenes `SCN_`; the Po Unity layout under `Assets/_Project/` (AGENTS.md section 1); agent assets in `RL_Models/<Name>_v<NN>`.
 - **UI Toolkit only**, code-built, shared `PanelSettings` at 1080x1920 in Expand mode (landscape and
   portrait both get the full layout; was match-width and portrait-locked until 2026-11-20). Fixed
   timestep 0.01 s.
@@ -56,7 +56,7 @@ that page is a real defect.
   `mlagents` pinned in `requirements-training.txt`. `scripts/setup-training-env.ps1` builds
   `.venv` from that commit and fails loudly on drift. Python 3.10.x, at most 3.10.12.
 - Trained `.onnx` overwrite **in place** (GUID-stable slot per personality:
-  `Assets/Agents/<Name>_v01/<NAME>.onnx`). Kill orphaned trainers after runs.
+  `Assets/_Project/RL_Models/<Name>_v01/<NAME>.onnx`). Kill orphaned trainers after runs.
 - **Always start TensorBoard with training** (`.\scripts\tensorboard.ps1`, :6006), and prune
   obsolete runs first. Verify the script really archived them.
 - **Always start the game from `SCN_Menu`.** Only the menu sets the `Agent_MatchSetup`
@@ -86,7 +86,7 @@ that page is a real defect.
 
 .\scripts\tensorboard.ps1                      # :6006; keeps newest 3 runs
 .\scripts\train-phase1.ps1 -RunId <run> -EnvPath Builds\PoSoccer\PoSoccer.exe -NumEnvs 4 `
-    [-Config <yaml in config/>] [-Squad "1,2"] [-InitFrom <run>] [-Resume]
+    [-Config <yaml in Training/>] [-Squad "1,2"] [-InitFrom <run>] [-Resume]
 .\scripts\evaluate.ps1 -RunId <run> -Episodes 350 [-Squad 2]   # exit 0 pass / 1 fail / 2-3 setup
 .\scripts\evaluate.ps1 -Baseline -Episodes 350                 # bot vs bot sanity
 .\scripts\evaluate.ps1 -Baseline -BlueBotVersion 2 -Episodes 350   # bot v2 against the benchmark bot
@@ -137,7 +137,7 @@ scripts (`build-android-aab.ps1`, `scripts/publish_webgl.ps1`).
   it hangs the whole run. Use `ScreenCapture.CaptureScreenshot(path)` and `yield return null`.
 - A collider added to a sprite-less object auto-sizes to 0.0001; set `size` explicitly.
 - Overwriting a PNG in place can corrupt cached sprite geometry; use a new file name.
-- `Assets/Editor/Editor_PlayModeOptionsGuard.cs` resets "Enter Play Mode Options" after test
+- `Assets/_Project/Core/Editor/Editor_PlayModeOptionsGuard.cs` resets "Enter Play Mode Options" after test
   runs. That setting must stay off: the ML-Agents Academy needs the domain reload.
 - Installing a Unity module while an editor is open breaks compilation until a restart.
 
@@ -272,7 +272,7 @@ promises no network access. See `docs/brain-hub.md`.
 `Agent_PlayMode_SmokeRun` plays every lineup with an error budget of zero. Do not add an
 ignore list to it.
 
-**Assemblies**: `PoSoccer.Runtime` (`Assets/`), `PoSoccer.Editor.Build` (`Assets/Editor`),
+**Assemblies**: `PoSoccer.Runtime` (`Assets/_Project/`), `PoSoccer.Editor.Build` (`Assets/_Project/Core/Editor`),
 `PoSoccer.EditModeTests`, `PoSoccer.PlayModeTests`.
 
 ## Method rules

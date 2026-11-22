@@ -37,7 +37,7 @@ if (Test-Path $results) {
             # --initialize-from - the warm-start source (e.g. soccer_v2_standard)
             # is consumed by future trainings and docs reference it by name.
             # Pattern matches the documented warm-start source naming
-            # (config/STANDARD_phase1e_resume.yaml uses --initialize-from=soccer_v2_standard).
+            # (Training/STANDARD_phase1e_resume.yaml uses --initialize-from=soccer_v2_standard).
             if ($_.Name -match '^soccer_v[12]_(standard|matt|kim|nick)$') {
                 Write-Host "Skipping archive of warm-start source: $($_.Name)"
                 return

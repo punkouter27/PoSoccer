@@ -20,7 +20,7 @@ param(
     [switch] $SkipBuild,
     [switch] $SkipTests,
     [switch] $NoPublish,
-    [int] $Keep = 3          # webgl-* releases to keep, the new one included
+    [int] $Keep = 0          # >0: prune to the newest $Keep webgl-* releases; 0 (default) deletes nothing
 )
 
 $ErrorActionPreference = 'Stop'
@@ -73,6 +73,8 @@ else {
         $tlog = Join-Path $root 'Builds\editmode-tests.log'
         if (Test-Path $results) { Remove-Item $results -Force }
         "EditMode tests first (log: $tlog)"
+        # The local Unity MCP bridge otherwise reconnects mid-run and its auth error fails a random test.
+        $env:CI = 'true'; $env:UNITY_MCP_KEEP_CONNECTED = 'false'
         $code = Invoke-Unity @('-batchmode', '-nographics', '-projectPath', "`"$root`"", '-runTests',
             '-testPlatform', 'EditMode', '-testResults', "`"$results`"", '-logFile', "`"$tlog`"")
         if (-not (Test-Path $results)) { throw "EditMode tests wrote no results (exit $code; compile error?). Log: $tlog" }
@@ -134,11 +136,15 @@ main{max-width:760px;margin:0 auto;padding:20px 16px 48px}h1{font-size:22px;marg
 <script>
 const CHECKS = $checksJson;
 CHECKS.push({section:'Services',name:'3D renderer (WebGL2 in this browser)',webgl2:true});
+CHECKS.push({section:'Services',name:'Deployed commit (X-Commit header)',xcommit:true});
 const order=['API','Data','Services'];const root=document.getElementById('sections');const rows=[];
 for(const sec of order){const items=CHECKS.filter(c=>c.section===sec);const h=document.createElement('h2');h.textContent=sec;root.appendChild(h);
  if(!items.length){const p=document.createElement('p');p.className='note';p.textContent=sec==='API'?'The game calls no API.':'None.';root.appendChild(p);}
  for(const c of items){const d=document.createElement('div');d.className='card';d.innerHTML='<span class="n"></span><span class="s wait">checking</span>';d.firstChild.textContent=c.name;root.appendChild(d);rows.push([c,d.lastChild]);}}
 async function probe(c){if(c.webgl2){return {ok:!!document.createElement('canvas').getContext('webgl2'),text:null};}
+ if(c.xcommit){const t0=performance.now();try{const r=await fetch('/',{cache:'no-store',method:'HEAD'});const x=r.headers.get('x-commit')||'';
+ const ok=/^[0-9a-f]{7,40}$/.test(x);return {ok,text:(ok?x.slice(0,7):'Missing')+' · '+Math.round(performance.now()-t0)+' ms'};}
+ catch(e){return {ok:false,text:'unreachable'};}}
  const t0=performance.now();try{const json=c.expect==='json';
  let r=await fetch(c.url,{cache:'no-store',method:json?'GET':'HEAD'});
  if(!json&&(r.status===405||r.status===501))r=await fetch(c.url,{cache:'no-store'});
@@ -166,8 +172,10 @@ gh release create $tag $zip -R $repo --target $sha --title "WebGL v$stamp ($when
 if ($LASTEXITCODE -ne 0) { throw "gh release create failed ($LASTEXITCODE)." }
 "PUBLISHED $tag  ->  deploy: https://github.com/$repo/actions/workflows/webgl.yml"
 
-# Keep only the newest $Keep webgl-* releases (and their tags).
+# Releases are kept unless -Keep N asks to prune to the newest N (and their tags).
 $old = gh release list -R $repo --limit 100 --json tagName,createdAt |
     ConvertFrom-Json | Where-Object { $_.tagName -like 'webgl-*' } |
     Sort-Object createdAt -Descending | Select-Object -Skip $Keep
-foreach ($r in $old) { gh release delete $r.tagName -R $repo --yes --cleanup-tag; "pruned $($r.tagName)" }
+if ($Keep -gt 0) {
+    foreach ($r in $old) { gh release delete $r.tagName -R $repo --yes --cleanup-tag; "pruned $($r.tagName)" }
+}

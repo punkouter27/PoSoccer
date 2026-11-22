@@ -33,9 +33,9 @@ if (-not (Test-Path $source)) {
     exit 0
 }
 
-$targetDir = Join-Path $root "Assets\Agents\$folder"
+$targetDir = Join-Path $root "Assets\_Project\RL_Models\$folder"
 if (-not (Test-Path $targetDir)) {
-    throw "Agent folder missing: Assets/Agents/$folder"
+    throw "Agent folder missing: Assets/_Project/RL_Models/$folder"
 }
 $target = Join-Path $targetDir "$Profile.onnx"
 
@@ -46,14 +46,14 @@ if ($isNewSlot) {
     # First brain for this character: point Reward_<NAME>.brainModel at the new file,
     # headless (2026-11-08; this used to be a hand step in the Inspector). Every later
     # run overwrites the file in place, so the GUID never changes again.
-    Write-Host "NEW slot created: Assets/Agents/$folder/$Profile.onnx - assigning it to Reward_$Profile.brainModel"
+    Write-Host "NEW slot created: Assets/_Project/RL_Models/$folder/$Profile.onnx - assigning it to Reward_$Profile.brainModel"
     & "$PSScriptRoot\unity-exec.ps1" -Method PoSoccer.EditorTools.Editor_CreateCharacters.AssignBrains
     if ($LASTEXITCODE -ne 0) {
         Write-Warning ("Could not assign the brain headless (is the editor open?). Run: " +
             "scripts\unity-exec.ps1 -Method PoSoccer.EditorTools.Editor_CreateCharacters.AssignBrains")
     }
 } else {
-    Write-Host "OK: $RunId -> Assets/Agents/$folder/$Profile.onnx (GUID preserved)"
+    Write-Host "OK: $RunId -> Assets/_Project/RL_Models/$folder/$Profile.onnx (GUID preserved)"
 }
 
 # Surface profiles that are still running as heuristic bots.
@@ -91,7 +91,7 @@ Set-ProfileField $profileAsset 'evalEpisodes' '0'
 # KIM stayed on p21 checkpoints trained at 1.6. Tensor shapes are unchanged, so those
 # .onnx load without a warning and then under-drive. Agent_EditMode_ActionGain compares
 # what this stamps against Agent_Soccer.ActionGain and fails on a mismatch.
-$agentSource = Join-Path $root "Assets\Scripts\Agents\Agent_Soccer.cs"
+$agentSource = Join-Path $root "Assets\_Project\Agents\Agent_Soccer.cs"
 $gain = $null
 if (Test-Path $agentSource) {
     $m = Select-String -Path $agentSource -Pattern 'public\s+const\s+float\s+ActionGain\s*=\s*([0-9.]+)f' |

@@ -30,7 +30,7 @@ where POCA's centralised critic has no teammate to split credit with, and all of
 predate the 2026-08-28 body-frame fix. Team credit assignment is therefore untested,
 not disproven.
 
-p29 (`config/TRAIN_STANDARD_p29team.yaml`) is p22's hyperparameters under `poca`, on a
+p29 (`Training/TRAIN_STANDARD_p29team.yaml`) is p22's hyperparameters under `poca`, on a
 `-Squad "1,2"` grid (half 1v1, half 2v2), with two new trainer-driven shaping terms:
 `team_roles` (the ball-approach reward is paid toward each player's role target from
 `Agent_TeamRoles` - ball for the presser, a post for goalie/defender/support attacker -
@@ -237,14 +237,14 @@ Bot-vs-bot is symmetric, so the harness is fair and the brains really are **wors
 
 Halving the opponent left the win rate **flat** and converted 31 points of losses into draws, one-for-one. The scoring rate is pinned near 17% regardless of opponent — an **offense** problem, not perception and not opponent strength.
 
-**Cause: the reward table made stalling optimal.** With `goalScorer 0.7 / goalConceded -1.0 / stalemateTimeout -0.1`, EV(stall) = −0.1 while EV(attack, 50/50) = −0.15. A policy needed a **>53% win rate before attacking beat parking the bus**, and it wins ~17%. It learned not to lose because that is what the table paid for. Fixed 2026-08-04 in all five profiles: `goalScorer` 1.2 (MATT 1.4, KIM 1.3), `stalemateTimeout` −0.6 — attacking now beats stalling even at a 30% win rate (−0.34 vs −0.60). Config-only; every 26-obs `.onnx` stays valid. `config/STANDARD_phase7_scoring.yaml` is the single-variable test.
+**Cause: the reward table made stalling optimal.** With `goalScorer 0.7 / goalConceded -1.0 / stalemateTimeout -0.1`, EV(stall) = −0.1 while EV(attack, 50/50) = −0.15. A policy needed a **>53% win rate before attacking beat parking the bus**, and it wins ~17%. It learned not to lose because that is what the table paid for. Fixed 2026-08-04 in all five profiles: `goalScorer` 1.2 (MATT 1.4, KIM 1.3), `stalemateTimeout` −0.6 — attacking now beats stalling even at a 30% win rate (−0.34 vs −0.60). Config-only; every 26-obs `.onnx` stays valid. `Training/STANDARD_phase7_scoring.yaml` is the single-variable test.
 
 **Process lesson: the perception thesis below was diagnosed from code inspection and never tested before committing 3 hours of compute to it.** The 10-minute reduced-strength eval would have falsified it up front. Run the cheap discriminating experiment *before* the expensive fix.
 
 **Fixes applied 2026-08-04 — the perception/reward/curriculum set that phase 6 tested and found insufficient:**
 1. **Opponent observations** — obs 18 → 26 (`Agent_EnvController.GetOpponents`, zero-alloc, nearest-first). Removes the perception asymmetry above. Obsoletes every `.onnx`.
 2. **`ballContact` 0.05 → 0.005** — at 0.05, **14 touches outscored a goal** (0.7), so over a ~4400-step episode the optimal policy was to poke the ball rather than finish. Matches the stubborn 12–18% stalemate rate. Now 140 touches per goal.
-3. **Curriculum gate** — `config/STANDARD_phase6_seeing.yaml`: one flat mastery threshold (0.50) on every lesson and `min_lesson_length` 200 → 1000, replacing the falling ladder that let p5 graduate on noise.
+3. **Curriculum gate** — `Training/STANDARD_phase6_seeing.yaml`: one flat mastery threshold (0.50) on every lesson and `min_lesson_length` 200 → 1000, replacing the falling ladder that let p5 graduate on noise.
 4. **`evaluate.ps1 -Episodes` 100 → 1000** — see the variance landmine above.
 
 Also available: `Agent_HeuristicBot.perceptionRadius` (env `POSOCCER_BOT_VISION`, default **0 = unlimited**, preserving every historical result) caps how far the bot perceives opponents — the knob for asking whether the 80% bar is reachable at all or is just the perfect-information gap.
@@ -279,7 +279,7 @@ Net **12× swing against moving** on STANDARD, **50× on KIM**. Standing still w
 
 Guards added the same day: `evaluate.ps1` hard-fails on a stale build and stamps `modelInputs` / `modelPath` / `modelWrittenUtc` / `playerBuiltUtc` into every eval JSON (the phase-10 JSONs recorded a run id and a win rate and nothing that could falsify them); `build-headless.ps1` no longer reports `OK` for a build that never ran and refuses to start while the editor holds the lock. **Verify a rebuild by `PoSoccer_Data/*.assets`, and confirm the editor compiled what you think** — reflecting on `PoSoccer.Sensor_Vision.RaysPerDirection` (present only in the pre-split version) is the cheap check.
 
-**Process that now applies to every run: pilot then gate.** `config/STANDARD_phase8_pilot.yaml` is 3M steps (~25 min) instead of 20M (~2.9 h); export, run the probe, and only commit to a full run if the agent actually reaches the ball. p8 promoted a lesson at ~2M and reached **+0.648** where p7 never promoted in 20M and ended +0.281 — an 8×+ sample-efficiency gain from the locomotion fix. **Unresolved:** the p8 probe still reads 0.99 m / 0.58 m/s, so training reward and measured locomotion still disagree. Do not launch a full run until that contradiction is explained.
+**Process that now applies to every run: pilot then gate.** `Training/STANDARD_phase8_pilot.yaml` is 3M steps (~25 min) instead of 20M (~2.9 h); export, run the probe, and only commit to a full run if the agent actually reaches the ball. p8 promoted a lesson at ~2M and reached **+0.648** where p7 never promoted in 20M and ended +0.281 — an 8×+ sample-efficiency gain from the locomotion fix. **Unresolved:** the p8 probe still reads 0.99 m / 0.58 m/s, so training reward and measured locomotion still disagree. Do not launch a full run until that contradiction is explained.
 
 **RESULT — phase 16: MA-POCA group rewards never fired, and fixing that changed nothing (2026-08-28).** `Agent_EnvController.Start` built `SimpleMultiAgentGroup`s only when a side had >1 player. `SCN_Training` is 1v1, so the guard never tripped, `_blueGroup`/`_redGroup` stayed null, and the `AddGroupReward`/`EndGroupEpisode` branches in `OnGoalScored`/`OnStalemate` never ran. **Every POCA run in this project's history — p10, p15 — trained with an empty group-credit channel.** Groups are now always registered (`0dda102`).
 
