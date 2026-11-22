@@ -207,6 +207,20 @@ Scope: RL-trained humanoids and animals with realistic motion on Earth, in Unity
 - **Summary:** Responses over 100 words end with a ~20-word TL;DR.
 - **Problem solving:** End with a proposed fix for the app's main open issue and ask before acting on it.
 
+#### Deliberate deviations
+
+| Deviation | Why | Commit sha / date | How to undo |
+| --- | --- | --- | --- |
+| Layout moved to `Assets/_Project/...` + `/Training`, overriding the owner's "folder depth <= 2 under `Assets/`" rule and the `scripts/ ... config/` layout of `9ce0bd6`; `Agent_EditMode_Naming` now pins `Assets/_Project` (<= 3 deep) | the v3 layout rule is newer; 566 `git mv` renames, GUIDs kept | `51869d9` 2026-11-22 | `git revert 51869d9` |
+| 2D game: rigid `Rigidbody2D` discs, no articulation or gaze | owner decision 2026-08-02 to stay 2D (`docs/rules-exemptions.md` 1-2) | — | the articulated-legs plan (obsoletes every `.onnx`) |
+| Unity build and tests run locally only; CI runs the Python checks and deploys the locally built release | Unity cannot be licensed in CI (owner design) | `9ce0bd6` 2026-11-20 | — |
+| Shipped `Reward_*.asset` profiles keep the new penalty weights at 0 (active `Training/` configs use 0.00002) | their brains were trained without them | `51869d9` 2026-11-22 | set the weights when retraining |
+| Benchmark settings live in `DemoModeSettings.asset`, not a new asset | reuse the existing showcase ScriptableObject | `51869d9` 2026-11-22 | — |
+| PlayMode runs with `-force-d3d11`, `CI=true`, `UNITY_MCP_KEEP_CONNECTED=false` | D3D12 device loss; the MCP bridge's auth error fails a random test | 2026-11-22 | — |
+
+**Hosting:** Azure Static Web App `posoccer`, Free tier. Never run test suites against the live site; live checks =
+at most 6 page loads + /diag + X-Commit.
+
 #### CI/CD and Azure
 - WebGL is built locally (see Publish above) and deployed by `.github/workflows/webgl.yml` on a
   GitHub-hosted runner to the Azure Static Web App `posoccer` (resource group `PoSoccer`). CI has no Unity
@@ -229,6 +243,14 @@ Scope: RL-trained humanoids and animals with realistic motion on Earth, in Unity
 
 ## 3. Verify the repo (exact commands, from the repo root)
 
+One command sequence verifies the repo (close the Editor first; last full run 2026-11-22: pytest 9 passed, EditMode
+194/194, PlayMode 114 passed, 3 opt-in captures skipped, 0 `warning CS`):
+
+```powershell
+$env:CI = 'true'; $env:UNITY_MCP_KEEP_CONNECTED = 'false'; $U = "C:\Program Files\Unity\Hub\Editor\6000.6.9f1\Editor\Unity.exe"
+uvx ruff@0.17.6 format --check . && uvx ruff@0.17.6 check . && uvx --with pytest pytest -q && & $U -batchmode -nographics -projectPath . -runTests -testPlatform EditMode -assemblyNames PoSoccer.EditModeTests -testResults Logs/editmode.xml -logFile Logs/editmode.log && & $U -batchmode -force-d3d11 -projectPath . -runTests -testPlatform PlayMode -assemblyNames PoSoccer.PlayModeTests -testResults Logs/playmode.xml -logFile Logs/playmode.log
+```
+
 Unity runs need, in the same shell: `$env:CI = 'true'; $env:UNITY_MCP_KEEP_CONNECTED = 'false'` (a local MCP
 bridge otherwise reconnects mid-run and its auth error fails a random test). `$U` is
 `"C:\Program Files\Unity\Hub\Editor\6000.6.9f1\Editor\Unity.exe"` (`ProjectSettings/ProjectVersion.txt`).
@@ -243,4 +265,5 @@ bridge otherwise reconnects mid-run and its auth error fails a random test). `$U
 | WebGL build only | `pwsh -File scripts/publish_webgl.ps1 -NoPublish` | `Builds/WebGL` + `Builds/webgl.zip`; serve with `python -m http.server -d Builds/WebGL` |
 | Publish + deploy | push first, then `pwsh -File scripts/publish_webgl.ps1` | a `webgl-*` release; the workflow ends `Live: ... at X-Commit <sha>` |
 
-`scripts/unity-test.ps1 -Platform EditMode|PlayMode` wraps the two Unity rows (it fails a run of zero tests).
+`scripts/unity-test.ps1 -Platform EditMode|PlayMode` wraps the two Unity rows (it fails a run of zero tests) but does
+not pass `-force-d3d11`; use the PlayMode row above for a full run.
