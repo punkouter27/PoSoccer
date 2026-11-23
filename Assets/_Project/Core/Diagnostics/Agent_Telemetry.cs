@@ -489,9 +489,9 @@ namespace PoSoccer
             _episodeRewardRow = AddRow("Episode reward");
             _inferenceRow = AddRow("Inference latency");
             _curriculumRow = AddRow("Curriculum stage");
-            _benchmarkRow = AddRow("Training speed (benchmark)");
+            _benchmarkRow = AddRow("Sim speed (benchmark)");
             var benchmarkButtons = ButtonRow();
-            _benchmarkButton = PanelButton("BENCHMARK TRAINING SPEED", RunBenchmark);
+            _benchmarkButton = PanelButton("BENCHMARK SIM SPEED", RunBenchmark);
             _benchmarkButton.name = "benchmark-training-speed";
             benchmarkButtons.Add(_benchmarkButton);
             _panel.Add(benchmarkButtons);
@@ -644,7 +644,7 @@ namespace PoSoccer
 
         static void SetSpeed(float speed) => Agent_TimeFreeze.SpectatorSpeed = speed;
 
-        /// <summary>BENCHMARK TRAINING SPEED: a few real seconds of this pitch at full speed (Agent_SimBenchmark).</summary>
+        /// <summary>BENCHMARK SIM SPEED: a few real seconds of this pitch at full speed (Agent_SimBenchmark).</summary>
         void RunBenchmark()
         {
             if (_benchmark == null) _benchmark = gameObject.AddComponent<Agent_SimBenchmark>();
@@ -1054,7 +1054,7 @@ namespace PoSoccer
 
             string bench = _benchmark != null ? _benchmark.Result : string.Empty;
             if (string.IsNullOrEmpty(bench))
-                bench = _env != null ? "press BENCHMARK TRAINING SPEED (a few seconds of this pitch at full speed)"
+                bench = _env != null ? "press BENCHMARK SIM SPEED (a few seconds of this pitch at full speed)"
                                      : "start a match to benchmark";
             Set(_benchmarkRow, bench, STATE_NONE);
             if (_benchmarkButton != null) _benchmarkButton.SetEnabled(_benchmark == null || !_benchmark.IsRunning);

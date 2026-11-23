@@ -47,7 +47,7 @@ namespace PoSoccer
         [Tooltip("Seconds the final score stays up before the next demo exhibition starts.")]
         [Min(1f)] public float nextMatchAfterSeconds = 6f;
 
-        [Header("Tab panel: BENCHMARK TRAINING SPEED")]
+        [Header("Tab panel: BENCHMARK SIM SPEED")]
         [Tooltip("Real seconds the benchmark runs the pitch at full speed.")]
         [Min(1f)] public float benchmarkSeconds = 3f;
 

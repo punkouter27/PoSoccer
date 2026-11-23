@@ -5,7 +5,7 @@ using UnityEngine;
 namespace PoSoccer
 {
     /// <summary>
-    /// The Tab panel's BENCHMARK TRAINING SPEED button: runs this pitch's own simulation
+    /// The Tab panel's BENCHMARK SIM SPEED button: runs this pitch's own simulation
     /// (every agent observing, deciding and moving, Physics2D on its fixed 0.02 s step) as
     /// fast as this device manages for a few real seconds, and counts the physics ticks and
     /// the ML-Agents environment steps it got through.
