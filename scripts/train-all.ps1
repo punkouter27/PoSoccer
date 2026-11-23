@@ -176,7 +176,19 @@ try {
         $null = Write-RunProvenance -Root $root -RunId $runId -ConfigPath $config -Profile $name `
             -Extra @{ opponent = $env:POSOCCER_OPPONENT; numEnvs = $NumEnvs; sequentialTag = $Tag }
 
-        & $py @mlArgs
+        $ended = "interrupted"   # stays so if Ctrl+C stops the trainer
+        try {
+            & $py @mlArgs
+            $ended = "exited $LASTEXITCODE"
+        }
+        catch {
+            $ended = "launcher error: $($_.Exception.Message)"
+            throw
+        }
+        finally {
+            # Training runs grid: results\runs.html (never fatal, keeps $LASTEXITCODE).
+            Save-TrainingRun -Root $root -RunId $runId -Ended $ended -Launcher "scripts/train-all.ps1"
+        }
         Copy-RunProvenance -Root $root -RunId $runId
         if ($LASTEXITCODE -ne 0) {
             Write-Warning "$name exited with code $LASTEXITCODE - continuing to the next profile."

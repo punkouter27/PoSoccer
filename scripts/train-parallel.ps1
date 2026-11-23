@@ -103,8 +103,21 @@ if ($WorkerProfile) {
         -Extra @{ squad = $Squad; opponent = "bot"; numEnvs = $NumEnvs; parallelTag = $Tag }
     Write-Host "[$name] provenance $prov"
 
-    mlagents-learn @mlArgs
-    $code = $LASTEXITCODE
+    $ended = "interrupted"   # stays so if the worker is stopped mid-run
+    try {
+        mlagents-learn @mlArgs
+        $code = $LASTEXITCODE
+        $ended = "exited $code"
+    }
+    catch {
+        $ended = "launcher error: $($_.Exception.Message)"
+        throw
+    }
+    finally {
+        # Training runs grid: results\runs.html (never fatal). Only this worker branch starts a
+        # trainer; the launcher below, train-loop.ps1 and train-roster.ps1 reach it through here.
+        Save-TrainingRun -Root $root -RunId $runId -Ended $ended -Launcher "scripts/train-parallel.ps1"
+    }
     Write-Host "[$name] mlagents-learn exited with code $code"
     Copy-RunProvenance -Root $root -RunId $runId
     if ($code -eq 0) {

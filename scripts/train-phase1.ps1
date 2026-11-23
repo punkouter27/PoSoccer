@@ -114,8 +114,14 @@ if ($estimate) {
     Write-Host ("Estimate: {0}; done around {1:yyyy-MM-dd HH:mm} local." -f $estimate.Text, $estimate.FinishUtc.ToLocalTime())
 }
 
+$ended = "interrupted"   # stays so if Ctrl+C stops the trainer
 try {
     mlagents-learn @mlArgs
+    $ended = "exited $LASTEXITCODE"
+}
+catch {
+    $ended = "launcher error: $($_.Exception.Message)"
+    throw
 }
 finally {
     $env:POSOCCER_OPPONENT = ""
@@ -129,5 +135,7 @@ finally {
     & "$root\scripts\cleanup-training.ps1"
     # Auto-assign the freshest checkpoint into the agent prefab slot (GUID preserved).
     Copy-RunProvenance -Root $root -RunId $RunId
+    # Training runs grid: results\runs.html (never fatal).
+    Save-TrainingRun -Root $root -RunId $RunId -Ended $ended -Launcher "scripts/train-phase1.ps1"
     & "$root\scripts\update-model.ps1" -RunId $RunId -Profile $Profile
 }

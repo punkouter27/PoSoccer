@@ -14,6 +14,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path $PSScriptRoot -Parent
+. "$PSScriptRoot\lib-profile.ps1"   # Save-TrainingRun
 # Prefer .venv2 if it exists (the canonical .venv can be locked by Unity at
 # runtime; .venv2 is created out-of-band by uv with the pinned interpreter
 # when .venv is unusable. Both are valid; the newer one wins).
@@ -35,10 +36,18 @@ if ($InitFrom) { $mlArgs += "--initialize-from=$InitFrom" }
 if ($Resume)   { $mlArgs += "--resume" }
 if ($Force)    { $mlArgs += "--force" }
 
+$ended = "interrupted"   # stays so if Ctrl+C stops the trainer
 try {
     mlagents-learn @mlArgs
+    $ended = "exited $LASTEXITCODE"
+}
+catch {
+    $ended = "launcher error: $($_.Exception.Message)"
+    throw
 }
 finally {
     & "$root\scripts\cleanup-training.ps1"
+    # Training runs grid: results\runs.html (never fatal).
+    Save-TrainingRun -Root $root -RunId $RunId -Ended $ended -Launcher "scripts/train-phase2.ps1"
     & "$root\scripts\update-model.ps1" -RunId $RunId
 }

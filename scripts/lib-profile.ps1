@@ -197,3 +197,32 @@ function Get-TrainingEstimate {
         FinishUtc = (Get-Date).ToUniversalTime().AddSeconds($seconds)
     }
 }
+
+# Training runs grid (benchmark/runs.py): after mlagents-learn returns, note this machine,
+# the commit and how the run ended in results\<runId>\run_meta.json, then rebuild
+# results\runs.html. Never fatal and never changes the caller's $LASTEXITCODE: a failure
+# here only prints a warning.
+function Save-TrainingRun {
+    param(
+        [Parameter(Mandatory = $true)][string]$Root,
+        [Parameter(Mandatory = $true)][string]$RunId,
+        [string]$Ended = "unknown",
+        [string]$Launcher = ""
+    )
+    $savedExit = $global:LASTEXITCODE
+    try {
+        $py = @("$Root\.venv2\Scripts\python.exe", "$Root\.venv\Scripts\python.exe") |
+            Where-Object { Test-Path $_ } | Select-Object -First 1
+        if (-not $py) { Write-Warning "Training runs grid not updated: no .venv python."; return }
+        $out = & $py "$Root\benchmark\runs.py" --record $RunId --ended $Ended --launcher $Launcher 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "Training runs grid not updated (exit $LASTEXITCODE): $($out -join ' ')"
+        } else {
+            $out | ForEach-Object { Write-Host $_ }
+        }
+    } catch {
+        Write-Warning "Training runs grid not updated: $_"
+    } finally {
+        $global:LASTEXITCODE = $savedExit
+    }
+}
