@@ -312,6 +312,67 @@ namespace PoSoccer.Tests
             Assert.AreEqual(1520f, b, 1e-4f);
         }
 
+        // -- Demo / exhibition Elo (2026-11-22) -----------------------------------
+
+        static readonly System.Func<string, bool> NoHuman = _ => false;
+
+        [Test]
+        public void DemoMatch_ThatCompletes_IsRecordedOnce_AndAnAbortedOneIsNot()
+        {
+            var calls = new List<float>();
+            Dictionary<string, float> Sink(IList<string> blue, IList<string> red, float blueScore)
+            {
+                calls.Add(blueScore);
+                return Agent_Elo.TeamDeltas(blue, red, blueScore, _ => 1000f, Agent_Elo.K_FACTOR, NoHuman);
+            }
+
+            var finished = new Agent_Elo.PendingMatch(new[] { "MATT" }, new[] { "KIM" }, Sink);
+            var deltas = finished.Complete(3, 1);
+            Assert.AreEqual(16f, deltas["MATT"], 1e-3f, "equal ratings: the winner gains K/2");
+            Assert.AreEqual(-16f, deltas["KIM"], 1e-3f);
+            Assert.IsNull(finished.Complete(3, 1), "a result is never counted twice");
+
+            var aborted = new Agent_Elo.PendingMatch(new[] { "MATT" }, new[] { "KIM" }, Sink);
+            aborted.Abort();
+            Assert.IsNull(aborted.Complete(0, 2), "an aborted demo records nothing");
+            CollectionAssert.AreEqual(new[] { 1f }, calls);
+
+            var draw = new Agent_Elo.PendingMatch(new[] { "MATT" }, new[] { "KIM" }, Sink);
+            draw.Complete(1, 1);
+            Assert.AreEqual(0.5f, calls[1], "a demo draw is 0.5 each, no seed rule");
+        }
+
+        [Test]
+        public void TeamElo_IsPairwise_WithKOverTheOpposingTeamSize()
+        {
+            var ratings = new Dictionary<string, float> { ["A"] = 1100f, ["B"] = 1000f, ["C"] = 1000f, ["D"] = 900f };
+            var deltas = Agent_Elo.TeamDeltas(new[] { "A", "B" }, new[] { "C", "D" }, 1f, name => ratings[name], 32f, NoHuman);
+
+            float expectedA = (32f / 2f) * ((1f - Agent_Elo.Expected(1100f, 1000f)) + (1f - Agent_Elo.Expected(1100f, 900f)));
+            Assert.AreEqual(expectedA, deltas["A"], 1e-3f);
+            float total = 0f;
+            foreach (var pair in deltas) total += pair.Value;
+            Assert.AreEqual(0f, total, 1e-3f, "equal team sizes conserve rating");
+            Assert.Greater(deltas["B"], 0f);
+            Assert.Less(deltas["D"], 0f);
+
+            // 1 v 1 through the team rule is plain Elo.
+            var single = Agent_Elo.TeamDeltas(new[] { "A" }, new[] { "D" }, 0f, name => ratings[name], 32f, NoHuman);
+            var (a, _) = Agent_Elo.Rate(1100f, 900f, 0f, 32f);
+            Assert.AreEqual(a - 1100f, single["A"], 1e-3f);
+        }
+
+        [Test]
+        public void TeamElo_SkipsSameCharacterPairs_AndCountsCopiesOnce()
+        {
+            var deltas = Agent_Elo.TeamDeltas(new[] { "A", "A", "B" }, new[] { "A", "C" }, 1f, _ => 1000f, 32f, NoHuman);
+            // B and the blue A each face only the opponents that are not themselves.
+            Assert.AreEqual(3, deltas.Count, "A once, B, C");
+            CollectionAssert.AreEquivalent(new[] { "A", "B" }, Agent_Elo.RatedSide(new[] { "A", "a", "B", "", null }, NoHuman));
+            var solo = Agent_Elo.TeamDeltas(new[] { "A" }, new[] { "A" }, 1f, _ => 1000f, 32f, NoHuman);
+            Assert.AreEqual(0f, solo["A"], "a character never plays itself");
+        }
+
         // -- Voices ------------------------------------------------------------
 
         [Test]

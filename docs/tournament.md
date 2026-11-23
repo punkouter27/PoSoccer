@@ -38,8 +38,11 @@ round of 16, quarter-finals, semi-finals, final and champion.
 
 **Elo** (`Agent_Elo`): every character starts at 1000 (1500 before 2026-11-22; ratings
 already saved in `elo.json` keep their values), K = 32, and expected score
-is the standard logistic curve. Every finished 1 v 1 between two named characters is
-recorded, whether it's a tournament match or an exhibition. Ratings live in
+is the standard logistic curve. Every finished 1 v 1 tournament match is
+recorded, and (2026-11-22) so is every completed AI exhibition or demo match, 1 v 1 or 4 v 4
+(`Agent_Elo.RecordMatch`: pairwise, each player vs each opponent with K divided by the number of
+opponents; a draw is 0.5; a demo left before full time records nothing; a character fielded on
+both sides is unrated for that match). Human matches and the 4v4 cup are not rated. Ratings live in
 `persistentDataPath/elo.json` and the bracket in `persistentDataPath/tournament.json`.
 Under batchmode, which covers the headless test runner, both stay in memory and
 are never written.

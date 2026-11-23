@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UIElements;
@@ -6,13 +7,16 @@ namespace PoSoccer
 {
     /// <summary>
     /// The match-scene half of tournament mode, and the Elo recorder for every
-    /// 1 v 1 match.
+    /// completed AI match: tournament matches, exhibitions and demo (attract) matches,
+    /// 1 v 1 and 4 v 4 (2026-11-22, demo Elo spec).
     ///
     /// At full time the end panel builds its SUMMARY tab, which calls the card
     /// builder registered here exactly once: that is the moment the result is
     /// final (the replay and whistle are over), so it is where the result is
     /// recorded - into the bracket for a tournament match (Agent_Tournament.Report)
-    /// or straight into Agent_Elo for an exhibition 1 v 1. The card says who won,
+    /// or straight into Agent_Elo for an exhibition or demo match
+    /// (<see cref="Agent_Elo.PendingMatch"/>: recorded once; a match left early, e.g. input
+    /// ending a demo, never reaches full time and records nothing). The card says who won,
     /// the Elo change and, in a tournament, what happens next.
     ///
     /// With AutoPlay on, the scene returns to the menu by itself after
@@ -35,6 +39,7 @@ namespace PoSoccer
         bool _recorded;
         float _returnAt = -1f;
         Label _countdown;
+        Agent_Elo.PendingMatch _exhibition;
 
         /// <summary>True when this match is a tournament match.</summary>
         public bool IsTournamentMatch => _tournament;
@@ -49,13 +54,15 @@ namespace PoSoccer
             }
 
             _tournament = Agent_Tournament.InMatch;
-            bool exhibitionOneVsOne = !_tournament && Agent_MatchSetup.Applied && !Agent_MatchSetup.HumanControl
-                                      && Agent_MatchSetup.BlueSize == 1 && Agent_MatchSetup.RedSize == 1;
-            if (!_tournament && !exhibitionOneVsOne)
+            bool exhibition = !_tournament && Agent_MatchSetup.Applied && !Agent_MatchSetup.HumanControl
+                              && !Agent_MatchSetup.TestbedMode && !Agent_MatchSetup.GalleryMode
+                              && Agent_MatchSetup.BlueSize > 0 && Agent_MatchSetup.RedSize > 0;
+            if (!_tournament && !exhibition)
             {
                 enabled = false;
                 return;
             }
+            if (exhibition) _exhibition = new Agent_Elo.PendingMatch(SquadNames(Agent_Soccer.Team.Blue), SquadNames(Agent_Soccer.Team.Red));
 
             _hud.AddEndPanelSection(BuildResultCard, Agent_HUD.EndTab.Summary);
             if (_tournament)
@@ -68,8 +75,21 @@ namespace PoSoccer
             }
         }
 
+        static List<string> SquadNames(Agent_Soccer.Team team)
+        {
+            int size = team == Agent_Soccer.Team.Blue ? Agent_MatchSetup.BlueSize : Agent_MatchSetup.RedSize;
+            var names = new List<string>(size);
+            for (int slot = 0; slot < size; slot++)
+            {
+                var profile = Agent_MatchSetup.Get(team, slot);
+                if (profile != null && !string.IsNullOrEmpty(profile.playerName)) names.Add(profile.playerName);
+            }
+            return names;
+        }
+
         void OnDestroy()
         {
+            _exhibition?.Abort();   // left before full time: nothing is recorded
             if (_hud != null) _hud.RemoveEndPanelSection(BuildResultCard);
         }
 
@@ -164,16 +184,23 @@ namespace PoSoccer
             return card;
         }
 
-        static string RecordExhibition(int blue, int red)
+        /// <summary>Records a completed exhibition or demo match (once) and describes every rating change.</summary>
+        string RecordExhibition(int blue, int red)
         {
-            if (Agent_DemoMode.DemoMatch) return "";   // an unattended demo is not a result
-            var blueProfile = Agent_MatchSetup.Get(Agent_Soccer.Team.Blue, 0);
-            var redProfile = Agent_MatchSetup.Get(Agent_Soccer.Team.Red, 0);
-            if (blueProfile == null || redProfile == null || blueProfile.playerName == redProfile.playerName) return "";
-            float score = blue > red ? 1f : blue < red ? 0f : 0.5f;
-            float delta = Agent_Elo.Record(blueProfile.playerName, redProfile.playerName, score);
-            return $"{blueProfile.playerName} {Agent_Elo.RatingOf(blueProfile.playerName):0} ({delta:+0;-0})   " +
-                   $"{redProfile.playerName} {Agent_Elo.RatingOf(redProfile.playerName):0} ({-delta:+0;-0})";
+            var deltas = _exhibition?.Complete(blue, red);
+            if (deltas == null || deltas.Count == 0) return "";
+            var parts = new List<string>(deltas.Count);
+            foreach (var side in new[] { _exhibition.Blue, _exhibition.Red })
+            {
+                var named = new List<string>();
+                foreach (string name in side)
+                {
+                    if (!deltas.TryGetValue(name, out float delta) || named.Contains(name)) continue;
+                    named.Add(name);
+                    parts.Add($"{name} {Agent_Elo.RatingOf(name):0} ({delta:+0;-0})");
+                }
+            }
+            return string.Join("   ", parts);
         }
 
         void ReturnToBracket()

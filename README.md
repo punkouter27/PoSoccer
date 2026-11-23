@@ -23,6 +23,10 @@ Shared across the Po games (details in [docs/tournament.md](docs/tournament.md) 
 - **Elo** starts at 1000 with K = 32, saved to `persistentDataPath/elo.json`. The start was 1500
   until 2026-11-22: ratings already saved keep their values; only characters with no saved entry
   start at 1000. Delete `elo.json` for a fresh league on the new scale.
+- **Demo Elo:** every completed AI exhibition or demo (attract) match, 1v1 or 4v4, updates the same
+  `elo.json` and shows each player's rating and change on the full-time card. 4v4 is pairwise (each
+  winner vs each loser, K divided by the opposing team size); a demo draw is 0.5 each; a demo left
+  early records nothing; a character never plays itself. The 4v4 cup itself still leaves Elo alone.
 - **Voices:** 5 emotions (angry, happy, hurt, insult, celebrate) x 5 levels for every character.
   `Assets/_Project/Data/Resources/Voices/voices.json` lists every character's files and whether
   each exists. To add a WAV, drop it in that folder; the editor rebuilds the manifest on import

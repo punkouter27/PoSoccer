@@ -17,7 +17,8 @@ namespace PoSoccer
     ///     inference only) and runs it the same way, back to back.
     ///
     /// Any input leaves: an in-place demo restores the HUD, chrome and camera; a demo
-    /// exhibition returns to the menu. Demo matches never touch Elo.
+    /// exhibition returns to the menu. A demo match that reaches full time updates Elo like
+    /// any exhibition (Agent_TournamentMatch, 2026-11-22); one left early records nothing.
     ///
     /// Installed once per process from code (DontDestroyOnLoad), never in a scene, and not at
     /// all in batch mode, on a Null graphics device (training, eval, the headless test runners)
@@ -33,7 +34,7 @@ namespace PoSoccer
         /// <summary>True while demo mode is showing.</summary>
         public static bool Active { get; private set; }
 
-        /// <summary>True for a match that demo mode itself started (input returns to the menu; no Elo).</summary>
+        /// <summary>True for a match that demo mode itself started (input returns to the menu).</summary>
         public static bool DemoMatch { get; private set; }
 
         /// <summary>Characters a demo exhibition may field. Agent_MainMenu fills it from its roster.</summary>
