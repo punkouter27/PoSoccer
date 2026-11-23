@@ -256,6 +256,16 @@ namespace PoSoccer
                     startBend = Mathf.Lerp(1.05f, 1.25f, intensity); endBend = Mathf.Lerp(0.8f, 0.6f, intensity);
                     roughness = Mathf.Lerp(0.05f, 0.4f, intensity); breath = Mathf.Lerp(0.35f, 0.2f, intensity);
                     break;
+                case Agent_VoiceMood.Celebrate:
+                    // "oh-AH!" -> a long rising stadium "woo-HOO!": long syllables that
+                    // climb, step up each syllable, held well above HAPPY's laugh.
+                    syllables = 1 + (int)(Next(ref state) * 1.5f) + Mathf.RoundToInt(intensity * 2f);
+                    syllableSeconds = Mathf.Lerp(0.22f, 0.38f, intensity);
+                    gapSeconds = Mathf.Lerp(0.07f, 0.045f, intensity);
+                    baseF0 *= Mathf.Lerp(1.15f, 1.75f, intensity);
+                    startBend = 0.85f; endBend = Mathf.Lerp(1.25f, 1.6f, intensity);
+                    roughness = Mathf.Lerp(0.03f, 0.3f, intensity); breath = Mathf.Lerp(0.1f, 0.2f, intensity);
+                    break;
                 default: // Insult: sing-song taunt, alternating a minor third.
                     syllables = 2 + (int)(Next(ref state) * 2f) + Mathf.RoundToInt(intensity * 2f);
                     syllableSeconds = Mathf.Lerp(0.17f, 0.2f, intensity);
@@ -282,12 +292,14 @@ namespace PoSoccer
                 int vowel = (int)(Next(ref state) * 5f) % 5;
                 if (mood == Agent_VoiceMood.Insult) vowel = syllable % 2 == 0 ? 0 : 1;          // "nyah-neh"
                 if (mood == Agent_VoiceMood.Hurt) vowel = intensity > 0.6f ? 0 : 4;               // "ugh" / "ah!"
+                if (mood == Agent_VoiceMood.Celebrate) vowel = syllable % 2 == 0 ? 4 : 3;        // "woo-hoo"
                 float lengthJitter = 0.85f + Next(ref state) * 0.3f;
                 int count = Mathf.RoundToInt(syllableSeconds * lengthJitter * SAMPLE_RATE);
 
                 float syllableF0 = baseF0;
                 if (mood == Agent_VoiceMood.Insult) syllableF0 *= syllable % 2 == 0 ? 1.19f : 1f;
                 if (mood == Agent_VoiceMood.Happy) syllableF0 *= 1f + 0.06f * syllable * (1f - intensity * 0.5f);
+                if (mood == Agent_VoiceMood.Celebrate) syllableF0 *= 1f + 0.12f * syllable;     // each cheer climbs
 
                 var r1 = new Resonator(Formants[vowel, 0] * formantScale, 9f);
                 var r2 = new Resonator(Formants[vowel, 1] * formantScale, 12f);

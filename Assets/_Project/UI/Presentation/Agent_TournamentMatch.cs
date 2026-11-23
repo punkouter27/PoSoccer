@@ -95,8 +95,16 @@ namespace PoSoccer
             if (!_recorded)
             {
                 _recorded = true;
+                Agent_Soccer.Team? winner = blue > red ? Agent_Soccer.Team.Blue : blue < red ? Agent_Soccer.Team.Red : null;
                 if (_tournament)
                 {
+                    // A drawn cup match goes to the higher seed (tournament standard).
+                    var bracket = Agent_Tournament.Bracket;
+                    if (winner == null && bracket != null && Agent_Tournament.InMatch)
+                    {
+                        string through = bracket.HigherSeed(Agent_Tournament.MatchRound, Agent_Tournament.MatchIndex);
+                        winner = through == Agent_Tournament.BlueName ? Agent_Soccer.Team.Blue : Agent_Soccer.Team.Red;
+                    }
                     line = Agent_Tournament.Report(blue, red);
                     champion = Agent_Tournament.Bracket != null && Agent_Tournament.Bracket.Finished;
                     if (Agent_Tournament.AutoPlay && !champion) _returnAt = Time.unscaledTime + AUTO_RETURN_SECONDS;
@@ -104,6 +112,13 @@ namespace PoSoccer
                 else
                 {
                     line = RecordExhibition(blue, red);
+                }
+
+                // Match won / cup won: the winners CELEBRATE (Agent_Voices, level 4 / 5).
+                if (winner != null)
+                {
+                    var voices = FindAnyObjectByType<Agent_Voices>();
+                    if (voices != null && voices.isActiveAndEnabled) voices.CelebrateResult(winner.Value, champion);
                 }
             }
             else

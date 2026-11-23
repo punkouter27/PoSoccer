@@ -144,6 +144,83 @@ namespace PoSoccer.Tests
             Assert.IsTrue(copy.IsWellFormed);
         }
 
+        // -- Tournament standard (2026-11-22) ------------------------------------
+
+        [Test]
+        public void Standard_SixteenSeeds_PairInTheStandardOrder()
+        {
+            var names = new List<string>();
+            for (int seed = 1; seed <= 16; seed++) names.Add("S" + seed);
+            var bracket = Agent_Bracket.Seeded(names);
+
+            int[,] expected = { { 1, 16 }, { 8, 9 }, { 4, 13 }, { 5, 12 }, { 2, 15 }, { 7, 10 }, { 3, 14 }, { 6, 11 } };
+            for (int match = 0; match < 8; match++)
+            {
+                Assert.AreEqual("S" + expected[match, 0], bracket.Entrant(0, match, 0), $"match {match + 1}, top");
+                Assert.AreEqual("S" + expected[match, 1], bracket.Entrant(0, match, 1), $"match {match + 1}, bottom");
+                Assert.AreEqual(expected[match, 0], bracket.SeedOfSlot(2 * match));
+                Assert.AreEqual(expected[match, 1], bracket.SeedOfSlot(2 * match + 1));
+            }
+        }
+
+        [Test]
+        public void Standard_ByesTakeTheBottomSeeds_AndTheirOpponentsAdvanceUnfought()
+        {
+            var bracket = Agent_Bracket.Seeded(new List<string> { "A", "B", "C", "D", "E" });
+            for (int slot = 0; slot < bracket.Size; slot++)
+            {
+                bool bye = string.IsNullOrEmpty(bracket.slots[slot]);
+                Assert.AreEqual(bracket.SeedOfSlot(slot) > 5, bye, $"slot {slot} (seed {bracket.SeedOfSlot(slot)})");
+            }
+            // Seed 1 (A) meets seed 16, a BYE: through without playing.
+            Assert.IsTrue(bracket.IsDecided(0, 0));
+            Assert.AreEqual("A", bracket.WinnerOf(0, 0));
+            Assert.AreEqual("BYE", bracket.ScoreOf(0, 0));
+        }
+
+        [Test]
+        public void Standard_ByeVersusBye_SendsAByeOn()
+        {
+            var bracket = Agent_Bracket.Seeded(new List<string> { "A", "B" });
+            // Match 2 is seeds 8 v 9: both BYEs.
+            Assert.IsTrue(bracket.IsDecided(0, 1));
+            Assert.AreEqual(Agent_Bracket.BYE, bracket.WinnerOf(0, 1));
+            Assert.IsTrue(bracket.TryNextMatch(out int round, out _));
+            Assert.AreEqual(3, round, "seeds 1 and 2 are walked through to the final");
+        }
+
+        [Test]
+        public void Standard_ADraw_GoesToTheHigherSeed()
+        {
+            var names = new List<string>();
+            for (int seed = 1; seed <= 16; seed++) names.Add("S" + seed);
+            var bracket = Agent_Bracket.Seeded(names);
+
+            Assert.AreEqual("S8", bracket.HigherSeed(0, 1));
+            Assert.IsTrue(bracket.RecordDraw(0, 1, "1-1"));
+            Assert.AreEqual("S8", bracket.WinnerOf(0, 1));
+
+            // Bottom side the better seed: still the better seed.
+            Assert.IsTrue(bracket.Record(0, 0, "S16", "2-1"));
+            Assert.AreEqual("S8", bracket.HigherSeed(1, 0), "seed 8 outranks seed 16");
+        }
+
+        [Test]
+        public void Standard_EmptySlotsDisplayAsBYE()
+        {
+            Assert.AreEqual("BYE", Agent_Bracket.BYE_LABEL);
+            Assert.AreEqual("BYE", Agent_Bracket.Display(Agent_Bracket.BYE));
+            Assert.AreEqual("MATT", Agent_Bracket.Display("MATT"));
+        }
+
+        [Test]
+        public void Standard_EloStartsAt1000_WithK32()
+        {
+            Assert.AreEqual(1000f, Agent_Elo.START_RATING);
+            Assert.AreEqual(32f, Agent_Elo.K_FACTOR);
+            Assert.AreEqual(Agent_Elo.START_RATING, Agent_Elo.RatingOf("NOBODY-EVER-RATED-" + System.Guid.NewGuid()));
+        }
+
         [Test]
         public void SnakeDraft_BalancesTeams_AndNamesThemAfterTheCaptain()
         {
@@ -285,6 +362,25 @@ namespace PoSoccer.Tests
         {
             Assert.AreEqual("Voices/MATT_INSULT_3_5", Agent_Voices.ResourcePath("MATT", Agent_VoiceMood.Insult, 3, 5));
             Assert.AreEqual("Voices/KIM_HAPPY_1_1", Agent_Voices.ResourcePath("KIM", Agent_VoiceMood.Happy, 1, 1));
+            Assert.AreEqual("Voices/MATT_CELEBRATE_2_4", Agent_Voices.ResourcePath("MATT", Agent_VoiceMood.Celebrate, 2, 4));
+            Assert.AreEqual("Voices/matt/celebrate-5", Agent_Voices.StandardResourcePath("MATT", Agent_VoiceMood.Celebrate, 5));
+            Assert.AreEqual("Voices/kim/hurt-1", Agent_Voices.StandardResourcePath("KIM", Agent_VoiceMood.Hurt, 1));
+        }
+
+        [Test]
+        public void VoiceMatrix_IsFiveEmotionsByFiveLevels_AndCelebrateHasItsOwnProfile()
+        {
+            Assert.AreEqual(5, System.Enum.GetValues(typeof(Agent_VoiceMood)).Length);
+            Assert.AreEqual(5, Agent_VoiceSynth.LEVELS);
+            float[] celebrate = Agent_VoiceSynth.Render("MATT", Agent_VoiceMood.Celebrate, 1, 3, 0.92f);
+            float[] happy = Agent_VoiceSynth.Render("MATT", Agent_VoiceMood.Happy, 1, 3, 0.92f);
+            Assert.IsFalse(Same(celebrate, happy), "CELEBRATE renders the same as HAPPY");
+
+            Assert.AreEqual(1, Agent_Voices.CelebrateLevelForGoal(1, 2));
+            Assert.AreEqual(2, Agent_Voices.CelebrateLevelForGoal(2, 2));
+            Assert.AreEqual(3, Agent_Voices.CelebrateLevelForGoal(3, 1));
+            Assert.Less(3, Agent_Voices.CELEBRATE_MATCH_WON);
+            Assert.Less(Agent_Voices.CELEBRATE_MATCH_WON, Agent_Voices.CELEBRATE_CUP_WON);
         }
 
         static float Peak(float[] samples)

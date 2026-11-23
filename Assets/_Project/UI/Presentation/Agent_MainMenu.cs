@@ -66,6 +66,9 @@ namespace PoSoccer
         const char LINEUP_SEPARATOR = '|';
         const int TEAM_SIZE = Agent_Tournament.TEAM_SIZE;
 
+        /// <summary>The menu grid is 4 x 4: one tile per bracket slot of the 1v1 cup.</summary>
+        const int GRID_SLOTS = Agent_Bracket.SIZE;
+
         /// <summary>Every character shown in the grid, trained or not.</summary>
         Reward_Settings[] _characters;
 
@@ -468,7 +471,7 @@ namespace PoSoccer
             return button;
         }
 
-        /// <summary>One tile per character: face, name, and a tag line (IN TRAINING / BLUE / RED).</summary>
+        /// <summary>One tile per character: face, name, and a tag line (IN TRAINING / BLUE / RED); BYE tiles fill the rest of the 4 x 4.</summary>
         void BuildGrid()
         {
             _grid.Clear();
@@ -500,6 +503,25 @@ namespace PoSoccer
                 }
                 _grid.Add(tile);
                 StageEntrance(tile, 20 + characterIndex * 18);
+            }
+
+            // Tournament standard (2026-11-22): the grid is always 4 x 4. A slot with no
+            // character at all is a BYE tile (a real-but-untrained character stays
+            // IN TRAINING above), matching the BYE slots of the 1v1 cup's bracket.
+            for (int slotIndex = _characters.Length; slotIndex < GRID_SLOTS; slotIndex++)
+            {
+                var bye = new VisualElement { name = "tile-bye-" + slotIndex, pickingMode = PickingMode.Ignore };
+                bye.AddToClassList("menu__tile");
+                bye.AddToClassList("menu__tile--bye");
+                bye.AddToClassList("enter");
+                var face = new Label(Agent_Bracket.BYE_LABEL) { pickingMode = PickingMode.Ignore };
+                face.AddToClassList("menu__tile-face");
+                bye.Add(face);
+                var name = new Label(Agent_Bracket.BYE_LABEL) { pickingMode = PickingMode.Ignore };
+                name.AddToClassList("menu__tile-name");
+                bye.Add(name);
+                _grid.Add(bye);
+                StageEntrance(bye, 20 + slotIndex * 18);
             }
         }
 

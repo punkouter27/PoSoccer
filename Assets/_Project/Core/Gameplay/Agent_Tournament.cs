@@ -28,8 +28,9 @@ namespace PoSoccer
     /// Elo is a 1v1 rating: the 1v1 cup records it, the 4v4 cup does not (a team
     /// result says little about any one of its four players).
     ///
-    /// A drawn match (possible only on the time limit) is not a result: the same
-    /// pairing is played again.
+    /// A drawn match (possible only on the time limit) counts as a draw for Elo and
+    /// sends the higher seed through (tournament standard, 2026-11-22; it used to be
+    /// replayed).
     /// </summary>
     public static class Agent_Tournament
     {
@@ -231,7 +232,7 @@ namespace PoSoccer
 
         /// <summary>
         /// Records the in-progress match from the final score and saves. In the 1v1
-        /// cup both Elo ratings move. A draw leaves the match to be replayed.
+        /// cup both Elo ratings move. A draw sends the higher seed through.
         /// Returns a one-line description of the result.
         /// </summary>
         public static string Report(int blueScore, int redScore)
@@ -245,23 +246,20 @@ namespace PoSoccer
             float blueResult = blueScore > redScore ? 1f : blueScore < redScore ? 0f : 0.5f;
             float delta = IsTeamCup ? 0f : Agent_Elo.Record(blue, red, blueResult);
 
-            if (blueScore == redScore)
-            {
-                LastResult = $"{blue} {blueScore}-{redScore} {red}: DRAW, REPLAY";
-                Save(Mode);
-                return LastResult;
-            }
-
-            string winner = blueScore > redScore ? blue : red;
+            bool draw = blueScore == redScore;
+            string winner = draw ? Bracket.HigherSeed(round, match) : blueScore > redScore ? blue : red;
             string loser = winner == blue ? red : blue;
-            Bracket.Record(round, match, winner, $"{blueScore}-{redScore}");
+            if (draw) Bracket.RecordDraw(round, match, $"{blueScore}-{redScore}");
+            else Bracket.Record(round, match, winner, $"{blueScore}-{redScore}");
             float winnerDelta = winner == blue ? delta : -delta;
             string score = $"{Mathf.Max(blueScore, redScore)}-{Mathf.Min(blueScore, redScore)}";
             LastResult = Bracket.Finished
                 ? $"{winner} WINS {CupName} #{Number}"
-                : IsTeamCup
-                    ? $"{winner} BEATS {loser} {score}"
-                    : $"{winner} BEATS {loser} {score}  (ELO {winnerDelta:+0;-0})";
+                : draw
+                    ? $"{blue} {blueScore}-{redScore} {red}: DRAW, {winner} THROUGH ON SEED"
+                    : IsTeamCup
+                        ? $"{winner} BEATS {loser} {score}"
+                        : $"{winner} BEATS {loser} {score}  (ELO {winnerDelta:+0;-0})";
             if (Bracket.Finished) Current.autoPlay = false;
             Save(Mode);
             return LastResult;

@@ -9,7 +9,7 @@ namespace PoSoccer.EditorTools
     ///
     /// Menu item: <c>PoSoccer/Generate Voice Pack WAVs</c>.
     /// Writes 16-bit PCM RIFF <c>.wav</c> files for each character (MATT, KIM, NICK,
-    /// STANDARD) across moods (HAPPY, ANGRY, HURT, INSULT) so <c>Agent_Voices.ClipFor</c>
+    /// STANDARD) across moods (HAPPY, ANGRY, HURT, INSULT, CELEBRATE) so <c>Agent_Voices.ClipFor</c>
     /// loads pre-baked assets from <c>Resources/Voices/&lt;NAME&gt;_&lt;MOOD&gt;_&lt;line&gt;_&lt;level&gt;</c>.
     /// </summary>
     public static class Editor_VoicePack
@@ -19,7 +19,7 @@ namespace PoSoccer.EditorTools
 
         static readonly string[] Characters = { "MATT", "KIM", "NICK", "STANDARD" };
         static readonly float[] Pitches = { 0.92f, 1.18f, 1.02f, 1.00f };
-        static readonly string[] Moods = { "HAPPY", "ANGRY", "HURT", "INSULT" };
+        static readonly string[] Moods = { "HAPPY", "ANGRY", "HURT", "INSULT", "CELEBRATE" };
 
         [MenuItem("PoSoccer/Generate Voice Pack WAVs")]
         public static void GenerateSamplePack()

@@ -17,7 +17,11 @@ namespace PoSoccer
     /// </summary>
     public static class Agent_Elo
     {
-        public const float START_RATING = 1500f;
+        /// <summary>
+        /// Tournament standard (2026-11-22): 1000 (was 1500). Only characters with no saved
+        /// entry start here; ratings already in elo.json keep their values.
+        /// </summary>
+        public const float START_RATING = 1000f;
         public const float K_FACTOR = 32f;
         const string FILE_NAME = "elo.json";
 
