@@ -23,5 +23,8 @@ Shared across the Po games (details in [docs/tournament.md](docs/tournament.md) 
 - **Elo** starts at 1000 with K = 32, saved to `persistentDataPath/elo.json`. The start was 1500
   until 2026-11-22: ratings already saved keep their values; only characters with no saved entry
   start at 1000. Delete `elo.json` for a fresh league on the new scale.
-- **Voices:** 5 emotions (angry, happy, hurt, insult, celebrate) x 5 levels for every character,
-  with a procedural fallback until WAVs exist.
+- **Voices:** 5 emotions (angry, happy, hurt, insult, celebrate) x 5 levels for every character.
+  `Assets/_Project/Data/Resources/Voices/voices.json` lists every character's files and whether
+  each exists. To add a WAV, drop it in that folder; the editor rebuilds the manifest on import
+  (or run **PoSoccer > Voices > Rebuild voices.json**). A missing file plays an advanced
+  procedural imitation of that character's voice ([docs/voices.md](docs/voices.md)).

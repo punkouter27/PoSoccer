@@ -10,15 +10,18 @@ namespace PoSoccer
     /// (the tournament standard's 5 emotions x 5 levels), five lines each, five
     /// levels of expressiveness per line (1 = weakest, 5 = strongest).
     ///
-    /// WHERE A SOUND COMES FROM, first hit wins:
-    ///   1. Resources/Voices/&lt;NAME&gt;_&lt;MOOD&gt;_&lt;line&gt;_&lt;level&gt; (e.g.
-    ///      Voices/MATT_INSULT_3_5): one recorded take per line.
-    ///   2. Resources/Voices/&lt;name&gt;/&lt;emotion&gt;-&lt;level&gt; (e.g.
-    ///      Voices/matt/celebrate-5): the cross-project standard name, one take
-    ///      for every line of that emotion and level.
-    ///   3. <see cref="Agent_VoiceSynth"/> renders it from the character's
-    ///      voicePitch, so every character has the full 5 x 5 x 5 set from day one.
-    /// docs/voices.md lists the names.
+    /// WHERE A SOUND COMES FROM. Resources/Voices/voices.json (<see cref="Agent_VoiceManifest"/>)
+    /// lists every character x emotion x level, its files and whether each exists.
+    /// First hit wins, and only files the manifest marks as existing are loaded:
+    ///   1. the per-line take &lt;NAME&gt;_&lt;MOOD&gt;_&lt;line&gt;_&lt;level&gt;.wav
+    ///      (e.g. MATT_INSULT_3_5.wav);
+    ///   2. the cross-project standard file &lt;name&gt;/&lt;emotion&gt;-&lt;level&gt;.wav
+    ///      (e.g. matt/celebrate-5.wav), one take for every line;
+    ///   3. the advanced procedural imitation (<see cref="Agent_VoiceSynth"/>) driven by
+    ///      the character's "voice" profile in the manifest (a character not in it, or
+    ///      no manifest at all, gets a profile derived from its voicePitch).
+    /// Every clip is cached after its first use, and each match warms its players'
+    /// clips (take 1 of each cell) one per frame. docs/voices.md lists the names.
     ///
     /// WHEN A CHARACTER SPEAKS.
     ///   goal      the scorer is HAPPY (level from what the goal meant), a player
@@ -120,6 +123,7 @@ namespace PoSoccer
 
             _env.EpisodeEnded += OnEpisodeEnded;
             _env.BallTouched += OnBallTouched;
+            WarmUpAsync(_cts.Token).Forget();
         }
 
         void OnDestroy()
@@ -167,18 +171,48 @@ namespace PoSoccer
             if (index >= 0) _nextAllowed[index] = Time.unscaledTime + PLAYER_COOLDOWN;
         }
 
-        /// <summary>A recorded WAV if one exists, otherwise the procedural placeholder.</summary>
+        /// <summary>A recorded WAV the manifest says exists, otherwise the procedural imitation. Cached.</summary>
         public static AudioClip ClipFor(Reward_Settings character, Agent_VoiceMood mood, int line, int level)
         {
             string name = string.IsNullOrEmpty(character.playerName) ? "PLAYER" : character.playerName.ToUpperInvariant();
             string path = ResourcePath(name, mood, line, level);
             if (Clips.TryGetValue(path, out var cached) && cached != null) return cached;
 
-            AudioClip clip = LoadWav(path);
-            if (clip == null) clip = LoadWav(StandardResourcePath(name, mood, level));
-            if (clip == null) clip = Agent_VoiceSynth.ToClip(name, mood, line, level, character.voicePitch);
+            var entry = Agent_VoiceManifest.Loaded?.Find(name);
+            var cell = entry?.ClipFor(mood, level);
+            AudioClip clip = null;
+            var take = cell?.TakeFor(line);
+            if (take != null && take.exists) clip = LoadWav(Agent_VoiceManifest.ResourcePathOf(take.file));
+            if (clip == null && cell != null && cell.exists) clip = LoadWav(Agent_VoiceManifest.ResourcePathOf(cell.file));
+            if (clip == null)
+            {
+                var profile = entry?.voice != null && entry.voice.IsValid
+                    ? entry.voice
+                    : Agent_VoiceManifest.ProfileFromPitch(name, character.voicePitch);
+                clip = Agent_VoiceSynth.ToClip(profile, Agent_VoiceManifest.CharacterId(name), mood, level, line);
+            }
             Clips[path] = clip;
             return clip;
+        }
+
+        /// <summary>Renders (or loads) each player's 5 x 5 clips (take 1), one per frame, so a goal rarely waits on synthesis.</summary>
+        async UniTaskVoid WarmUpAsync(CancellationToken token)
+        {
+            for (int playerIndex = 0; playerIndex < _players.Length; playerIndex++)
+            {
+                var profile = _players[playerIndex] != null ? _players[playerIndex].rewards : null;
+                if (profile == null) continue;
+                foreach (Agent_VoiceMood mood in System.Enum.GetValues(typeof(Agent_VoiceMood)))
+                {
+                    for (int level = 1; level <= Agent_VoiceSynth.LEVELS; level++)
+                    {
+                        // One take per cell: warming all five lines for eight players would hold
+                        // ~1,000 clips in memory (WebGL); the other lines render on first use.
+                        await UniTask.Yield(PlayerLoopTiming.Update, token);
+                        ClipFor(profile, mood, 1, level);
+                    }
+                }
+            }
         }
 
         static AudioClip LoadWav(string path)
