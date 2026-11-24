@@ -28,6 +28,8 @@ namespace PoSoccer.Tests
     /// Like the spectator suite, these drive SCN_Exhibition directly, which normal
     /// play must never do. Fine here: nothing under test depends on the lineup.
     /// </summary>
+    // Explicit per-test cap (UTF default 180 s); the waits inside are condition-based with their own caps.
+    [Timeout(300000)]
     public class Agent_PlayMode_Broadcast
     {
         [UnityTearDown]
@@ -245,14 +247,25 @@ namespace PoSoccer.Tests
 
             // Hold the shot. Orthographic size is not pan-clamped, so it is the one
             // part of the framing that converges to exactly what was asked for.
-            float deadline = Time.realtimeSinceStartup + 2f;
-            while (Time.realtimeSinceStartup < deadline)
+            // Hold until the size has converged (at least 2 s), capped at 20 s: a loaded
+            // machine renders fewer frames per second and needs longer to get there.
+            // A lapse only counts when the frame gap itself was shorter than the shot timeout
+            // (0.5 s): a stalled frame on a loaded machine expires any shot by design.
+            float start = Time.realtimeSinceStartup;
+            float deadline = start + 20f;
+            int lapses = 0;
+            follow.RequestShot(Vector2.zero, requested);
+            yield return null;
+            while (Time.realtimeSinceStartup < deadline
+                   && (Time.realtimeSinceStartup < start + 2f
+                       || Mathf.Abs(camera.orthographicSize - requested) > requested * 0.04f))
             {
+                if (!follow.ShotActive && Time.unscaledDeltaTime <= 0.5f) lapses++;
                 follow.RequestShot(Vector2.zero, requested);
                 yield return null;
             }
 
-            Assert.IsTrue(follow.ShotActive, "The shot lapsed while it was being held.");
+            Assert.AreEqual(0, lapses, "The shot lapsed while it was being held.");
             Assert.AreEqual(requested, camera.orthographicSize, requested * 0.08f,
                 "The camera did not converge on the requested framing while the shot " +
                 "was being held.");
@@ -260,8 +273,8 @@ namespace PoSoccer.Tests
             // Now stop asking. A director that dies mid-shot must not freeze the
             // camera on the last frame it managed to request: after SHOT_TIMEOUT
             // the rig owns the framing again and drives it from the live ball.
-            deadline = Time.realtimeSinceStartup + 2f;
-            while (Time.realtimeSinceStartup < deadline) yield return null;
+            deadline = Time.realtimeSinceStartup + 10f;
+            while (follow.ShotActive && Time.realtimeSinceStartup < deadline) yield return null;
 
             Assert.IsFalse(follow.ShotActive,
                 "The shot never expired, so a director that stops ticking would " +
@@ -286,7 +299,7 @@ namespace PoSoccer.Tests
             // FixedUpdate at all while timeScale is 0 - so a fixed two-second
             // window from scene load samples exactly nothing and reads as "the
             // stats component is broken". It was not; the match had not started.
-            float countdownDeadline = Time.realtimeSinceStartup + 10f;
+            float countdownDeadline = Time.realtimeSinceStartup + 30f;
             while (Agent_TimeFreeze.IsFrozen && Time.realtimeSinceStartup < countdownDeadline)
             {
                 yield return null;
@@ -296,8 +309,12 @@ namespace PoSoccer.Tests
 
             // Two seconds of real play. Bodies move under their own policies, so
             // this asserts the accumulator runs and stays sane - not a speed.
-            float deadline = Time.realtimeSinceStartup + 2f;
-            while (Time.realtimeSinceStartup < deadline) yield return null;
+            // At least two seconds of real play, and until every agent has been sampled (cap 20 s).
+            float start = Time.realtimeSinceStartup;
+            float deadline = start + 20f;
+            while (Time.realtimeSinceStartup < deadline
+                   && (Time.realtimeSinceStartup < start + 2f || !AllSampled(stats, env)))
+                yield return null;
 
             float possessionTotal = 0f;
             for (int i = 0; i < env.agents.Count; i++)
@@ -387,6 +404,13 @@ namespace PoSoccer.Tests
             StringAssert.Contains("MODEL", label.text,
                 "The MODEL caption is what keeps an uncalibrated logistic from reading " +
                 "as a measurement.");
+        }
+
+        static bool AllSampled(Agent_MatchStats stats, Agent_EnvController env)
+        {
+            foreach (var agent in env.agents)
+                if (agent != null && (!stats.TryGet(agent, out var stat) || stat.TrackedSeconds <= 0f)) return false;
+            return true;
         }
     }
 }

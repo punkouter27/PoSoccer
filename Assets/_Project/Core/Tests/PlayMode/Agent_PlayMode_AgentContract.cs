@@ -17,6 +17,8 @@ namespace PoSoccer.Tests
     /// stays degraded. Neither logs anything, and both were invisible to the
     /// existing contract test, which only checked observation COUNTS.
     /// </summary>
+    // Explicit per-test cap (UTF default 180 s); the waits inside are condition-based with their own caps.
+    [Timeout(300000)]
     public class Agent_PlayMode_AgentContract
     {
         static IEnumerator Frames(int count)

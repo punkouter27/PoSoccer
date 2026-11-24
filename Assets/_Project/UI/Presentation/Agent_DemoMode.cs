@@ -46,16 +46,32 @@ namespace PoSoccer
         float _idleSeconds;
 
         /// <summary>
-        /// Longest single frame that counts toward the idle time. The WebGL player's first frame
-        /// arrives after a ~70 s shader warm-up; counting that as idle started the demo the moment
-        /// the page became playable, so a click meant for the menu only ended the demo.
+        /// Longest single frame the demo clocks (idle wait and camera dwell) count. A longer frame
+        /// is skipped entirely: the WebGL player's first frame arrives after a ~70 s shader warm-up,
+        /// and a background tab or a stall delivers one multi-second frame. Counting those as idle
+        /// started the demo the moment the page became playable, and a stall cut a camera shot short.
         /// </summary>
         public const float MAX_IDLE_STEP = 0.25f;
 
+        /// <summary>A demo clock after one frame of <paramref name="frameSeconds"/>: frames longer than
+        /// <see cref="MAX_IDLE_STEP"/> (or negative) add nothing (pure, for tests).</summary>
+        public static float AdvanceClock(float clockSeconds, float frameSeconds) =>
+            frameSeconds > 0f && frameSeconds <= MAX_IDLE_STEP ? clockSeconds + frameSeconds : clockSeconds;
+
         /// <summary>Idle time after one frame of <paramref name="frameSeconds"/> (pure, for tests).</summary>
         public static float AccumulateIdle(float idleSeconds, float frameSeconds) =>
-            idleSeconds + Mathf.Clamp(frameSeconds, 0f, MAX_IDLE_STEP);
-        float _nextShotAt;
+            AdvanceClock(idleSeconds, frameSeconds);
+
+        /// <summary>Advances the camera-dwell clock by one frame; true (and the clock restarts) when the
+        /// shot has been on screen for <paramref name="dwellSeconds"/> (pure, for tests).</summary>
+        public static bool ShotDue(ref float shotSeconds, float frameSeconds, float dwellSeconds)
+        {
+            shotSeconds = AdvanceClock(shotSeconds, frameSeconds);
+            if (shotSeconds < dwellSeconds) return false;
+            shotSeconds = 0f;
+            return true;
+        }
+        float _shotSeconds;
         int _shotIndex;
         float _matchOverSince = -1f;
         Agent_HUD _hud;
@@ -136,7 +152,7 @@ namespace PoSoccer
                 if (Enabled && !TrainerConnected() && ShouldStart(_idleSeconds, _settings.idleSeconds)) Enter();
                 return;
             }
-            Tick(now);
+            Tick(now, Time.unscaledDeltaTime);
         }
 
         static bool TrainerConnected() =>
@@ -205,13 +221,13 @@ namespace PoSoccer
             if (_camera != null) _savedMode = _camera.Mode;
             _shotIndex = 0;
             _matchOverSince = -1f;
-            NextShot(Time.unscaledTime);
+            NextShot();
         }
 
-        void Tick(float now)
+        void Tick(float now, float frameSeconds)
         {
             if (_hud == null) return;   // waiting for a demo exhibition's scene
-            if (now >= _nextShotAt) NextShot(now);
+            if (ShotDue(ref _shotSeconds, frameSeconds, _settings.cameraDwellSeconds)) NextShot();
 
             if (!_hud.MatchOver)
             {
@@ -226,9 +242,9 @@ namespace PoSoccer
             }
         }
 
-        void NextShot(float now)
+        void NextShot()
         {
-            _nextShotAt = now + _settings.cameraDwellSeconds;
+            _shotSeconds = 0f;
             if (_camera == null) return;
             var shot = _settings.ShotAt(_shotIndex++);
             _camera.ClearFocus();

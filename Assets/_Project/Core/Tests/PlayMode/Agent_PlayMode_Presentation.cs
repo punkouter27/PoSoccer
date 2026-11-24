@@ -20,6 +20,8 @@ namespace PoSoccer.Tests
     /// out - just unstyled. None of that throws, so none of it would show up in
     /// a console-error check; it has to be asserted directly.
     /// </summary>
+    // Explicit per-test cap (UTF default 180 s); the waits inside are condition-based with their own caps.
+    [Timeout(300000)]
     public class Agent_PlayMode_Presentation
     {
         static IEnumerator LoadExhibition()

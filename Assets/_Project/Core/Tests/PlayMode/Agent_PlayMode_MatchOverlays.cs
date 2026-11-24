@@ -23,6 +23,8 @@ namespace PoSoccer.Tests
     /// Drives SCN_Exhibition directly, which normal play must never do. Fine here:
     /// nothing under test depends on the lineup.
     /// </summary>
+    // Explicit per-test cap (UTF default 180 s); the waits inside are condition-based with their own caps.
+    [Timeout(300000)]
     public class Agent_PlayMode_MatchOverlays
     {
         [UnityTearDown]

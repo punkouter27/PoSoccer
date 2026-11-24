@@ -18,6 +18,8 @@ namespace PoSoccer.Tests
     /// devices this game targets. So the assertion is on the measured framing,
     /// not on the absence of an error.
     /// </summary>
+    // Explicit per-test cap (UTF default 180 s); the waits inside are condition-based with their own caps.
+    [Timeout(300000)]
     public class Agent_PlayMode_Portrait
     {
         [UnityTearDown]

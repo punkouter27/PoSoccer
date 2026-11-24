@@ -34,6 +34,8 @@ namespace PoSoccer.Tests
     /// severity, not to add it to an ignore list here. An ignore list is how a
     /// suite ends up green against a game that throws.
     /// </summary>
+    // Explicit per-test cap (UTF default 180 s); the waits inside are condition-based with their own caps.
+    [Timeout(300000)]
     public class Agent_PlayMode_SmokeRun
     {
         /// <summary>Seconds of real play per lineup. Long enough for the countdown, kickoff and contact.</summary>

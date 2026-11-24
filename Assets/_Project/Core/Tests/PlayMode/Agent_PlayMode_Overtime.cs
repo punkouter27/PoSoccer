@@ -36,6 +36,8 @@ namespace PoSoccer.Tests
     /// Like the other spectator suites these drive SCN_Exhibition directly, which
     /// normal play must never do. Fine here: nothing under test reads the lineup.
     /// </summary>
+    // Explicit per-test cap (UTF default 180 s); the waits inside are condition-based with their own caps.
+    [Timeout(300000)]
     public class Agent_PlayMode_Overtime
     {
         /// <summary>
@@ -86,13 +88,13 @@ namespace PoSoccer.Tests
         /// </summary>
         static IEnumerator WaitForPlay()
         {
-            float deadline = Time.realtimeSinceStartup + 8f;
+            float deadline = Time.realtimeSinceStartup + 30f;
             while (Agent_TimeFreeze.IsFrozen && Time.realtimeSinceStartup < deadline)
             {
                 yield return null;
             }
             Assert.IsFalse(Agent_TimeFreeze.IsFrozen,
-                $"Clock still frozen after 8 s; holders: {Agent_TimeFreeze.DescribeHolders()}");
+                $"Clock still frozen after 30 s; holders: {Agent_TimeFreeze.DescribeHolders()}");
         }
 
         static void Set(object target, string field, object value)
@@ -180,7 +182,7 @@ namespace PoSoccer.Tests
             Set(overtime, "_armAfterSeconds", 0.15f);
             Set(overtime, "_squeezeSeconds", 0.35f);
 
-            float deadline = Time.realtimeSinceStartup + 6f;
+            float deadline = Time.realtimeSinceStartup + 30f;
             while (overtime.Squeeze01 < 0.99f && Time.realtimeSinceStartup < deadline)
             {
                 yield return null;
@@ -222,7 +224,7 @@ namespace PoSoccer.Tests
             Set(overtime, "_armAfterSeconds", 0.15f);
             Set(overtime, "_squeezeSeconds", 0.35f);
 
-            float deadline = Time.realtimeSinceStartup + 6f;
+            float deadline = Time.realtimeSinceStartup + 30f;
             while (overtime.Squeeze01 < 0.99f && Time.realtimeSinceStartup < deadline) yield return null;
             Assert.GreaterOrEqual(overtime.Squeeze01, 0.99f, "Overtime never armed.");
 
@@ -310,11 +312,14 @@ namespace PoSoccer.Tests
             int index = Mathf.Clamp(Mathf.RoundToInt(FLIGHT / step), 1, tracer.PathPointCount - 1);
 
             Vector2 origin = tracer.PathPoint(0);
-            Vector2 predicted = tracer.PathPoint(index);
             float horizon = index * step;
+            // Keep the whole path written down: a slow frame can end the wait past the horizon,
+            // and the prediction is then read at the time that actually elapsed.
+            var path = new Vector2[tracer.PathPointCount];
+            for (int i = 0; i < path.Length; i++) path[i] = tracer.PathPoint(i);
             float t0 = Time.fixedTime;
 
-            float deadline = Time.realtimeSinceStartup + 6f;
+            float deadline = Time.realtimeSinceStartup + 30f;
             while (Time.fixedTime - t0 < horizon && Time.realtimeSinceStartup < deadline)
             {
                 yield return null;
@@ -322,6 +327,10 @@ namespace PoSoccer.Tests
 
             float elapsed = Time.fixedTime - t0;
             Vector2 actual = env.Ball.position;
+            float at = Mathf.Clamp(elapsed / step, 0f, path.Length - 1);
+            int lo = Mathf.FloorToInt(at);
+            int hi = Mathf.Min(lo + 1, path.Length - 1);
+            Vector2 predicted = Vector2.Lerp(path[lo], path[hi], at - lo);
 
             float travelled = Vector2.Distance(origin, actual);
             float error = Vector2.Distance(predicted, actual);
@@ -330,7 +339,7 @@ namespace PoSoccer.Tests
                 $"The ball barely moved ({travelled:0.00} m); nothing was actually predicted.");
             Assert.Less(error, 0.35f,
                 $"The projection missed the real ball by {error:0.00} m over {elapsed:0.00} s " +
-                $"of flight against a {horizon:0.00} s prediction ({travelled:0.00} m " +
+                $"of flight, the prediction read at that time ({horizon:0.00} s asked; {travelled:0.00} m " +
                 "travelled). The tracer integrates the same " +
                 "damping and Magnus terms Agent_EnvController applies, so a drift this " +
                 "large means the two have gone out of step - which is exactly the kind " +

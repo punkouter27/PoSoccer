@@ -36,6 +36,8 @@ namespace PoSoccer.Tests
     /// UIDocuments and neither knows about the other. The assertion has to be on
     /// the resolved rectangles.
     /// </summary>
+    // Explicit per-test cap (UTF default 180 s); the waits inside are condition-based with their own caps.
+    [Timeout(300000)]
     public class Agent_PlayMode_ChromeLayout
     {
         [UnityTearDown]

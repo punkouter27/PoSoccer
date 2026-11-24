@@ -26,6 +26,8 @@ namespace PoSoccer.Tests
     /// launches the pair at a realistic worst-case speed, and samples
     /// Physics2D.Distance after every physics step. A negative distance is overlap.
     /// </summary>
+    // Explicit per-test cap (UTF default 180 s); the waits inside are condition-based with their own caps.
+    [Timeout(300000)]
     public class Agent_PlayMode_Penetration
     {
         /// <summary>Metres of overlap a hard contact may show. See the class docstring.</summary>

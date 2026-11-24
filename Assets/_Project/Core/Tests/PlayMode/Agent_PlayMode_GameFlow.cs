@@ -32,6 +32,8 @@ namespace PoSoccer.Tests
     /// SceneManager.LoadScene by hand tests everything except the wiring between
     /// the button and the thing it does - see the note on <see cref="Click"/>.
     /// </summary>
+    // Explicit per-test cap (UTF default 180 s); the waits inside are condition-based with their own caps.
+    [Timeout(300000)]
     public class Agent_PlayMode_GameFlow
     {
         [UnityTearDown]

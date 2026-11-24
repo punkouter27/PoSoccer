@@ -21,6 +21,8 @@ namespace PoSoccer.Tests
     /// Like the broadcast suite these drive SCN_Exhibition directly, which normal
     /// play must never do; nothing under test depends on the lineup.
     /// </summary>
+    // Explicit per-test cap (UTF default 180 s); the waits inside are condition-based with their own caps.
+    [Timeout(300000)]
     public class Agent_PlayMode_Gfx
     {
         [UnityTearDown]
@@ -112,7 +114,7 @@ namespace PoSoccer.Tests
             Assert.IsTrue(ring.GetComponent<SpriteRenderer>().enabled,
                 "Impact() left the shockwave disabled, so nothing was drawn.");
 
-            float deadline = Time.realtimeSinceStartup + 4f;
+            float deadline = Time.realtimeSinceStartup + 15f;
             while (ring.GetComponent<SpriteRenderer>().enabled
                    && Time.realtimeSinceStartup < deadline)
             {

@@ -23,6 +23,8 @@ namespace PoSoccer.Tests
     /// Physics2D.SyncTransforms, so nothing here depends on the editor running
     /// play-mode frames or on where the scripted bot happens to wander.
     /// </summary>
+    // Explicit per-test cap (UTF default 180 s); the waits inside are condition-based with their own caps.
+    [Timeout(300000)]
     public class Agent_PlayMode_RayLayers
     {
         static IEnumerator Frames(int count)

@@ -75,11 +75,30 @@ namespace PoSoccer.Tests
         public void DemoMode_ALongLoadingFrameIsNotIdleTime()
         {
             // The WebGL player's first frame lands after a ~70 s shader warm-up.
-            Assert.AreEqual(Agent_DemoMode.MAX_IDLE_STEP, Agent_DemoMode.AccumulateIdle(0f, 70f), 1e-6f);
-            Assert.IsFalse(Agent_DemoMode.ShouldStart(Agent_DemoMode.AccumulateIdle(0f, 70f), 30f));
+            Assert.AreEqual(0f, Agent_DemoMode.AccumulateIdle(0f, 70f), 1e-6f, "a 70 s frame adds nothing");
+            Assert.AreEqual(1f, Agent_DemoMode.AccumulateIdle(1f, 0.26f), 1e-6f, "a frame just over 0.25 s adds nothing");
+            Assert.AreEqual(1.25f, Agent_DemoMode.AccumulateIdle(1f, 0.25f), 1e-6f, "a 0.25 s frame still counts");
             float idle = 0f;
+            for (int frame = 0; frame < 100; frame++) idle = Agent_DemoMode.AccumulateIdle(idle, 1f);
+            Assert.IsFalse(Agent_DemoMode.ShouldStart(idle, 30f), "100 one-second stalls are not 30 s of idle");
             for (int frame = 0; frame < 1800; frame++) idle = Agent_DemoMode.AccumulateIdle(idle, 1f / 60f);
             Assert.IsTrue(Agent_DemoMode.ShouldStart(idle + 1e-3f, 30f), "30 s of ordinary frames still starts it");
+        }
+
+        [Test]
+        public void DemoMode_CameraDwellSkipsALongFrame()
+        {
+            const float dwell = 7f;
+            float shot = 6.9f;
+            Assert.IsFalse(Agent_DemoMode.ShotDue(ref shot, 5f, dwell), "a 5 s stall must not cut the shot");
+            Assert.AreEqual(6.9f, shot, 1e-6f);
+            Assert.IsFalse(Agent_DemoMode.ShotDue(ref shot, 0.05f, dwell));
+            Assert.IsTrue(Agent_DemoMode.ShotDue(ref shot, 0.05f, dwell), "ordinary frames still end the shot");
+            Assert.AreEqual(0f, shot, 1e-6f, "the clock restarts for the next shot");
+            int cuts = 0;
+            for (int frame = 0; frame < 430; frame++)
+                if (Agent_DemoMode.ShotDue(ref shot, 1f / 60f, dwell)) cuts++;
+            Assert.AreEqual(1, cuts, "7.2 s of 60 fps frames is one shot");
         }
 
         [Test]
@@ -167,6 +186,8 @@ namespace PoSoccer.Tests
             StringAssert.Contains("href=\"/diag\"", page, "the top bar links /diag");
             StringAssert.Contains("id=\"loading\"", page);
             StringAssert.DoesNotContain("{{{ WIDTH }}}", page, "the canvas fills the viewport; no fixed aspect");
+            StringAssert.DoesNotContain("user-scalable=no", page, "pinch zoom stays allowed (axe meta-viewport)");
+            StringAssert.Contains("<main id=\"frame\">", page, "the game sits in the page's <main> landmark (axe region)");
         }
 
         [Test]

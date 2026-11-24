@@ -42,6 +42,22 @@ namespace PoSoccer.Tests
         }
 
         [Test]
+        public void Tween_SpringFloat_StaysStableOnSlowFrames()
+        {
+            // The goal-post shake (omega 38, zeta 0.25) after a hit, on a machine running at 20 fps:
+            // single-step semi-implicit Euler diverged here and blew GoalNet's mesh bounds up to 1e20.
+            var spring = new Agent_Tween.SpringFloat(0f);
+            spring.Impulse(5f);
+            for (int i = 0; i < 200; i++) spring.Step(0f, 0.05f, 38f, 0.25f);
+            Assert.AreEqual(0f, spring.Value, 0.01f);
+            Assert.AreEqual(0f, spring.Velocity, 0.1f);
+            var v = new Agent_Tween.SpringVector2();
+            v.Impulse(new Vector2(5f, -5f));
+            for (int i = 0; i < 200; i++) v.Step(Vector2.zero, 0.25f, 38f, 0.25f);
+            Assert.Less(v.Value.magnitude, 0.01f);
+        }
+
+        [Test]
         public void Art_SportsProps_ShareSingleAtlasPage()
         {
             Sprite cleat = Agent_Art.Cleat(0.28f);

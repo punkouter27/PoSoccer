@@ -1,0 +1,13 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>PoSoccer: v4-audit</title>
+<style>body{margin:0;background:#0b0f17;color:#e6e9f2;font:14px/1.5 Inter,system-ui,sans-serif}
+main{max-width:1360px;margin:0 auto;padding:20px 16px}.note{color:#9aa3b5}
+.pair{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+figure{margin:0;background:#121826;border:1px solid #232c3f;border-radius:10px;padding:8px}
+img{max-width:100%;height:auto;display:block}figcaption{color:#9aa3b5;margin-top:6px}</style></head>
+<body><main><h1>PoSoccer: v4-audit</h1>
+<p class="note">Before: PNGs from PoSoccer/. After: local WebGL build of the working tree, captured
+2026-11-23 23:08 at 1366x768 and 390x844 by scripts/screenshots.py.
+All pairs in one image: <a href="v4-audit.png" style="color:#e6e9f2">v4-audit.png</a>.</p>
+<p>v4 audit: the game sits in the page&#x27;s &lt;main&gt; and the name is its &lt;h1&gt;; pinch zoom is no longer blocked (axe meta-viewport, region, landmark-one-main, page-has-heading-one). /diag keeps one probe round 60 s per tab with a Re-check now (?fresh) link, and its top bar is a &lt;header&gt;. Build stamp v261122 -&gt; v261124. Before = the live site as audited (v261122); after = the local WebGL build.</p>
+<section><h2>home 1366x768</h2><div class="pair"><figure><img src="home-1366-before.png" alt="before: home 1366x768"><figcaption>Before</figcaption></figure><figure><img src="home-1366-after.png" alt="after: home 1366x768"><figcaption>After</figcaption></figure></div></section><section><h2>home 390x844</h2><div class="pair"><figure><img src="home-390-before.png" alt="before: home 390x844"><figcaption>Before</figcaption></figure><figure><img src="home-390-after.png" alt="after: home 390x844"><figcaption>After</figcaption></figure></div></section><section><h2>diag 1366x768</h2><div class="pair"><figure><img src="diag-1366-before.png" alt="before: diag 1366x768"><figcaption>Before</figcaption></figure><figure><img src="diag-1366-after.png" alt="after: diag 1366x768"><figcaption>After</figcaption></figure></div></section><section><h2>diag 390x844</h2><div class="pair"><figure><img src="diag-390-before.png" alt="before: diag 390x844"><figcaption>Before</figcaption></figure><figure><img src="diag-390-after.png" alt="after: diag 390x844"><figcaption>After</figcaption></figure></div></section></main></body></html>

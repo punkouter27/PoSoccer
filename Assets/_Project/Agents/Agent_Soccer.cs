@@ -1032,6 +1032,11 @@ namespace PoSoccer
         public override void OnActionReceived(ActionBuffers actions)
         {
             Agent_InferenceClock.ActionReceived();
+            // One "<brain>.onnx inference running" console line per brain and session: the proof in
+            // a player's browser console that the trained policy, not the bot, is acting.
+            if (_behavior != null && _behavior.Model != null && _behavior.BehaviorType == BehaviorType.InferenceOnly)
+                Agent_InferenceLog.Note(_behavior.Model.name,
+                    $"{team}, {_behavior.BrainParameters.VectorObservationSize}x{_behavior.BrainParameters.NumStackedVectorObservations} vector obs + rays, {ContinuousActionCount} actions");
             LastRawActions = new Vector4(
                 SanitizeFinite(actions.ContinuousActions[0]),
                 SanitizeFinite(actions.ContinuousActions[1]),

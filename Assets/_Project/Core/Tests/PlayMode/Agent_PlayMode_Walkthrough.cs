@@ -19,6 +19,8 @@ namespace PoSoccer.Tests
     /// output folder and is skipped otherwise. Agent_PlayMode_GameFlow and
     /// Agent_PlayMode_FlowLoop own the assertions about the loop itself.
     /// </summary>
+    // Explicit per-test cap (UTF default 180 s); the waits inside are condition-based with their own caps.
+    [Timeout(300000)]
     public class Agent_PlayMode_Walkthrough
     {
         const string CAPTURE_DIR_VAR = "POSOCCER_CAPTURE_DIR";

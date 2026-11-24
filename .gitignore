@@ -152,3 +152,8 @@ Assets/Demonstrations/*.demo.meta
 
 # .NET build output of helper tools
 Tools/**/obj/
+
+# Stale pre-layout build-stamp folder (Assets/Resources/BuildStamp.txt now lives in Assets/_Project/Data/Resources);
+# Unity writes a .meta for it on every test run.
+/[Aa]ssets/Resources.meta
+/[Aa]ssets/Resources/BuildStamp.txt*

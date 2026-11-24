@@ -29,6 +29,8 @@ namespace PoSoccer.Tests
     /// test is inconclusive only if none could run. 16:9 - the shortest, and the
     /// one every overflow shows up on first - runs on any portrait Game View.
     /// </summary>
+    // Explicit per-test cap (UTF default 180 s); the waits inside are condition-based with their own caps.
+    [Timeout(300000)]
     public class Agent_PlayMode_AspectFit
     {
         static readonly (string Label, float HeightOverWidth)[] Aspects =

@@ -14,6 +14,8 @@ namespace PoSoccer.Tests
     /// of from an unfocused Game view. Reports via Debug.Log; the asserts are
     /// deliberately loose so this never blocks CI.
     /// </summary>
+    // Explicit per-test cap (UTF default 180 s); the waits inside are condition-based with their own caps.
+    [Timeout(300000)]
     public class Agent_PlayMode_MovementProbe
     {
         Agent_EnvController _env;

@@ -25,6 +25,8 @@ namespace PoSoccer.Tests
     /// A test that only ever looked at the authored pitch would pass. This one
     /// clones a pitch the way the training grid does.
     /// </summary>
+    // Explicit per-test cap (UTF default 180 s); the waits inside are condition-based with their own caps.
+    [Timeout(300000)]
     public class Agent_PlayMode_SensorProbe
     {
         static IEnumerator Frames(int n)

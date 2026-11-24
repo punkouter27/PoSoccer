@@ -112,9 +112,11 @@ every publish. Tests never write into tracked files.
   Unity cannot be licensed in CI, so the Unity tests and the WebGL build run locally (section 3).
 - **/diag** live-probes Open-Meteo (`Agent_Weather`, the only external call the game makes), every file
   of the build bundle, WebGL2, the game page and the deployed commit (`X-Commit`, "Missing" off Azure). `tests/test_webgl_config.py` fails if the C# gains an `https://` host
-  that `diagChecks` does not probe.
+  that `diagChecks` does not probe. One probe round is kept 60 s per tab (sessionStorage, written by
+  `scripts/publish_webgl.ps1`); `/diag?fresh` (the "Re-check now" link) probes again.
 - **Page:** `Assets/WebGLTemplates/Po/index.html` draws the 44px top bar (name, fullscreen, /diag gear)
-  and the 20px footer with `vYYMMDD`; the canvas fills the rest at any aspect. The UI Toolkit panel
+  and the 20px footer with `vYYMMDD`; the canvas fills the rest at any aspect, inside the page's `<main>`
+  (the name is the page's `<h1>`; pinch zoom is not blocked, so axe's meta-viewport/region rules pass). The UI Toolkit panel
   (`Assets/_Project/UI/PanelSettings.asset`) scales with screen size in **Expand** mode against 1080x1920, so a
   portrait phone and a 16:9 desktop both get the full layout. The in-game chrome (`Agent_Chrome`) keeps
   the screen name, MENU, SETTINGS and a STATS corner button; product name and version are not on the canvas.
@@ -124,13 +126,20 @@ every publish. Tests never write into tracked files.
   action received in a decision step, i.e. the policy forward pass) and curriculum stage (goal width, bot
   strength, episode-steps lesson the trainer drives; their defaults at runtime), then **BENCHMARK TRAINING
   SPEED** (`Agent_SimBenchmark`: a few real seconds of the live pitch at full speed, reported as physics
-  ticks/s, ML-Agents env steps/s and agent decisions/s on this device; local simulation speed, not a training
-  run; seconds and time scale in `DemoModeSettings.asset`).
+  ticks/s, ML-Agents env steps/s and agent decisions/s, labelled with the CPU (logical cores) and GPU it ran on
+  and what was measured; local simulation speed, not a training run; seconds and time scale in
+  `DemoModeSettings.asset`).
+- **Inference log:** the first decision of every ONNX brain prints one console line
+  `[PoSoccer] <BRAIN>.onnx inference running (...)` (`Agent_InferenceLog`, called from
+  `Agent_Soccer.OnActionReceived`). Check it in the browser console of the local WebGL build
+  (`-NoPublish`) at 16:9 and 9:16.
 - **Demo mode:** `Agent_DemoMode` + `Assets/_Project/Data/Resources/DemoModeSettings.asset` (idle seconds, camera shot
   list, dwell seconds). After 30 s with no keyboard / mouse / touch / gamepad input: in a watch match the
   HUD controls and chrome hide and the camera cycles; from the menu (or a 1-player match) an all-AI
   exhibition starts with every slot on its trained policy. Any input leaves demo mode (a demo started from
-  the menu returns to it). Off in batch mode, headless runs and training.
+  the menu returns to it). The idle clock and the camera-dwell clock skip any frame longer than 0.25 s
+  (`Agent_DemoMode.AdvanceClock`; WebGL warm-up, stalls, background tabs), pinned by EditMode
+  `DemoMode_ALongLoadingFrameIsNotIdleTime` / `DemoMode_CameraDwellSkipsALongFrame`. Off in batch mode, headless runs and training.
 - **Rewards:** agents are rigid `Rigidbody2D` discs (no joints, `docs/rules-exemptions.md` §2), so each
   penalty of the standard is charged on the disc, as its own reward-accounting term with its own weight on
   `Reward_Settings` (trainer override in brackets): action jitter L1 (`actionJitterScale`, `action_rate`),
@@ -243,8 +252,8 @@ at most 6 page loads + /diag + X-Commit.
 
 ## 3. Verify the repo (exact commands, from the repo root)
 
-One command sequence verifies the repo (close the Editor first; last full run 2026-11-22: pytest 9 passed, EditMode
-194/194, PlayMode 114 passed, 3 opt-in captures skipped, 0 `warning CS`):
+One command sequence verifies the repo (close the Editor first; last full run 2026-11-23, three in a row: pytest 15 passed, EditMode
+213/213, PlayMode 114 passed, 3 opt-in captures skipped, 0 warnings):
 
 ```powershell
 $env:CI = 'true'; $env:UNITY_MCP_KEEP_CONNECTED = 'false'; $U = "C:\Program Files\Unity\Hub\Editor\6000.6.9f1\Editor\Unity.exe"
@@ -264,6 +273,7 @@ bridge otherwise reconnects mid-run and its auth error fails a random test). `$U
 | Unity PlayMode | `& $U -batchmode -force-d3d11 -projectPath . -runTests -testPlatform PlayMode -assemblyNames PoSoccer.PlayModeTests -testResults Logs/playmode.xml -logFile Logs/playmode.log` | 0 failed (3 showcase/walkthrough captures skip unless their env var is set) |
 | WebGL build only | `pwsh -File scripts/publish_webgl.ps1 -NoPublish` | `Builds/WebGL` + `Builds/webgl.zip`; serve with `python -m http.server -d Builds/WebGL` |
 | Publish + deploy | push first, then `pwsh -File scripts/publish_webgl.ps1` | a `webgl-*` release; the workflow ends `Live: ... at X-Commit <sha>` |
+| UI before/after page | after a `-NoPublish` build: `uv run --with playwright --with pillow python scripts/screenshots.py --feature <name> --before-dir <PNGs>` (or `--before-build <older Builds/WebGL copy>`; `--screens home=/,diag=/diag`, `--notes`) | `SCREENSHOTS/<YYYYMMDD>_<name>/index.html` (before \| after at 1366x768 and 390x844, local build only, never live) + `<name>.png` side by side |
 
 `scripts/unity-test.ps1 -Platform EditMode|PlayMode` wraps the two Unity rows (it fails a run of zero tests) but does
 not pass `-force-d3d11`; use the PlayMode row above for a full run.

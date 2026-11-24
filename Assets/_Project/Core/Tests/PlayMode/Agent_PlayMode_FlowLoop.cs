@@ -37,6 +37,8 @@ namespace PoSoccer.Tests
     /// never moved off 1 passes "is it 1 at the menu" without anything having
     /// reset it.
     /// </summary>
+    // Explicit per-test cap (UTF default 180 s); the waits inside are condition-based with their own caps.
+    [Timeout(300000)]
     public class Agent_PlayMode_FlowLoop
     {
         const int LAPS = 5;

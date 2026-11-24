@@ -16,6 +16,9 @@ namespace PoSoccer
         /// <summary>
         /// Critically / under-damped 1D harmonic spring value.
         /// </summary>
+        /// <summary>Sub-steps that keep omega * h at or below 0.5 (well inside the stable range).</summary>
+        public static int SubSteps(float dt, float omega) => Mathf.Clamp(Mathf.CeilToInt(dt * omega / 0.5f), 1, 16);
+
         public struct SpringFloat
         {
             public float Value;
@@ -35,14 +38,21 @@ namespace PoSoccer
             public float Step(float target, float dt, float angularFrequency = 22f, float dampingRatio = 0.55f)
             {
                 if (dt <= 0f) return Value;
-                // Clamp sub-step so a frame hitch never explodes a stiff spring.
+                // Clamp the frame so a hitch never explodes a stiff spring, then integrate in
+                // sub-steps short enough to stay stable: semi-implicit Euler diverges once
+                // omega * h nears 2, and a slow frame (0.05 s) at omega 38 - the goal-post
+                // shake - is 1.9, which blew GoalNet's mesh up to 1e20 on a loaded machine.
                 float clampedDt = Mathf.Min(dt, 0.05f);
                 float omega = Mathf.Max(0.1f, angularFrequency);
                 float zeta = Mathf.Max(0.01f, dampingRatio);
-
-                float accel = omega * omega * (target - Value) - 2f * zeta * omega * Velocity;
-                Velocity += accel * clampedDt;
-                Value += Velocity * clampedDt;
+                int steps = SubSteps(clampedDt, omega);
+                float h = clampedDt / steps;
+                for (int i = 0; i < steps; i++)
+                {
+                    float accel = omega * omega * (target - Value) - 2f * zeta * omega * Velocity;
+                    Velocity += accel * h;
+                    Value += Velocity * h;
+                }
                 return Value;
             }
 
@@ -64,10 +74,14 @@ namespace PoSoccer
                 float clampedDt = Mathf.Min(dt, 0.05f);
                 float omega = Mathf.Max(0.1f, angularFrequency);
                 float zeta = Mathf.Max(0.01f, dampingRatio);
-
-                Vector2 accel = omega * omega * (target - Value) - 2f * zeta * omega * Velocity;
-                Velocity += accel * clampedDt;
-                Value += Velocity * clampedDt;
+                int steps = SubSteps(clampedDt, omega);
+                float h = clampedDt / steps;
+                for (int i = 0; i < steps; i++)
+                {
+                    Vector2 accel = omega * omega * (target - Value) - 2f * zeta * omega * Velocity;
+                    Velocity += accel * h;
+                    Value += Velocity * h;
+                }
                 return Value;
             }
 

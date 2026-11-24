@@ -8,6 +8,8 @@ training benchmark (beat the rule-based bot in 80% of eval episodes).
   [docs/project-notes.md](docs/project-notes.md).
 - Publish the WebGL build: `pwsh -File scripts/publish_webgl.ps1`.
 - Python checks: `uvx ruff check .`, `uvx ruff format --check .`, `uvx --with pytest pytest`.
+- UI before/after pages: [`SCREENSHOTS/`](SCREENSHOTS/) (one folder per change, `index.html` + one side-by-side
+  PNG), made by `scripts/screenshots.py` (AGENTS.md section 3).
 
 ## Tournament standard
 

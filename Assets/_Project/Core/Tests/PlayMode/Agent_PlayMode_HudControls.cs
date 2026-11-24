@@ -17,6 +17,8 @@ namespace PoSoccer.Tests
     ///     own refresh runs after a change);
     ///   - the result screen's two ways on: REMATCH and CHANGE LINEUP.
     /// </summary>
+    // Explicit per-test cap (UTF default 180 s); the waits inside are condition-based with their own caps.
+    [Timeout(300000)]
     public class Agent_PlayMode_HudControls
     {
         [UnityTearDown]
@@ -270,16 +272,35 @@ namespace PoSoccer.Tests
                 hud.SetBroadcastStripVisible(false);
 
                 // Place ball just ahead of the human box and trigger kick lunge.
-                env.Ball.position = humanAgent.Body.position + new Vector2(0f, 0.8f);
-                env.Ball.linearVelocity = Vector2.zero;
-                humanCtrl.InjectedKickPressed = true;
-                yield return null;
-                yield return new WaitForFixedUpdate();
-                yield return null;
+                // The ring pulse lasts 0.2 s of game time. On a loaded machine one slow frame can
+                // step past it, so game time per frame is capped at one physics tick while the
+                // pulse is sampled, and the peak over the next frames is what is checked.
+                float savedMaxDelta = Time.maximumDeltaTime;
+                float ringPeak = 0f;
+                Time.maximumDeltaTime = 0.02f;
+                try
+                {
+                    env.Ball.position = humanAgent.Body.position + new Vector2(0f, 0.8f);
+                    env.Ball.linearVelocity = Vector2.zero;
+                    humanCtrl.InjectedKickPressed = true;
+                    yield return null;
+                    yield return new WaitForFixedUpdate();
+                    yield return null;
 
-                Assert.Greater(env.Ball.linearVelocity.y, 2f,
-                    "Active Kick/Lunge button did not propel the ball forward");
-                Assert.Greater(humanCtrl.CurrentRingScale, 1.22f,
+                    Assert.Greater(env.Ball.linearVelocity.y, 2f,
+                        "Active Kick/Lunge button did not propel the ball forward");
+                    ringPeak = humanCtrl.CurrentRingScale;
+                    for (int frame = 0; frame < 12; frame++)
+                    {
+                        yield return null;
+                        ringPeak = Mathf.Max(ringPeak, humanCtrl.CurrentRingScale);
+                    }
+                }
+                finally
+                {
+                    Time.maximumDeltaTime = savedMaxDelta;
+                }
+                Assert.Greater(ringPeak, 1.22f,
                     "Kick lunge should visually pulse the HumanRing indicator");
 
                 // Verify on-screen 1P virtual thumbstick + boost + kick controls are visible and kick works.

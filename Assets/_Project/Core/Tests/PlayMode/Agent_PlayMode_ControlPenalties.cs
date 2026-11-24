@@ -17,6 +17,8 @@ namespace PoSoccer.Tests
     /// (jitter, action_rate_sq, energy, torque_sq, spin_sq, foot_slide) went negative. The
     /// shipped profiles keep 0 (their brains predate the terms); the trainer configs set them.
     /// </summary>
+    // Explicit per-test cap (UTF default 180 s); the waits inside are condition-based with their own caps.
+    [Timeout(300000)]
     public class Agent_PlayMode_ControlPenalties
     {
         static readonly string[] Terms = { "jitter", "action_rate_sq", "energy", "torque_sq", "spin_sq", "foot_slide" };
@@ -114,13 +116,17 @@ namespace PoSoccer.Tests
 
             Assert.IsTrue(benchmark.Begin(null), benchmark.Result);
             Assert.IsTrue(benchmark.IsRunning);
-            float limit = Agent_DemoModeSettings.Load().benchmarkSeconds + 5f;
+            // Condition wait: the run ends itself after benchmarkSeconds of real time; the cap only
+            // bounds a hang (a loaded machine's last frames can each carry a second of simulation).
+            float limit = Agent_DemoModeSettings.Load().benchmarkSeconds + 60f;
             float deadline = Time.realtimeSinceStartup + limit;
             while (benchmark.IsRunning && Time.realtimeSinceStartup < deadline) yield return null;
 
             Assert.IsFalse(benchmark.IsRunning, "the benchmark did not finish");
             Assert.Greater(benchmark.TicksPerSecond, 50f, benchmark.Result);
             StringAssert.Contains("not a training run", benchmark.Result);
+            StringAssert.Contains(Agent_SimBenchmark.Hardware(), benchmark.Result, "the result names the CPU and GPU");
+            StringAssert.Contains("Measured:", benchmark.Result);
             Assert.AreEqual(scaleBefore, Time.timeScale, 1e-4f, "time scale not restored");
             Assert.AreEqual(maxDeltaBefore, Time.maximumDeltaTime, 1e-4f, "maximumDeltaTime not restored");
             Debug.Log("[PoSoccer] Benchmark: " + benchmark.Result);

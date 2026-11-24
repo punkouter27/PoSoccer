@@ -9,6 +9,8 @@ using UnityEngine.UIElements;
 
 namespace PoSoccer.Tests
 {
+    // Explicit per-test cap (UTF default 180 s); the waits inside are condition-based with their own caps.
+    [Timeout(300000)]
     public class Agent_PlayMode_Showcase
     {
         const string SHOWCASE_DIR_VAR = "POSOCCER_SHOWCASE_DIR";

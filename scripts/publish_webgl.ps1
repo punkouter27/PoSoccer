@@ -127,11 +127,11 @@ main{max-width:760px;margin:0 auto;padding:20px 16px 48px}h1{font-size:22px;marg
 #banner.ok{border-color:var(--ok);color:var(--ok)}#banner.warn{border-color:var(--warn);color:var(--warn)}#banner.bad{border-color:var(--bad);color:var(--bad)}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 14px;display:flex;gap:12px;justify-content:space-between;align-items:center;margin-bottom:8px}
 .card .n{overflow-wrap:anywhere}.card .s{white-space:nowrap;font-weight:600}.s.ok{color:var(--ok)}.s.bad{color:var(--bad)}.s.wait{color:var(--muted)}
-.note{color:var(--muted);font-size:13px}footer{position:fixed;left:0;right:0;bottom:0;height:20px;padding:0 10px;text-align:right;font-size:11px;line-height:20px;color:var(--muted);background:var(--bg)}
+.note{color:var(--muted);font-size:13px}.note a{color:var(--text)}footer{position:fixed;left:0;right:0;bottom:0;height:20px;padding:0 10px;text-align:right;font-size:11px;line-height:20px;color:var(--muted);background:var(--bg)}
 </style></head>
-<body><div class="bar"><a href="/">$title</a><a class="back" href="/">Back to the game</a></div>
+<body><header class="bar"><a href="/">$title</a><a class="back" href="/">Back to the game</a></header>
 <main><h1>System status</h1><div id="banner" class="wait">Checking...</div><div id="sections"></div>
-<p class="note">Every row is fetched live from this browser when the page opens (latency in ms). Build v$stamp.</p></main>
+<p class="note">Every row is fetched live from this browser (latency in ms); results are kept 60 s in this tab. <span id="age"></span> <a href="/diag?fresh">Re-check now</a>. Build v$stamp.</p></main>
 <footer>v$stamp</footer>
 <script>
 const CHECKS = $checksJson;
@@ -152,7 +152,12 @@ async function probe(c){if(c.webgl2){return {ok:!!document.createElement('canvas
  if(ok&&json){const j=await r.json();ok=!c.jsonKey||j[c.jsonKey]!==undefined;}
  return {ok,text:(ok?'OK':'HTTP '+r.status)+' · '+Math.round(performance.now()-t0)+' ms'};}
  catch(e){return {ok:false,text:'unreachable · '+Math.round(performance.now()-t0)+' ms'};}}
-Promise.all(rows.map(async([c,el])=>{const r=await probe(c);el.className='s '+(r.ok?'ok':'bad');el.textContent=r.text||(r.ok?'Available':'Unavailable');return [c,r.ok];})).then(res=>{
+// Cache: one probe round is kept 60 s in this tab (sessionStorage), so reloads cost the free tier nothing; ?fresh re-probes.
+const KEY='po-diag-v1',MAX_AGE_S=60;const fresh=new URLSearchParams(location.search).has('fresh');let cached=null;
+try{const j=JSON.parse(sessionStorage.getItem(KEY)||'null');if(!fresh&&j&&Date.now()-j.at<MAX_AGE_S*1000&&j.r.length===rows.length)cached=j;}catch(e){}
+const round=cached?Promise.resolve(cached.r):Promise.all(rows.map(([c])=>probe(c))).then(r=>{try{sessionStorage.setItem(KEY,JSON.stringify({at:Date.now(),r}));}catch(e){}return r;});
+round.then(all=>{const res=all.map((r,i)=>{const el=rows[i][1];el.className='s '+(r.ok?'ok':'bad');el.textContent=r.text||(r.ok?'Available':'Unavailable');return [rows[i][0],r.ok];});
+ document.getElementById('age').textContent=cached?'Probed '+Math.round((Date.now()-cached.at)/1000)+' s ago, kept 60 s.':'Probed just now.';
  const b=document.getElementById('banner');const failed=res.filter(x=>!x[1]);const core=failed.some(x=>x[0].section==='Data'||x[0].webgl2);
  b.className=failed.length?(core?'bad':'warn'):'ok';b.textContent=failed.length?(core?'Down: the game cannot load here':'Degraded: '+failed.map(x=>x[0].name).join(', ')):'All systems operational';});
 </script></body></html>

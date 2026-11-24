@@ -18,6 +18,8 @@ namespace PoSoccer.Tests
     /// not the football. Elo and the bracket are in-memory under batchmode
     /// (Agent_Elo / Agent_Tournament.Persist), so this never touches saved data.
     /// </summary>
+    // Explicit per-test cap (UTF default 180 s); the waits inside are condition-based with their own caps.
+    [Timeout(300000)]
     public class Agent_PlayMode_TournamentFlow
     {
         [UnityTearDown]

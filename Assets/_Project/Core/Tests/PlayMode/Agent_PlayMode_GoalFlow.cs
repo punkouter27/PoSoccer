@@ -8,6 +8,8 @@ using UnityEngine.TestTools;
 
 namespace PoSoccer.Tests
 {
+    // Explicit per-test cap (UTF default 180 s); the waits inside are condition-based with their own caps.
+    [Timeout(300000)]
     public class Agent_PlayMode_GoalFlow
     {
         Agent_EnvController _env;

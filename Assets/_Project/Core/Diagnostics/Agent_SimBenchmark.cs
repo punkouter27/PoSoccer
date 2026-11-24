@@ -71,6 +71,13 @@ namespace PoSoccer
             return true;
         }
 
+        /// <summary>The device the numbers belong to: CPU (logical cores) and GPU, as Unity reports them.</summary>
+        public static string Hardware() => string.Format(CultureInfo.InvariantCulture,
+            "this device: CPU {0} x{1}, GPU {2}",
+            string.IsNullOrWhiteSpace(SystemInfo.processorType) ? "unknown" : SystemInfo.processorType.Trim(),
+            SystemInfo.processorCount,
+            string.IsNullOrWhiteSpace(SystemInfo.graphicsDeviceName) ? "unknown" : SystemInfo.graphicsDeviceName.Trim());
+
         void FixedUpdate()
         {
             if (_running) _ticks++;
@@ -110,9 +117,10 @@ namespace PoSoccer
             }
             float decisions = EnvStepsPerSecond / period * agents;
             Result = string.Format(CultureInfo.InvariantCulture,
-                "{0:N0} physics ticks/s · {1:N0} env steps/s · {2:N0} agent decisions/s ({3} agents, 1 pitch, {4:0.0} s, this device). " +
-                "Local simulation speed, not a training run.",
-                TicksPerSecond, EnvStepsPerSecond, decisions, agents, _realElapsed);
+                "{0:N0} physics ticks/s · {1:N0} env steps/s · {2:N0} agent decisions/s ({3} agents, 1 pitch, {4:0.0} s) on {5}. " +
+                "Measured: Physics2D ticks and ML-Agents env steps with every brain deciding (CPU inference) - " +
+                "local simulation speed, not a training run.",
+                TicksPerSecond, EnvStepsPerSecond, decisions, agents, _realElapsed, Hardware());
             // The requested time scale caps the tick rate; reaching it means the device has headroom.
             float cap = _settings.benchmarkTimeScale / Mathf.Max(1e-4f, Time.fixedDeltaTime);
             if (TicksPerSecond >= cap * 0.97f)

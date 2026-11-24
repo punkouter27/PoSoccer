@@ -17,6 +17,8 @@ namespace PoSoccer.Tests
     /// game always starts from SCN_Menu) - loading SCN_Exhibition directly would use
     /// its serialized defaults instead of the requested squads.
     /// </summary>
+    // Explicit per-test cap (UTF default 180 s); the waits inside are condition-based with their own caps.
+    [Timeout(300000)]
     public class Agent_PlayMode_MatchProbe
     {
         [UnityTearDown]
