@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.IO;
 using UnityEditor;
 using UnityEngine;
@@ -5,103 +6,116 @@ using UnityEngine;
 namespace PoSoccer.EditorTools
 {
     /// <summary>
-    /// Offline Voice & Commentary WAV generator for <c>Assets/_Project/Data/Resources/Voices/</c>.
+    /// Voice tooling for <c>Assets/_Project/Data/Resources/Voices/</c>.
     ///
-    /// Menu item: <c>PoSoccer/Generate Voice Pack WAVs</c>.
-    /// Writes 16-bit PCM RIFF <c>.wav</c> files for each character (MATT, KIM, NICK,
-    /// STANDARD) across moods (HAPPY, ANGRY, HURT, INSULT) so <c>Agent_Voices.ClipFor</c>
-    /// loads pre-baked assets from <c>Resources/Voices/&lt;NAME&gt;_&lt;MOOD&gt;_&lt;line&gt;_&lt;level&gt;</c>.
+    /// <c>PoSoccer/Voices/Rebuild voices.json</c> (also run automatically whenever a WAV under
+    /// the folder is imported, moved or deleted) scans the folder and rewrites
+    /// <c>voices.json</c> (<see cref="Agent_VoiceManifest"/>): every face character x 5
+    /// emotions x 5 levels, the standard file and the five per-line takes of each cell,
+    /// their <c>exists</c> flags, and each character's voice profile (profiles already in
+    /// the file are kept, so hand-tuned voices survive). It logs
+    /// "N of M clips recorded; missing: ...".
+    ///
+    /// <c>PoSoccer/Voices/Bake sample WAVs</c> renders one take per mood (level 3) for the
+    /// shipped four with the procedural engine, as a test of the WAV path.
     /// </summary>
     public static class Editor_VoicePack
     {
-        public const string OUTPUT_DIR = "Assets/_Project/Data/Resources/Voices";
-        public const int SAMPLE_RATE = 22050;
+        public const string OUTPUT_DIR = Agent_VoiceManifest.ROOT;
+        public const int SAMPLE_RATE = Agent_VoiceSynth.SAMPLE_RATE;
 
         static readonly string[] Characters = { "MATT", "KIM", "NICK", "STANDARD" };
-        static readonly float[] Pitches = { 0.92f, 1.18f, 1.02f, 1.00f };
-        static readonly string[] Moods = { "HAPPY", "ANGRY", "HURT", "INSULT" };
+        static readonly float[] Pitches = { 0.92f, 1.5f, 1.25f, 1.00f };
 
-        [MenuItem("PoSoccer/Generate Voice Pack WAVs")]
+        static string ManifestPath => OUTPUT_DIR + "/" + Agent_VoiceManifest.FILE_NAME;
+
+        [MenuItem("PoSoccer/Voices/Rebuild voices.json")]
+        public static void RebuildManifestMenu() => Debug.Log("Editor_VoicePack: " + RebuildManifest());
+
+        /// <summary>Rewrites voices.json from the roster and the folder; returns the summary line.</summary>
+        public static string RebuildManifest()
+        {
+            Directory.CreateDirectory(OUTPUT_DIR);
+            Agent_VoiceManifest.Manifest previous = null;
+            string before = File.Exists(ManifestPath) ? File.ReadAllText(ManifestPath) : null;
+            if (before != null)
+            {
+                try { previous = JsonUtility.FromJson<Agent_VoiceManifest.Manifest>(before); }
+                catch (System.Exception exception) { Debug.LogWarning($"Editor_VoicePack: {ManifestPath} unreadable ({exception.Message}); rebuilding."); }
+            }
+
+            var roster = Roster();
+            bool Exists(string file) => File.Exists(Path.Combine(OUTPUT_DIR, file));
+            // Keep the old timestamp when nothing else changed, so a no-op rebuild is no diff.
+            var manifest = Agent_VoiceManifest.Build(roster, Exists, previous, previous?.generated ?? "");
+            string json = Agent_VoiceManifest.ToJson(manifest);
+            if (json != before)
+            {
+                manifest.generated = System.DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ");
+                File.WriteAllText(ManifestPath, Agent_VoiceManifest.ToJson(manifest));
+                AssetDatabase.ImportAsset(ManifestPath);
+                Agent_VoiceManifest.Reload();
+            }
+            return Agent_VoiceManifest.Summary(manifest);
+        }
+
+        /// <summary>Every character with a face (the 16 of the menu grid), by name.</summary>
+        static List<Agent_VoiceManifest.RosterEntry> Roster()
+        {
+            var roster = new List<Agent_VoiceManifest.RosterEntry>();
+            foreach (string guid in AssetDatabase.FindAssets("t:Reward_Settings"))
+            {
+                var profile = AssetDatabase.LoadAssetAtPath<Reward_Settings>(AssetDatabase.GUIDToAssetPath(guid));
+                if (profile == null || profile.faceTexture == null || string.IsNullOrEmpty(profile.playerName)) continue;
+                roster.Add(new Agent_VoiceManifest.RosterEntry(profile.playerName, profile.voicePitch));
+            }
+            roster.Sort((a, b) => string.CompareOrdinal(a.Name, b.Name));
+            return roster;
+        }
+
+        /// <summary>Keeps voices.json's exists flags true: any WAV change under the folder rebuilds it.</summary>
+        sealed class Watcher : AssetPostprocessor
+        {
+            static void OnPostprocessAllAssets(string[] imported, string[] deleted, string[] moved, string[] movedFrom)
+            {
+                if (Touches(imported) || Touches(deleted) || Touches(moved) || Touches(movedFrom))
+                {
+                    EditorApplication.delayCall -= RebuildManifestMenu;
+                    EditorApplication.delayCall += RebuildManifestMenu;
+                }
+            }
+
+            static bool Touches(string[] paths)
+            {
+                foreach (string path in paths)
+                {
+                    if (path.StartsWith(OUTPUT_DIR + "/", System.StringComparison.Ordinal)
+                        && path.EndsWith(".wav", System.StringComparison.OrdinalIgnoreCase)) return true;
+                }
+                return false;
+            }
+        }
+
+        [MenuItem("PoSoccer/Voices/Bake sample WAVs")]
         public static void GenerateSamplePack()
         {
             Directory.CreateDirectory(OUTPUT_DIR);
             int written = 0;
-
-            for (int c = 0; c < Characters.Length; c++)
+            for (int characterIndex = 0; characterIndex < Characters.Length; characterIndex++)
             {
-                string character = Characters[c];
-                float pitch = Pitches[c];
-                for (int m = 0; m < Moods.Length; m++)
+                foreach (Agent_VoiceMood mood in System.Enum.GetValues(typeof(Agent_VoiceMood)))
                 {
-                    string mood = Moods[m];
-                    string path = $"{OUTPUT_DIR}/{character}_{mood}_1_3.wav";
-                    byte[] wav = SynthesizeWav(character, m, 1, 3, pitch);
-                    File.WriteAllBytes(path, wav);
+                    string path = $"{OUTPUT_DIR}/{Agent_VoiceManifest.TakeFile(Characters[characterIndex], mood, 1, 3)}";
+                    File.WriteAllBytes(path, SynthesizeWav(Characters[characterIndex], (int)mood, 1, 3, Pitches[characterIndex]));
                     written++;
                 }
             }
-
             AssetDatabase.Refresh();
             Debug.Log($"Editor_VoicePack: wrote {written} WAV files to {OUTPUT_DIR}");
         }
 
+        /// <summary>One procedural take as a 16-bit PCM WAV.</summary>
         public static byte[] SynthesizeWav(string character, int mood, int line, int level, float pitch)
-        {
-            int count = SAMPLE_RATE / 3;
-            var samples = new float[count];
-            float f0 = 135f * Mathf.Clamp(pitch, 0.5f, 2f) * (1f + mood * 0.08f + level * 0.04f);
-            for (int i = 0; i < count; i++)
-            {
-                float t = i / (float)SAMPLE_RATE;
-                float u = i / (float)count;
-                float env = Mathf.Clamp01(u / 0.08f) * Mathf.Clamp01((1f - u) / 0.25f);
-                samples[i] = Mathf.Sin(2f * Mathf.PI * f0 * t) * 0.55f * env;
-            }
-            return EncodeWav16(samples, SAMPLE_RATE);
-        }
-
-        public static byte[] EncodeWav16(float[] samples, int sampleRate)
-        {
-            int count = samples != null ? samples.Length : 0;
-            int dataBytes = count * 2;
-            byte[] wav = new byte[44 + dataBytes];
-
-            wav[0] = (byte)'R'; wav[1] = (byte)'I'; wav[2] = (byte)'F'; wav[3] = (byte)'F';
-            WriteInt32LE(wav, 4, 36 + dataBytes);
-            wav[8] = (byte)'W'; wav[9] = (byte)'A'; wav[10] = (byte)'V'; wav[11] = (byte)'E';
-            wav[12] = (byte)'f'; wav[13] = (byte)'m'; wav[14] = (byte)'t'; wav[15] = (byte)' ';
-            WriteInt32LE(wav, 16, 16);
-            WriteInt16LE(wav, 20, 1);
-            WriteInt16LE(wav, 22, 1);
-            WriteInt32LE(wav, 24, sampleRate);
-            WriteInt32LE(wav, 28, sampleRate * 2);
-            WriteInt16LE(wav, 32, 2);
-            WriteInt16LE(wav, 34, 16);
-            wav[36] = (byte)'d'; wav[37] = (byte)'a'; wav[38] = (byte)'t'; wav[39] = (byte)'a';
-            WriteInt32LE(wav, 40, dataBytes);
-
-            int offset = 44;
-            for (int i = 0; i < count; i++)
-            {
-                short pcm = (short)Mathf.RoundToInt(Mathf.Clamp(samples[i], -1f, 1f) * 32767f);
-                wav[offset++] = (byte)(pcm & 0xFF);
-                wav[offset++] = (byte)((pcm >> 8) & 0xFF);
-            }
-            return wav;
-        }
-
-        static void WriteInt16LE(byte[] buf, int offset, short value)
-        {
-            buf[offset] = (byte)(value & 0xFF);
-            buf[offset + 1] = (byte)((value >> 8) & 0xFF);
-        }
-
-        static void WriteInt32LE(byte[] buf, int offset, int value)
-        {
-            buf[offset] = (byte)(value & 0xFF);
-            buf[offset + 1] = (byte)((value >> 8) & 0xFF);
-            buf[offset + 2] = (byte)((value >> 16) & 0xFF);
-            buf[offset + 3] = (byte)((value >> 24) & 0xFF);
-        }
+            => Agent_VoiceSynth.EncodeWav16(Agent_VoiceSynth.Render(character, (Agent_VoiceMood)mood, line, level, pitch), SAMPLE_RATE);
     }
 }

@@ -1470,6 +1470,25 @@
     color: var(--color-gold);
 }
 
+/* No character in this slot at all: a BYE tile (tournament standard). Not a button. */
+.menu__tile--bye {
+    background-color: rgba(255, 255, 255, 0.02);
+    border-top-color: rgba(255, 255, 255, 0.05);
+    border-bottom-color: rgba(255, 255, 255, 0.05);
+    border-left-color: rgba(255, 255, 255, 0.05);
+    border-right-color: rgba(255, 255, 255, 0.05);
+}
+
+.menu__tile--bye .menu__tile-face {
+    background-color: rgba(255, 255, 255, 0.06);
+    color: var(--color-text-muted);
+    font-size: 26px;
+}
+
+.menu__tile--bye .menu__tile-name {
+    color: var(--color-text-muted);
+}
+
 .menu__note {
     font-size: var(--font-xs);
     margin-top: var(--space-1);

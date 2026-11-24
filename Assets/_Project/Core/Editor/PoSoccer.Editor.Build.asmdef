@@ -1,7 +1,9 @@
 {
     "name": "PoSoccer.Editor.Build",
     "rootNamespace": "PoSoccer.Editor.Build",
-    "references": [],
+    "references": [
+        "PoSoccer.Runtime"
+    ],
     "includePlatforms": [
         "Editor"
     ],

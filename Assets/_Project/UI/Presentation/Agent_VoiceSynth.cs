@@ -3,8 +3,10 @@ using UnityEngine;
 namespace PoSoccer
 {
     /// <summary>
-    /// Procedural placeholder voice: a small formant synthesiser that stands in for
-    /// any character sound that has no recorded WAV yet (docs/voices.md).
+    /// Procedural voice: the ADVANCED PROCEDURAL IMITATION (2026-11-22) that stands in
+    /// for any character sound whose WAV voices.json marks missing (docs/voices.md).
+    /// The engine is <see cref="Render(Agent_VoiceProfile, string, Agent_VoiceMood, int, int)"/>;
+    /// the notes below describe the older address scheme it still serves.
     ///
     /// Every sound is addressed as (character, mood, line 1..5, level 1..5).
     /// LINE picks one of five distinct utterances - different vowels, syllable
@@ -213,132 +215,414 @@ namespace PoSoccer
             buf[offset + 3] = (byte)((value >> 24) & 0xFF);
         }
 
-        /// <summary>Renders one utterance as mono samples in [-1, 1].</summary>
+        /// <summary>Renders one utterance from a voicePitch alone (the profile is derived, see Agent_VoiceManifest.ProfileFromPitch).</summary>
         public static float[] Render(string character, Agent_VoiceMood mood, int line, int level, float voicePitch)
+            => Render(Agent_VoiceManifest.ProfileFromPitch(character, voicePitch), character, mood, level, line);
+
+        // ---- Advanced procedural imitation (2026-11-22, shared Po voice spec) -----------------
+
+        // F1..F4 (Hz) for a, e, i, o, u, schwa.
+        static readonly float[,] Vowels =
         {
-            line = Mathf.Clamp(line, 1, LINES);
+            { 800f, 1200f, 2500f, 3500f },
+            { 450f, 1900f, 2600f, 3500f },
+            { 300f, 2300f, 3000f, 3700f },
+            { 500f, 900f, 2400f, 3400f },
+            { 350f, 800f, 2300f, 3300f },
+            { 500f, 1500f, 2500f, 3500f },
+        };
+        static readonly float[] Nasal = { 250f, 2000f, 2700f, 3500f };
+        static readonly float[] Bandwidths = { 90f, 110f, 160f, 220f };
+        static readonly float[] FormantGains = { 1f, 0.7f, 0.4f, 0.25f };
+        const int VA = 0, VE = 1, VI = 2, VO = 3, VU = 4, VSCHWA = 5;
+
+        /// <summary>One planned syllable: an optional consonant onset, then a vowel with its own pitch contour.</summary>
+        struct Syllable
+        {
+            public char Onset;        // '\0' none, h, s, S (sh), f, p, t, k (plosives), n (nasal), w, y (glides)
+            public int Vowel;
+            public float Seconds;     // vowel length
+            public float F0Start, F0End, Hump;   // multiples of pitchHz; hump = rise-fall bump
+            public float Amp, Gap;
+            public bool Unvoiced;     // whispered / gasp / "pfft"
+            public bool PitchBreak;   // drops a quarter part-way (hurt)
+            public bool Held;         // held final vowel: wide, growing vibrato
+
+            public static Syllable Make(char onset, int vowel, float seconds, float f0Start, float f0End, float gap = 0.04f)
+                => new() { Onset = onset, Vowel = vowel, Seconds = seconds, F0Start = f0Start, F0End = f0End, Amp = 1f, Gap = gap };
+        }
+
+        static float OnsetSeconds(char onset) => onset switch
+        {
+            'h' => 0.045f,
+            's' => 0.07f,
+            'S' => 0.07f,
+            'f' => 0.06f,
+            'p' => 0.035f,
+            't' => 0.035f,
+            'k' => 0.04f,
+            'n' => 0.05f,
+            'w' => 0.04f,
+            'y' => 0.035f,
+            _ => 0f,
+        };
+
+        static float FricativeHz(char onset) => onset switch
+        {
+            's' => 5000f,
+            'S' => 2800f,
+            'f' => 1500f,
+            'p' => 800f,
+            't' => 4000f,
+            'k' => 2000f,
+            _ => 0f,
+        };
+
+        /// <summary>Deterministic seed for one request: (character, emotion, level, take).</summary>
+        public static uint Seed(string characterId, Agent_VoiceMood mood, int level, int take)
+        {
+            uint state = NameSeed(characterId) ^ ((uint)(mood + 1) * 0x9E3779B9u) ^ ((uint)level * 0xC2B2AE35u) ^ ((uint)take * 0x85EBCA6Bu);
+            return state == 0 ? 1u : state;
+        }
+
+        /// <summary>
+        /// The advanced procedural imitation: a short human vocalisation by THIS character.
+        /// Source: Rosenberg glottal pulses at the profile's pitch with jitter, shimmer and
+        /// aspiration (breath), subharmonic rasp. Filter: four formant resonators gliding
+        /// between vowel targets (a, e, i, o, u, schwa) scaled by formantScale. Syllables
+        /// with consonant onsets (h/s/sh/f noise, p/t/k bursts, n murmur, w/y glides) and
+        /// per-emotion prosody:
+        ///   angry     tense, falling, raspy, hard onsets ("hah!", "kah-rrah")
+        ///   happy     bright e/i, rise-fall, laugh pulses from level 3 ("heh", "ha-ha-ha")
+        ///   hurt      gasp then groan with a downward pitch break; level 5 a long cry
+        ///   insult    sing-song minor third, raised F2 (sneer), "pfft" from level 4 ("nyah-nyah")
+        ///   celebrate rising whoop with a held vibrato vowel, laugh tail from level 4 ("woo-hoo!")
+        /// Level 1..5 scales syllable count, length, pitch range, rasp, breath, vibrato and
+        /// loudness. Deterministic per (character, emotion, level, take); callers cache.
+        /// </summary>
+        public static float[] Render(Agent_VoiceProfile profile, string characterId, Agent_VoiceMood mood, int level, int take)
+        {
+            if (profile == null || !profile.IsValid) profile = new Agent_VoiceProfile();
             level = Mathf.Clamp(level, 1, LEVELS);
-            float intensity = (level - 1) / (float)(LEVELS - 1);          // 0..1
-            voicePitch = Mathf.Clamp(voicePitch, 0.5f, 2f);
+            take = Mathf.Clamp(take, 1, LINES);
+            float x = (level - 1) / (float)(LEVELS - 1);
+            uint state = Seed(characterId, mood, level, take);
 
-            uint state = NameSeed(character) ^ ((uint)mood * 0x9E3779B9u) ^ ((uint)line * 0x85EBCA6Bu);
-            if (state == 0) state = 1;
+            float tempo = Mathf.Clamp(profile.tempo, 0.6f, 1.6f);
+            float rasp = Mathf.Clamp01(profile.rasp);
+            float breath = Mathf.Clamp01(profile.breath);
+            float vibratoDepth = Mathf.Clamp(profile.vibratoDepth, 0f, 0.08f) * (0.6f + 0.8f * x);
+            float f2Scale = 1f;
+            bool tense = false, nasal = false;
+            float attackSeconds = 0.02f;
+            float takePitch = 1f + (Next(ref state) - 0.5f) * 0.08f;     // small take variation
+            float takeLength = 0.92f + Next(ref state) * 0.16f;
 
-            // ---- The utterance plan: syllables, each with a vowel, a length and a pitch contour.
-            int syllables;
-            float baseF0 = 135f * voicePitch;
-            float syllableSeconds, gapSeconds, startBend, endBend, roughness, breath;
+            var plan = new System.Collections.Generic.List<Syllable>(6);
             switch (mood)
             {
-                case Agent_VoiceMood.Happy:
-                    // "yeah!" at level 1, a laugh at level 5.
-                    syllables = 1 + (int)(Next(ref state) * 2f) + Mathf.RoundToInt(intensity * 3f);
-                    syllableSeconds = Mathf.Lerp(0.16f, 0.12f, intensity);
-                    gapSeconds = Mathf.Lerp(0.06f, 0.035f, intensity);
-                    baseF0 *= Mathf.Lerp(1.05f, 1.6f, intensity);
-                    startBend = 0.92f; endBend = Mathf.Lerp(1.1f, 1.35f, intensity);
-                    roughness = 0.02f; breath = Mathf.Lerp(0.08f, 0.25f, intensity);
-                    break;
                 case Agent_VoiceMood.Angry:
-                    syllables = 1 + (int)(Next(ref state) * 2f) + Mathf.RoundToInt(intensity * 1.5f);
-                    syllableSeconds = Mathf.Lerp(0.22f, 0.3f, intensity);
-                    gapSeconds = 0.05f;
-                    baseF0 *= Mathf.Lerp(0.8f, 1.15f, intensity);
-                    startBend = 1.08f; endBend = Mathf.Lerp(0.9f, 0.75f, intensity);
-                    roughness = Mathf.Lerp(0.15f, 0.7f, intensity); breath = 0.1f;
+                {
+                    int count = 1 + (level >= 3 ? 1 : 0) + (level >= 5 ? 1 : 0);
+                    char first = (take % 3) switch { 0 => 'k', 1 => 'h', _ => '\0' };
+                    for (int index = 0; index < count; index++)
+                    {
+                        bool last = index == count - 1;
+                        float start = (1.05f + 0.3f * x) * (1f - 0.05f * index);
+                        plan.Add(Syllable.Make(index == 0 ? first : 'h', last || take % 2 == 1 ? VA : VSCHWA,
+                            (0.14f + 0.2f * x) * (last ? 1.3f : 0.7f), start, start * 0.78f));
+                    }
+                    rasp = Mathf.Clamp01(rasp + 0.25f + 0.45f * x);
+                    breath *= 0.7f;
+                    vibratoDepth *= 0.5f;
+                    tense = true;
+                    attackSeconds = 0.006f;
                     break;
+                }
+                case Agent_VoiceMood.Happy:
+                {
+                    if (level <= 2)
+                    {
+                        var heh = Syllable.Make(take % 2 == 1 ? 'h' : 'y', take % 3 == 0 ? VI : VE, 0.16f + 0.08f * x, 1.08f, 1.12f);
+                        heh.Hump = 0.12f;
+                        plan.Add(heh);
+                    }
+                    else
+                    {
+                        int laughs = level - 1;
+                        for (int index = 0; index < laughs; index++)
+                        {
+                            float start = (1.25f + 0.35f * x) * (1f - 0.04f * index);
+                            var ha = Syllable.Make('h', take % 2 == 0 ? VA : VE, 0.085f + 0.02f * x, start, start * 0.94f, 0.045f);
+                            ha.Hump = 0.05f;
+                            plan.Add(ha);
+                        }
+                    }
+                    vibratoDepth *= 1.2f;
+                    breath = Mathf.Clamp01(breath + 0.1f * x);
+                    rasp *= 0.3f;
+                    break;
+                }
                 case Agent_VoiceMood.Hurt:
-                    // "oof" -> "ugh!" -> a yell.
-                    syllables = 1 + (intensity > 0.7f && Next(ref state) > 0.5f ? 1 : 0);
-                    syllableSeconds = Mathf.Lerp(0.14f, 0.45f, intensity);
-                    gapSeconds = 0.04f;
-                    baseF0 *= Mathf.Lerp(0.95f, 2.0f, intensity);
-                    startBend = Mathf.Lerp(1.05f, 1.25f, intensity); endBend = Mathf.Lerp(0.8f, 0.6f, intensity);
-                    roughness = Mathf.Lerp(0.05f, 0.4f, intensity); breath = Mathf.Lerp(0.35f, 0.2f, intensity);
+                {
+                    var gasp = Syllable.Make('\0', VA, 0.05f + 0.08f * x, 1f, 1f, 0.03f);
+                    gasp.Unvoiced = true;
+                    gasp.Amp = 0.5f;
+                    plan.Add(gasp);
+                    if (level <= 2)
+                    {
+                        plan.Add(Syllable.Make('\0', VU, 0.12f + 0.1f * x, 1f, 0.8f));               // "oof"
+                        var coda = Syllable.Make('f', VU, 0.02f, 1f, 1f, 0f);
+                        coda.Unvoiced = true;
+                        coda.Amp = 0.3f;
+                        plan.Add(coda);
+                    }
+                    else if (level < 5)
+                    {
+                        var ugh = Syllable.Make('\0', VSCHWA, 0.22f + 0.15f * x, 1.1f + 0.4f * x, 0.65f);    // "ugh"
+                        ugh.PitchBreak = true;
+                        plan.Add(ugh);
+                    }
+                    else
+                    {
+                        var cry = Syllable.Make('\0', VA, 0.75f, 1.7f, 0.75f);                         // a long cry
+                        cry.PitchBreak = true;
+                        cry.Held = true;
+                        plan.Add(cry);
+                    }
+                    breath = Mathf.Clamp01(breath + 0.25f);
+                    rasp = Mathf.Clamp01(rasp + 0.15f * x);
                     break;
-                default: // Insult: sing-song taunt, alternating a minor third.
-                    syllables = 2 + (int)(Next(ref state) * 2f) + Mathf.RoundToInt(intensity * 2f);
-                    syllableSeconds = Mathf.Lerp(0.17f, 0.2f, intensity);
-                    gapSeconds = Mathf.Lerp(0.05f, 0.03f, intensity);
-                    baseF0 *= Mathf.Lerp(1.0f, 1.3f, intensity);
-                    startBend = 1f; endBend = 1f;
-                    roughness = Mathf.Lerp(0.02f, 0.25f, intensity); breath = 0.06f;
+                }
+                case Agent_VoiceMood.Insult:
+                {
+                    if (level >= 4)
+                    {
+                        var pfft = Syllable.Make('p', VU, 0.1f, 1f, 1f, 0.05f);                            // "pfft"
+                        pfft.Unvoiced = true;
+                        pfft.Amp = 0.45f;
+                        plan.Add(pfft);
+                    }
+                    int count = 2 + (level >= 3 ? 1 : 0);
+                    for (int index = 0; index < count; index++)
+                    {
+                        float start = (1f + 0.2f * x) * (index % 2 == 0 ? 1.19f : 1f);                  // minor third
+                        plan.Add(Syllable.Make('n', index % 2 == 0 ? VA : VE, 0.13f + 0.05f * x, start,
+                            start * (index == count - 1 ? 0.92f : 1f), 0.035f));
+                    }
+                    f2Scale = 1.15f;
+                    nasal = true;
+                    rasp *= 0.6f + 0.4f * x;
                     break;
+                }
+                default: // Celebrate
+                {
+                    if (level == 1)
+                    {
+                        var yeah = Syllable.Make('y', VA, 0.26f, 1.15f, 1.35f);                          // "yeah!"
+                        yeah.Hump = 0.05f;
+                        plan.Add(yeah);
+                    }
+                    else
+                    {
+                        plan.Add(Syllable.Make('w', VO, 0.12f + 0.05f * x, 1.15f + 0.2f * x, 1.25f + 0.25f * x, 0.03f));   // "woo"
+                        var hoo = Syllable.Make('h', VU, 0.22f + 0.35f * x, 1.3f + 0.3f * x, 1.55f + 0.45f * x);           // "hoo!"
+                        hoo.Held = true;
+                        plan.Add(hoo);
+                        for (int index = 0; index < level - 3; index++)
+                        {
+                            plan.Add(Syllable.Make('h', VA, 0.09f, 1.4f, 1.3f, 0.05f));                  // "ha-ha"
+                        }
+                    }
+                    vibratoDepth = Mathf.Max(vibratoDepth, 0.02f) * (1.5f + 1.5f * x);
+                    breath = Mathf.Clamp01(breath + 0.05f);
+                    break;
+                }
             }
 
-            float totalSeconds = 0.04f + syllables * (syllableSeconds + gapSeconds);
-            int length = Mathf.CeilToInt(totalSeconds * SAMPLE_RATE);
-            var output = new float[length];
-
-            float formantScale = Mathf.Pow(voicePitch, 0.35f);
-            float dt = 1f / SAMPLE_RATE;
-            float phase = 0f, glottalLow = 0f;
-            float vibratoRate = 5f + Next(ref state) * 2f;
-            float vibratoDepth = Mathf.Lerp(0.01f, 0.04f, intensity);
-
-            int cursor = Mathf.RoundToInt(0.02f * SAMPLE_RATE);
-            for (int syllable = 0; syllable < syllables; syllable++)
+            // ---- Synthesis ---------------------------------------------------------------
+            float lengthScale = takeLength / tempo;
+            float totalSeconds = 0.03f + 0.08f;
+            for (int index = 0; index < plan.Count; index++)
             {
-                int vowel = (int)(Next(ref state) * 5f) % 5;
-                if (mood == Agent_VoiceMood.Insult) vowel = syllable % 2 == 0 ? 0 : 1;          // "nyah-neh"
-                if (mood == Agent_VoiceMood.Hurt) vowel = intensity > 0.6f ? 0 : 4;               // "ugh" / "ah!"
-                float lengthJitter = 0.85f + Next(ref state) * 0.3f;
-                int count = Mathf.RoundToInt(syllableSeconds * lengthJitter * SAMPLE_RATE);
+                totalSeconds += OnsetSeconds(plan[index].Onset) + (plan[index].Seconds + plan[index].Gap) * lengthScale;
+            }
+            var output = new float[Mathf.CeilToInt(totalSeconds * SAMPLE_RATE)];
 
-                float syllableF0 = baseF0;
-                if (mood == Agent_VoiceMood.Insult) syllableF0 *= syllable % 2 == 0 ? 1.19f : 1f;
-                if (mood == Agent_VoiceMood.Happy) syllableF0 *= 1f + 0.06f * syllable * (1f - intensity * 0.5f);
+            float pitchHz = Mathf.Clamp(profile.pitchHz, 60f, 420f) * takePitch;
+            float formantScale = Mathf.Clamp(profile.formantScale, 0.75f, 1.35f);
+            float vibratoHz = Mathf.Clamp(profile.vibratoHz, 3f, 8f);
+            float jitter = 0.005f + 0.01f * rasp;
+            float shimmer = 0.03f + 0.03f * x;
+            float subharmonic = rasp * 0.5f;
+            float drive = 1f + rasp * 6f;
+            float driveNorm = Tanh(drive);
+            float glide = 1f - Mathf.Exp(-1f / (0.025f * SAMPLE_RATE));
+            float dt = 1f / SAMPLE_RATE;
 
-                var r1 = new Resonator(Formants[vowel, 0] * formantScale, 9f);
-                var r2 = new Resonator(Formants[vowel, 1] * formantScale, 12f);
-                var r3 = new Resonator(Formants[vowel, 2] * formantScale, 15f);
+            var resonators = new Resonator[4];
+            var current = new float[4];
+            var target = new float[4];
+            for (int formant = 0; formant < 4; formant++)
+            {
+                current[formant] = Vowels[VSCHWA, formant] * formantScale;
+                resonators[formant] = new Resonator(current[formant], current[formant] / Bandwidths[formant]);
+            }
 
-                for (int sampleIndex = 0; sampleIndex < count && cursor + sampleIndex < length; sampleIndex++)
+            float phase = 0f, flowPrev = 0f, jitterMul = 1f, shimmerMul = 1f, subMul = 1f;
+            int period = 0;
+            int cursor = Mathf.RoundToInt(0.02f * SAMPLE_RATE);
+
+            for (int index = 0; index < plan.Count; index++)
+            {
+                var syllable = plan[index];
+                int onsetCount = Mathf.RoundToInt(OnsetSeconds(syllable.Onset) * SAMPLE_RATE);
+                int vowelCount = Mathf.Max(1, Mathf.RoundToInt(syllable.Seconds * lengthScale * SAMPLE_RATE));
+                int count = onsetCount + vowelCount;
+                float fricHz = FricativeHz(syllable.Onset);
+                var fricative = fricHz > 0f ? new Resonator(fricHz, syllable.Onset == 'f' ? 0.7f : 3f) : default;
+
+                // Glides start from their own vowel; everything else carries on from the last syllable.
+                if (syllable.Onset == 'w' || syllable.Onset == 'y')
                 {
-                    float u = sampleIndex / (float)count;                       // 0..1 through the syllable
-                    float time = (cursor + sampleIndex) * dt;
-                    float bend = Mathf.Lerp(startBend, endBend, u);
-                    float jitter = 1f + (Next(ref state) - 0.5f) * 0.02f * (1f + roughness * 4f);
-                    float f0 = syllableF0 * bend * jitter * (1f + vibratoDepth * Mathf.Sin(2f * Mathf.PI * vibratoRate * time));
-
-                    phase += f0 * dt;
-                    if (phase >= 1f) phase -= 1f;
-                    float saw = 2f * phase - 1f;
-                    glottalLow += 0.35f * (saw - glottalLow);                   // soften the buzz
-                    float noise = Next(ref state) * 2f - 1f;
-                    float source = glottalLow * (1f - breath) + noise * breath;
-
-                    float voiced = r1.Process(source) * 1.0f + r2.Process(source) * 0.6f + r3.Process(source) * 0.3f;
-
-                    // Roughness: soft clip, harder as the level rises (anger, a yell).
-                    if (roughness > 0f)
-                    {
-                        float drive = 1f + roughness * 8f;
-                        voiced = Tanh(voiced * drive) / Tanh(drive);
-                    }
-
-                    // Envelope: fast attack, sustained body, tapered release.
-                    float attack = Mathf.Clamp01(u / 0.08f);
-                    float release = Mathf.Clamp01((1f - u) / Mathf.Lerp(0.35f, 0.2f, intensity));
-                    output[cursor + sampleIndex] += voiced * attack * release;
+                    int from = syllable.Onset == 'w' ? VU : VI;
+                    for (int formant = 0; formant < 4; formant++) current[formant] = Vowels[from, formant] * formantScale;
+                }
+                if (syllable.Onset == 'h')
+                {
+                    for (int formant = 0; formant < 4; formant++) current[formant] = Vowels[syllable.Vowel, formant] * formantScale;
                 }
 
-                cursor += count + Mathf.RoundToInt(gapSeconds * SAMPLE_RATE);
+                for (int sampleIndex = 0; sampleIndex < count && cursor + sampleIndex < output.Length; sampleIndex++)
+                {
+                    bool inOnset = sampleIndex < onsetCount;
+                    float onsetU = inOnset ? sampleIndex / (float)Mathf.Max(1, onsetCount) : 1f;
+                    float u = inOnset ? 0f : (sampleIndex - onsetCount) / (float)vowelCount;
+                    float time = (cursor + sampleIndex) * dt;
+
+                    // Formant targets: the nasal murmur during an 'n', else the vowel (F2 raised for a sneer).
+                    for (int formant = 0; formant < 4; formant++)
+                    {
+                        float hz = inOnset && syllable.Onset == 'n' ? Nasal[formant] : Vowels[syllable.Vowel, formant];
+                        if (formant == 1) hz *= f2Scale;
+                        if (formant == 0 && nasal) hz *= 0.9f;
+                        target[formant] = hz * formantScale;
+                        current[formant] += (target[formant] - current[formant]) * glide;
+                    }
+                    if ((sampleIndex & 15) == 0)
+                    {
+                        for (int formant = 0; formant < 4; formant++) resonators[formant].Tune(current[formant], current[formant] / Bandwidths[formant]);
+                    }
+
+                    // Pitch: contour + rise-fall hump + pitch break + vibrato + per-period jitter.
+                    float contour = Mathf.Lerp(syllable.F0Start, syllable.F0End, u) + syllable.Hump * Mathf.Sin(Mathf.PI * u);
+                    if (syllable.PitchBreak && u > 0.4f) contour *= 0.75f;
+                    float depth = vibratoDepth * (syllable.Held ? 0.3f + 1.2f * u : 1f);
+                    float f0 = pitchHz * contour * (1f + depth * Mathf.Sin(2f * Mathf.PI * vibratoHz * time)) * jitterMul;
+
+                    phase += f0 * dt;
+                    if (phase >= 1f)
+                    {
+                        phase -= 1f;
+                        period++;
+                        jitterMul = 1f + (Next(ref state) - 0.5f) * 2f * jitter;
+                        shimmerMul = 1f + (Next(ref state) - 0.5f) * 2f * shimmer;
+                        subMul = (period & 1) == 1 ? 1f - subharmonic : 1f;
+                    }
+                    float flow = Rosenberg(phase, tense);
+                    float pulse = (flow - flowPrev) * SAMPLE_RATE / Mathf.Max(f0, 1f) * 0.1f;   // radiated flow derivative
+                    flowPrev = flow;
+                    float noise = Next(ref state) * 2f - 1f;
+
+                    // Source mix and per-part envelope.
+                    float voiced = 0f, aspirated = 0f, frication = 0f;
+                    if (inOnset)
+                    {
+                        switch (syllable.Onset)
+                        {
+                            case 'h':
+                                aspirated = noise * 0.6f * onsetU;
+                                break;
+                            case 's':
+                            case 'S':
+                            case 'f':
+                                frication = noise * 0.35f * Mathf.Sin(Mathf.PI * onsetU);
+                                break;
+                            case 'p':
+                            case 't':
+                            case 'k':
+                                // closure silence, then a decaying burst
+                                frication = onsetU < 0.4f ? 0f : noise * 0.8f * Mathf.Exp(-(onsetU - 0.4f) * 8f);
+                                break;
+                            case 'n':
+                                voiced = 0.4f * Mathf.Clamp01(onsetU * 4f);
+                                break;
+                            default: // w, y glides
+                                voiced = 0.5f + 0.5f * onsetU;
+                                break;
+                        }
+                    }
+                    else
+                    {
+                        float attack = Mathf.Clamp01(u * vowelCount * dt / attackSeconds);
+                        float release = Mathf.Clamp01((1f - u) / (syllable.Held ? 0.35f : 0.25f));
+                        float envelope = attack * release * syllable.Amp;
+                        if (syllable.Unvoiced)
+                        {
+                            aspirated = noise * 0.7f * envelope * (0.5f + 0.5f * u);
+                            if (fricHz > 0f) frication = noise * 0.4f * envelope;
+                        }
+                        else
+                        {
+                            voiced = envelope;
+                            aspirated = noise * breath * (0.35f + 0.65f * flow) * envelope;
+                        }
+                    }
+
+                    float source = voiced * pulse * shimmerMul * subMul + aspirated;
+                    float sample = 0f;
+                    for (int formant = 0; formant < 4; formant++) sample += resonators[formant].Process(source) * FormantGains[formant];
+                    if (fricHz > 0f) sample += fricative.Process(frication);
+                    else sample += frication * 0.2f;
+
+                    // Rasp: a growl of amplitude modulation and a soft clip, harder with the level.
+                    if (rasp > 0f)
+                    {
+                        sample *= 1f - 0.3f * rasp * (0.5f + 0.5f * Mathf.Sin(2f * Mathf.PI * 31f * time));
+                        sample = Tanh(sample * drive) / driveNorm;
+                    }
+                    output[cursor + sampleIndex] += sample;
+                }
+
+                cursor += count + Mathf.RoundToInt(syllable.Gap * lengthScale * SAMPLE_RATE);
             }
 
-            // Normalise to a level-dependent peak, so level is loudness as well as shape.
+            // Normalise to a level-dependent peak, so level is loudness as well as shape and
+            // procedural clips sit near recorded (normalised) ones.
             float peak = 0f;
-            for (int sampleIndex = 0; sampleIndex < length; sampleIndex++)
-            {
-                peak = Mathf.Max(peak, Mathf.Abs(output[sampleIndex]));
-            }
-            float target = Mathf.Lerp(0.3f, 0.95f, intensity);
-            float gain = peak > 1e-6f ? target / peak : 0f;
-            for (int sampleIndex = 0; sampleIndex < length; sampleIndex++)
-            {
-                output[sampleIndex] *= gain;
-            }
+            for (int sampleIndex = 0; sampleIndex < output.Length; sampleIndex++) peak = Mathf.Max(peak, Mathf.Abs(output[sampleIndex]));
+            float gain = peak > 1e-6f ? Mathf.Lerp(0.3f, 0.95f, x) / peak : 0f;
+            for (int sampleIndex = 0; sampleIndex < output.Length; sampleIndex++) output[sampleIndex] *= gain;
             return output;
+        }
+
+        /// <summary>Unity clip for one request with an explicit profile. Allocates; callers cache it.</summary>
+        public static AudioClip ToClip(Agent_VoiceProfile profile, string characterId, Agent_VoiceMood mood, int level, int take)
+        {
+            float[] samples = Render(profile, characterId, mood, level, take);
+            var clip = AudioClip.Create($"voice_{characterId}_{mood}_{take}_{level}", samples.Length, 1, SAMPLE_RATE, false);
+            clip.SetData(samples, 0);
+            return clip;
+        }
+
+        /// <summary>Rosenberg glottal flow over one period (0..1): opening, closing, closed.</summary>
+        static float Rosenberg(float phase, bool tense)
+        {
+            const float open = 0.4f;
+            float closing = tense ? 0.1f : 0.16f;
+            if (phase < open) return 0.5f * (1f - Mathf.Cos(Mathf.PI * phase / open));
+            if (phase < open + closing) return Mathf.Cos(0.5f * Mathf.PI * (phase - open) / closing);
+            return 0f;
         }
 
         /// <summary>xorshift32 in [0, 1).</summary>
@@ -356,15 +640,23 @@ namespace PoSoccer
             return (e - 1f) / (e + 1f);
         }
 
-        /// <summary>RBJ constant-peak band-pass biquad.</summary>
+        /// <summary>RBJ constant-peak band-pass biquad; <see cref="Tune"/> moves it without losing its state (formant glides).</summary>
         struct Resonator
         {
-            readonly float _b0, _b2, _a1, _a2;
+            float _b0, _b2, _a1, _a2;
             float _x1, _x2, _y1, _y2;
 
             public Resonator(float frequency, float q)
             {
-                frequency = Mathf.Min(frequency, SAMPLE_RATE * 0.45f);
+                _b0 = _b2 = _a1 = _a2 = 0f;
+                _x1 = _x2 = _y1 = _y2 = 0f;
+                Tune(frequency, q);
+            }
+
+            public void Tune(float frequency, float q)
+            {
+                frequency = Mathf.Clamp(frequency, 40f, SAMPLE_RATE * 0.45f);
+                q = Mathf.Max(0.3f, q);
                 float w0 = 2f * Mathf.PI * frequency / SAMPLE_RATE;
                 float alpha = Mathf.Sin(w0) / (2f * q);
                 float a0 = 1f + alpha;
@@ -372,7 +664,6 @@ namespace PoSoccer
                 _b2 = -alpha / a0;
                 _a1 = -2f * Mathf.Cos(w0) / a0;
                 _a2 = (1f - alpha) / a0;
-                _x1 = _x2 = _y1 = _y2 = 0f;
             }
 
             public float Process(float x)

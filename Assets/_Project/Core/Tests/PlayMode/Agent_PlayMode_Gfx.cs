@@ -234,10 +234,15 @@ namespace PoSoccer.Tests
             int trained = 0;
             var grid = root.Q<VisualElement>("grid");
             Assert.IsNotNull(grid, "No character grid.");
-            Assert.AreEqual(menu.characters.Length, grid.childCount,
-                "The grid should hold one tile per character, trained or not.");
+            Assert.AreEqual(Mathf.Max(menu.characters.Length, Agent_Bracket.SIZE), grid.childCount,
+                "The grid should hold one tile per character, trained or not, and BYE tiles up to 4 x 4.");
             for (int tileIndex = 0; tileIndex < grid.childCount; tileIndex++)
             {
+                if (grid[tileIndex].ClassListContains("menu__tile--bye"))
+                {
+                    Assert.GreaterOrEqual(tileIndex, menu.characters.Length, "A BYE tile sits before a character.");
+                    continue;
+                }
                 if (grid[tileIndex].enabledSelf) trained++;
             }
             if (trained >= 2)

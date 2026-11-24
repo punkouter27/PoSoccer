@@ -12,12 +12,18 @@ namespace PoSoccer
     /// both ratings by K x (actual - expected) - so the pair's total is conserved.
     /// A draw scores 0.5. Byes are not games and never touch a rating.
     ///
-    /// Recorded for every finished 1 v 1 match between two named characters:
-    /// tournament matches and exhibition 1 v 1s alike.
+    /// Recorded for every finished 1 v 1 tournament match (<see cref="Record"/>) and,
+    /// since 2026-11-22, every completed exhibition or demo match, 1 v 1 or 4 v 4
+    /// (<see cref="RecordMatch"/>, pairwise team rule in <see cref="TeamDeltas"/>).
+    /// The 4v4 cup still leaves Elo alone.
     /// </summary>
     public static class Agent_Elo
     {
-        public const float START_RATING = 1500f;
+        /// <summary>
+        /// Tournament standard (2026-11-22): 1000 (was 1500). Only characters with no saved
+        /// entry start here; ratings already in elo.json keep their values.
+        /// </summary>
+        public const float START_RATING = 1000f;
         public const float K_FACTOR = 32f;
         const string FILE_NAME = "elo.json";
 
@@ -91,6 +97,136 @@ namespace PoSoccer
             else { a.draws++; b.draws++; }
             Save();
             return a.rating - before;
+        }
+
+        // -- Exhibition and demo matches, 1 v 1 and team (2026-11-22, demo Elo spec) -----------
+
+        static bool IsHuman(string name)
+            => string.Equals(name, Agent_HumanController.HUMAN_PLAYER_NAME, System.StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>A side's rated characters: named, not the human, each once (copies aggregate into one entry).</summary>
+        public static List<string> RatedSide(IList<string> side, System.Func<string, bool> isHuman = null)
+        {
+            var names = new List<string>();
+            if (side == null) return names;
+            for (int index = 0; index < side.Count; index++)
+            {
+                string name = side[index];
+                if (string.IsNullOrEmpty(name) || (isHuman ?? IsHuman)(name)) continue;
+                bool seen = false;
+                for (int other = 0; other < names.Count; other++)
+                {
+                    if (string.Equals(names[other], name, System.StringComparison.OrdinalIgnoreCase)) seen = true;
+                }
+                if (!seen) names.Add(name);
+            }
+            return names;
+        }
+
+        /// <summary>
+        /// Rating change of every player in one match (pure). Team rule (no older one
+        /// existed): each player on one side plays each on the other, pairwise, with K
+        /// divided by the number of opponents that player faced, so a 4 v 4 moves a
+        /// rating about as much as a 1 v 1 (and a 1 v 1 is plain Elo). A character on
+        /// both sides never plays itself: those pairs are skipped. All pairs use the
+        /// ratings from before the match. <paramref name="blueScore"/>: 1 win, 0.5 draw, 0 loss.
+        /// </summary>
+        public static Dictionary<string, float> TeamDeltas(IList<string> blue, IList<string> red, float blueScore,
+            System.Func<string, float> ratingOf, float k = K_FACTOR, System.Func<string, bool> isHuman = null)
+        {
+            var blueSide = RatedSide(blue, isHuman);
+            var redSide = RatedSide(red, isHuman);
+            var deltas = new Dictionary<string, float>(System.StringComparer.OrdinalIgnoreCase);
+            var opponents = new Dictionary<string, int>(System.StringComparer.OrdinalIgnoreCase);
+            foreach (string name in blueSide) { deltas[name] = 0f; opponents[name] = 0; }
+            foreach (string name in redSide) { deltas[name] = 0f; opponents[name] = 0; }
+            foreach (string a in blueSide)
+            {
+                foreach (string b in redSide)
+                {
+                    if (string.Equals(a, b, System.StringComparison.OrdinalIgnoreCase)) continue;
+                    opponents[a]++;
+                    opponents[b]++;
+                }
+            }
+            foreach (string a in blueSide)
+            {
+                foreach (string b in redSide)
+                {
+                    if (string.Equals(a, b, System.StringComparison.OrdinalIgnoreCase)) continue;
+                    float surprise = blueScore - Expected(ratingOf(a), ratingOf(b));
+                    deltas[a] += k / opponents[a] * surprise;
+                    deltas[b] -= k / opponents[b] * surprise;
+                }
+            }
+            return deltas;
+        }
+
+        /// <summary>
+        /// Records one finished exhibition or demo match (1 v 1 or team) and saves at once.
+        /// A character fielded on both sides is left alone (it would partly play itself). Returns each rated
+        /// player's change.
+        /// </summary>
+        public static Dictionary<string, float> RecordMatch(IList<string> blue, IList<string> red, float blueScore)
+        {
+            var deltas = TeamDeltas(blue, red, blueScore, RatingOf);
+            var blueSide = RatedSide(blue);
+            var redSide = RatedSide(red);
+            bool any = false;
+            foreach (var pair in deltas)
+            {
+                bool onBlue = blueSide.Exists(name => string.Equals(name, pair.Key, System.StringComparison.OrdinalIgnoreCase));
+                bool onRed = redSide.Exists(name => string.Equals(name, pair.Key, System.StringComparison.OrdinalIgnoreCase));
+                if (onBlue && onRed) continue;   // fielded on both sides: unrated for this match
+                float score = onBlue ? blueScore : 1f - blueScore;
+                var entry = Find(pair.Key, create: true);
+                entry.rating += pair.Value;
+                entry.games++;
+                if (score > 0.75f) entry.wins++;
+                else if (score < 0.25f) entry.losses++;
+                else entry.draws++;
+                any = true;
+            }
+            if (any) Save();
+            return deltas;
+        }
+
+        /// <summary>
+        /// One exhibition or demo match from kickoff to result. <see cref="Complete"/> records
+        /// it exactly once; a match that is aborted (input left the demo, the scene was
+        /// reset or unloaded) never completes and records nothing.
+        /// </summary>
+        public sealed class PendingMatch
+        {
+            readonly string[] _blue, _red;
+            readonly System.Func<IList<string>, IList<string>, float, Dictionary<string, float>> _record;
+            bool _closed;
+
+            public PendingMatch(IList<string> blue, IList<string> red,
+                System.Func<IList<string>, IList<string>, float, Dictionary<string, float>> record = null)
+            {
+                _blue = blue == null ? new string[0] : new List<string>(blue).ToArray();
+                _red = red == null ? new string[0] : new List<string>(red).ToArray();
+                _record = record ?? RecordMatch;
+            }
+
+            public IReadOnlyList<string> Blue => _blue;
+            public IReadOnlyList<string> Red => _red;
+
+            /// <summary>True once completed or aborted.</summary>
+            public bool Closed => _closed;
+
+            /// <summary>Records the final score once; null when already completed or aborted.</summary>
+            public Dictionary<string, float> Complete(int blueGoals, int redGoals)
+            {
+                if (_closed) return null;
+                _closed = true;
+                float blueScore = blueGoals > redGoals ? 1f : blueGoals < redGoals ? 0f : 0.5f;   // no seeds in a demo
+                return _record(_blue, _red, blueScore);
+            }
+
+            /// <summary>The match ended without a result: nothing is recorded, now or later.</summary>
+            public void Abort() => _closed = true;
         }
 
         /// <summary>Forgets every rating (tests, or a fresh league).</summary>

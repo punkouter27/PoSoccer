@@ -431,7 +431,7 @@ namespace PoSoccer
             if (!known || bye)
             {
                 slot.style.height = BYE_HEIGHT;
-                var empty = new Label(bye ? "bye" : "·  ·  ·");
+                var empty = new Label(bye ? Agent_Bracket.BYE_LABEL : "·  ·  ·");
                 empty.style.fontSize = 20;
                 empty.style.color = ByeText;
                 slot.Add(empty);
@@ -492,7 +492,7 @@ namespace PoSoccer
             return face;
         }
 
-        static string DisplayName(string name) => string.IsNullOrEmpty(name) ? "nobody" : name;
+        static string DisplayName(string name) => Agent_Bracket.Display(name);
 
         static Button ActionButton(string text, System.Action onClick)
         {

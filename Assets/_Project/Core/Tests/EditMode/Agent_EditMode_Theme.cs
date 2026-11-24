@@ -214,7 +214,7 @@ namespace PoSoccer.Tests
             string[] fromCode =
             {
                 "menu__tile", "menu__tile-face", "menu__tile-name", "menu__tile-tag",
-                "menu__tile--blue", "menu__tile--red", "menu__tile--locked",
+                "menu__tile--blue", "menu__tile--red", "menu__tile--locked", "menu__tile--bye",
                 "menu__seat", "menu__seat--blue", "menu__seat--red", "menu__seat--empty",
             };
 

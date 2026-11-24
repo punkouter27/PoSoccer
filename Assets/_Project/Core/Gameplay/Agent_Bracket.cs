@@ -9,8 +9,10 @@ namespace PoSoccer
     /// Slots hold entrant names (a character for the 1v1 cup, a team for the 4v4
     /// cup); an empty name is a BYE. Entrants are seeded strongest first into the
     /// standard seed layout, so with fewer entrants than slots the byes go to the
-    /// top seeds and the best entrants meet last. A match against a BYE is decided
-    /// without being played and never touches a rating.
+    /// top seeds (BYEs take the bottom seeds) and the best entrants meet last. A
+    /// match against a BYE is decided without being played and never touches a
+    /// rating; BYE vs BYE sends a BYE on. A drawn match goes to the higher seed
+    /// (<see cref="RecordDraw"/>).
     ///
     /// Matches are numbered per round (round 0 = the first round; the last round is
     /// the final, 1 match) and stored flat: <see cref="Offset"/> maps a round to
@@ -24,12 +26,32 @@ namespace PoSoccer
     {
         /// <summary>Default and largest size: the 1v1 cup.</summary>
         public const int SIZE = 16;
+        /// <summary>An empty slot (stored as ""). Shown to players as <see cref="BYE_LABEL"/>.</summary>
         public const string BYE = "";
 
-        /// <summary>Bracket position of seeds 1..16 (index = seed - 1) for each supported size.</summary>
-        static readonly int[] Seed16 = { 0, 14, 10, 6, 4, 8, 12, 2, 3, 13, 9, 5, 7, 11, 15, 1 };
-        static readonly int[] Seed8 = { 0, 6, 4, 2, 3, 5, 7, 1 };
+        /// <summary>How an empty slot is displayed everywhere (menu grid and bracket): the tournament standard.</summary>
+        public const string BYE_LABEL = "BYE";
+
+        /// <summary>
+        /// Bracket position of seeds 1..N (index = seed - 1) for each supported size.
+        /// Tournament standard (2026-11-22): the first-round pairs, top to bottom, are
+        /// 1v16, 8v9, 4v13, 5v12, 2v15, 7v10, 3v14, 6v11 (and 1v8, 4v5, 2v7, 3v6 for 8;
+        /// 1v4, 2v3 for 4), so seeds 1 and 2 can only meet in the final.
+        /// </summary>
+        static readonly int[] Seed16 = { 0, 8, 12, 4, 6, 14, 10, 2, 3, 11, 15, 7, 5, 13, 9, 1 };
+        static readonly int[] Seed8 = { 0, 4, 6, 2, 3, 7, 5, 1 };
         static readonly int[] Seed4 = { 0, 2, 3, 1 };
+
+        static int[] LayoutFor(int bracketSize) => bracketSize switch
+        {
+            4 => Seed4,
+            8 => Seed8,
+            16 => Seed16,
+            _ => throw new System.ArgumentException($"bracket size {bracketSize}; supported: 4, 8, 16"),
+        };
+
+        /// <summary>"BYE" for an empty name, the name otherwise.</summary>
+        public static string Display(string name) => string.IsNullOrEmpty(name) ? BYE_LABEL : name;
 
         public int size = SIZE;
         public string[] slots = new string[SIZE];
@@ -78,13 +100,7 @@ namespace PoSoccer
         /// <summary>New bracket from entrants ordered strongest first. Extra entrants beyond the size are dropped.</summary>
         public static Agent_Bracket Seeded(IList<string> strongestFirst, int bracketSize = SIZE)
         {
-            int[] layout = bracketSize switch
-            {
-                4 => Seed4,
-                8 => Seed8,
-                16 => Seed16,
-                _ => throw new System.ArgumentException($"bracket size {bracketSize}; supported: 4, 8, 16"),
-            };
+            int[] layout = LayoutFor(bracketSize);
             var bracket = new Agent_Bracket
             {
                 size = bracketSize,
@@ -190,6 +206,34 @@ namespace PoSoccer
             AdvanceByes();
             return true;
         }
+
+        /// <summary>Seed (1 = strongest) of the entrant who started in <paramref name="slot"/>.</summary>
+        public int SeedOfSlot(int slot) => System.Array.IndexOf(LayoutFor(Size), slot) + 1;
+
+        /// <summary>An entrant's seed (1 = strongest), or int.MaxValue for a BYE or a stranger.</summary>
+        public int SeedOf(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return int.MaxValue;
+            for (int slot = 0; slot < Size; slot++)
+            {
+                if (slots[slot] == name) return SeedOfSlot(slot);
+            }
+            return int.MaxValue;
+        }
+
+        /// <summary>The better-seeded (lower seed number) of the match's two entrants.</summary>
+        public string HigherSeed(int round, int match)
+        {
+            string a = Entrant(round, match, 0), b = Entrant(round, match, 1);
+            return SeedOf(b) < SeedOf(a) ? b : a;
+        }
+
+        /// <summary>
+        /// Records a drawn match: the tournament standard sends the higher seed through.
+        /// Ignored if already decided.
+        /// </summary>
+        public bool RecordDraw(int round, int match, string score)
+            => Record(round, match, HigherSeed(round, match), score);
 
         /// <summary>Number of real (non-BYE) entrants.</summary>
         public int EntrantCount

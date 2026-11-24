@@ -272,7 +272,7 @@ promises no network access. See `docs/brain-hub.md`.
 `Agent_PlayMode_SmokeRun` plays every lineup with an error budget of zero. Do not add an
 ignore list to it.
 
-**Assemblies**: `PoSoccer.Runtime` (`Assets/_Project/`), `PoSoccer.Editor.Build` (`Assets/_Project/Core/Editor`),
+**Assemblies**: `PoSoccer.Runtime` (`Assets/_Project/`), `PoSoccer.Editor.Build` (`Assets/_Project/Core/Editor`; references the runtime since 2026-11-22 for the voices.json generator),
 `PoSoccer.EditModeTests`, `PoSoccer.PlayModeTests`.
 
 ## Method rules
