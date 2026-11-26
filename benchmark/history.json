@@ -308,6 +308,141 @@
     "trainer: 'mlagents 1.2.0.dev0 (torch 2.5.1+cu121)' -> None",
     "unity: '6000.6.9f1' -> None"
    ]
+  },
+  {
+   "when": "2026-11-26T13:33:08-05:00",
+   "ok": true,
+   "error": null,
+   "machine": {
+    "hostname": "WIN-C2ANEVBHN6Q",
+    "cpu": "Intel(R) Core(TM) Ultra 9 275HX (24 threads)",
+    "gpu": "NVIDIA GeForce RTX 5070 Ti Laptop GPU",
+    "vram_gb": 11.9,
+    "ram_gb": 31.4,
+    "gpu_driver": "621.24",
+    "os": "Windows 11 (10.0.26300)"
+   },
+   "load_before": {
+    "cpu_pct": 13,
+    "cpu_max_core_pct": 48,
+    "trainer_cpu_cores": 0.0,
+    "trainer_thread_pct": 0,
+    "ram_used_gb": 19.3,
+    "gpu_pct": 28.0,
+    "gpu_mem_pct": 4.0,
+    "vram_used_gb": 1.3,
+    "gpu_temp_c": 86.47,
+    "sm_clock_mhz": 855.0,
+    "sm_clock_max_mhz": 3090.0,
+    "power_w": 24.42,
+    "power_limit_w": 110.0,
+    "pstate": "P4",
+    "clock_reasons": [
+     "thermal (sw)"
+    ],
+    "display_active": true,
+    "pcie": "gen 5 x8",
+    "on_battery": false,
+    "gpu_processes": [
+     "DCv2.exe",
+     "EOSOverlayRenderer-Win64-Shipping.exe",
+     "EpicGamesLauncher.exe",
+     "Unity Hub.exe",
+     "msedge.exe"
+    ]
+   },
+   "load_during": {
+    "cpu_pct": 20.8,
+    "cpu_max_core_pct": 65.2,
+    "trainer_cpu_cores": 1.1,
+    "trainer_thread_pct": 97.1,
+    "ram_used_gb": 20.9,
+    "gpu_pct": 20.9,
+    "gpu_mem_pct": 7.2,
+    "vram_used_gb": 1.3,
+    "gpu_temp_c": 86.59,
+    "sm_clock_mhz": 891.1,
+    "sm_clock_max_mhz": 3090.0,
+    "clock_pct_of_max": 29,
+    "power_w": 25.7,
+    "power_limit_w": 110.0,
+    "pstate": "P4",
+    "clock_reasons": {
+     "thermal (sw)": 1.0
+    },
+    "display_active": true,
+    "pcie": "gen 2 x8",
+    "on_battery": false,
+    "samples": 20
+   },
+   "busy": true,
+   "workload_id": "d56b24",
+   "workload": {
+    "repo": "PoSoccer",
+    "trainer": "mlagents 1.2.0.dev0 (torch 2.8.0)",
+    "config": "Training/TRAIN_ALAN_p50.yaml",
+    "config_hash": "c34a74",
+    "num_envs": 4,
+    "env": "POSOCCER_OPPONENT=bot POSOCCER_PROFILE=ALAN POSOCCER_STAMINA_MODEL=shipped POSOCCER_REACTION_MS=0",
+    "hyperparameters": {
+     "batch_size": 2048,
+     "buffer_size": 20480,
+     "learning_rate": 0.0003,
+     "learning_rate_schedule": "linear",
+     "beta": 0.008,
+     "epsilon": 0.2,
+     "lambd": 0.95,
+     "num_epoch": 3
+    },
+    "net": [
+     256,
+     256
+    ],
+    "time_horizon": 1024,
+    "unity": "6000.6.9f1",
+    "player_built": "2026-11-26T13:32:39"
+   },
+   "result": {
+    "step_time_ms": 22.996,
+    "sim_ms": 9.579,
+    "learn_ms": 13.417,
+    "env_steps_per_s": 174,
+    "steps_measured": 1105.0,
+    "measured_s": 25.41,
+    "startup_s": 38.5,
+    "step_p50_ms": 8.674,
+    "step_p95_ms": 14.723,
+    "sim_drift_pct": -2.1,
+    "blocks_measured": 4074
+   },
+   "git_commit": "982751b",
+   "versions": {
+    "python": "3.10.11",
+    "torch": "2.8.0",
+    "mlagents": "1.2.0.dev0"
+   },
+   "context": {
+    "power_plan": "Balanced",
+    "power_mode": "balanced",
+    "gpu_scheduling": null
+   },
+   "verdict": [
+    "busy before",
+    "throttled (thermal)",
+    "CPU-bound"
+   ],
+   "workload_changes": [
+    "config: 'TRAIN_ALAN_p50.yaml' -> 'Training/TRAIN_ALAN_p50.yaml'",
+    "config_hash: None -> 'c34a74'",
+    "env: None -> 'POSOCCER_OPPONENT=bot POSOCCER_PROFILE=ALAN POSOCCER_STAMINA_MODEL=shipped POSOCCER_REACTION_MS=0'",
+    "hyperparameters: None -> {'batch_size': 2048, 'buffer_size': 20480, 'learning_rate': 0.0003, 'learning_rate_schedule': 'linear', 'beta': 0.008, 'epsilon': 0.2, 'lambd': 0.95, 'num_epoch': 3}",
+    "net: None -> [256, 256]",
+    "num_envs: None -> 4",
+    "player_built: None -> '2026-11-26T13:32:39'",
+    "time_horizon: None -> 1024",
+    "trainer: None -> 'mlagents 1.2.0.dev0 (torch 2.8.0)'",
+    "unity: None -> '6000.6.9f1'"
+   ]
   }
  ]
 }
