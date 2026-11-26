@@ -18,13 +18,13 @@ namespace PoSoccer
     /// the final, 1 match) and stored flat: <see cref="Offset"/> maps a round to
     /// its first index.
     ///
-    /// 2026-11-09: the size became per bracket (the 4v4 cup is four teams). A save
+    /// 2026-11-09: the size became per bracket (the 4v4 cup has four slots). A save
     /// written before then has no <see cref="size"/> and reads back as 16.
     /// </summary>
     [System.Serializable]
     public sealed class Agent_Bracket
     {
-        /// <summary>Default and largest size: the 1v1 cup.</summary>
+        /// <summary>Default and largest size, also used to read older 1v1 cups.</summary>
         public const int SIZE = 16;
         /// <summary>An empty slot (stored as ""). Shown to players as <see cref="BYE_LABEL"/>.</summary>
         public const string BYE = "";

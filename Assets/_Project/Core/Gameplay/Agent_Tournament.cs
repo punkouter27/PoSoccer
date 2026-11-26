@@ -7,11 +7,10 @@ namespace PoSoccer
     /// Tournament mode's state across scene loads. There are two cups, each with
     /// its own bracket, saved to its own file in persistentDataPath:
     ///
-    ///   1v1 CUP  (tournament.json)      16 slots, one character per slot, BYEs fill
+    ///   1v1 CUP  (tournament.json)      8 slots, one character per slot, BYEs fill
     ///                                   the slots of untrained characters.
-    ///   4v4 CUP  (tournament-4v4.json)  4 slots, one TEAM of four per slot. Teams are
-    ///                                   drafted from the trained roster by Elo (snake
-    ///                                   draft, so the four teams are about equal).
+    ///   4v4 CUP  (tournament-4v4.json)  4 slots, with two teams of four and two BYEs.
+    ///                                   Teams are drafted from the trained roster by Elo.
     ///
     /// <see cref="Mode"/> picks which cup every other member reads. The menu sets it
     /// when a cup is opened; it is a static, so it survives the load into the match
@@ -42,6 +41,8 @@ namespace PoSoccer
 
         public const int TEAM_SIZE = 4;
         public const int MAX_TEAMS = 4;
+        public const int SOLO_PLAYERS = 8;
+        public const int TEAM_PLAYERS = 8;
         public const string TEAM_PREFIX = "TEAM ";
 
         [System.Serializable]
@@ -123,8 +124,8 @@ namespace PoSoccer
             return null;
         }
 
-        /// <summary>How many teams of four a roster of <paramref name="players"/> makes (at most four).</summary>
-        public static int TeamCount(int players) => Mathf.Min(MAX_TEAMS, players / TEAM_SIZE);
+        /// <summary>How many full teams of four enter, using at most eight players.</summary>
+        public static int TeamCount(int players) => Mathf.Min(TEAM_PLAYERS / TEAM_SIZE, players / TEAM_SIZE);
 
         /// <summary>
         /// Snake draft, strongest first: team 1 picks first in odd rounds and last in
@@ -156,7 +157,7 @@ namespace PoSoccer
 
         /// <summary>
         /// Starts a new bracket for the current cup from the trained roster's names.
-        /// Seeds by Elo, strongest first. The 1v1 cup fills 16 slots with BYEs; the
+        /// Seeds by Elo, strongest first. The 1v1 cup fills 8 slots with BYEs; the
         /// 4v4 cup drafts teams and seeds them by their total rating. False when the
         /// roster is too small for this cup (the 4v4 cup needs two full teams).
         /// </summary>
@@ -179,7 +180,7 @@ namespace PoSoccer
             else
             {
                 data.teams = new List<Team>();
-                data.bracket = Agent_Bracket.Seeded(ordered);
+                data.bracket = Agent_Bracket.Seeded(ordered, SOLO_PLAYERS);
             }
 
             data.hasBracket = true;

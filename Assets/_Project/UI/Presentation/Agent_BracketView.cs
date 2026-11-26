@@ -5,8 +5,8 @@ using UnityEngine.UIElements;
 namespace PoSoccer
 {
     /// <summary>
-    /// The tournament screen raised over the main menu: a 16-slot bracket in five
-    /// columns (round of 16, quarter-finals, semi-finals, final, champion), the
+    /// The tournament screen raised over the main menu: an 8-slot bracket in four
+    /// columns (quarter-finals, semi-finals, final, champion), the
     /// next match, and the controls.
     ///
     ///   PLAY NEXT   plays the next match (1 v 1, first to the HUD's matchGoals).

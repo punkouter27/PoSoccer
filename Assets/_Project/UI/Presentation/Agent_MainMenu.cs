@@ -13,8 +13,8 @@ namespace PoSoccer
     ///
     ///   1v1       tap two faces: the first fills Blue, the second Red. PLAY.
     ///   4v4       the same with four a side.
-    ///   1v1 CUP   the 16-slot single-elimination bracket (Agent_BracketView).
-    ///   4v4 CUP   four teams of four, drafted by Elo, in a 4-slot bracket.
+    ///   1v1 CUP   the 8-slot single-elimination bracket (Agent_BracketView).
+    ///   4v4 CUP   two teams of four, drafted by Elo, in a 4-slot bracket.
     ///
     /// A character without a trained brain is shown greyed with IN TRAINING and
     /// cannot be picked; it unlocks by itself the first time the menu loads after
@@ -784,8 +784,9 @@ namespace PoSoccer
             int ready = _trained.Length;
             if (_mode == Mode.SoloCup)
             {
+                int entrants = Mathf.Min(ready, Agent_Tournament.SOLO_PLAYERS);
                 return ready >= 2
-                    ? $"16-slot bracket: {ready} players + {Agent_Bracket.SIZE - ready} BYEs (players still in training)"
+                    ? $"8-slot bracket: {entrants} players + {Agent_Tournament.SOLO_PLAYERS - entrants} BYEs (players still in training)"
                     : "The 1v1 cup needs 2 trained players.";
             }
             int teams = Agent_Tournament.TeamCount(ready);
@@ -795,7 +796,7 @@ namespace PoSoccer
             }
             int sitting = ready - teams * TEAM_SIZE;
             return $"{teams} teams of 4, drafted by Elo so they are even" +
-                   (sitting > 0 ? $" · {sitting} sit out until the next full team" : "") +
+                   (sitting > 0 ? $" · {sitting} sit out" : "") +
                    (teams < Agent_Tournament.MAX_TEAMS ? $" · {Agent_Tournament.MAX_TEAMS - teams} BYE" : "");
         }
 

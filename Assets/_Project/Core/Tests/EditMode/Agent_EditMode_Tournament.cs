@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.IO;
 using NUnit.Framework;
 using UnityEngine;
 
@@ -11,6 +12,24 @@ namespace PoSoccer.Tests
     /// </summary>
     public sealed class Agent_EditMode_Tournament
     {
+        sealed class PreserveTournamentSave : System.IDisposable
+        {
+            readonly string path;
+            readonly byte[] contents;
+
+            public PreserveTournamentSave(string name)
+            {
+                path = Path.Combine(Application.persistentDataPath, name);
+                contents = File.Exists(path) ? File.ReadAllBytes(path) : null;
+            }
+
+            public void Dispose()
+            {
+                if (contents != null) File.WriteAllBytes(path, contents);
+                else if (File.Exists(path)) File.Delete(path);
+            }
+        }
+
         // -- Bracket -----------------------------------------------------------
 
         [Test]
@@ -228,17 +247,17 @@ namespace PoSoccer.Tests
             for (int seed = 1; seed <= 16; seed++) names.Add("P" + seed);
             var teams = Agent_Tournament.DraftTeams(names);
 
-            Assert.AreEqual(4, teams.Count);
-            CollectionAssert.AreEqual(new[] { "P1", "P8", "P9", "P16" }, teams[0].members);
-            CollectionAssert.AreEqual(new[] { "P4", "P5", "P12", "P13" }, teams[3].members);
+            Assert.AreEqual(2, teams.Count);
+            CollectionAssert.AreEqual(new[] { "P1", "P4", "P5", "P8" }, teams[0].members);
+            CollectionAssert.AreEqual(new[] { "P2", "P3", "P6", "P7" }, teams[1].members);
             Assert.AreEqual("TEAM P1", teams[0].name);
 
-            // Sum of seeds is equal for every team: 34.
+            // Sum of seeds is equal for both teams: 18.
             foreach (var team in teams)
             {
                 int total = 0;
                 foreach (string member in team.members) total += int.Parse(member.Substring(1));
-                Assert.AreEqual(34, total, team.name + " is not balanced");
+                Assert.AreEqual(18, total, team.name + " is not balanced");
             }
         }
 
@@ -250,12 +269,40 @@ namespace PoSoccer.Tests
             Assert.AreEqual(2, teams.Count, "nine players make two teams of four");
             Assert.AreEqual(Agent_Tournament.TEAM_SIZE, teams[1].members.Length);
             Assert.AreEqual(0, Agent_Tournament.DraftTeams(new List<string> { "A", "B", "C" }).Count);
-            Assert.AreEqual(Agent_Tournament.MAX_TEAMS, Agent_Tournament.TeamCount(20));
+            Assert.AreEqual(2, Agent_Tournament.TeamCount(20));
+        }
+
+        [Test]
+        public void SoloCup_StartsAnEightPlayerBracket()
+        {
+            using var save = new PreserveTournamentSave("tournament.json");
+            Agent_Tournament.ResetForTests();
+            try
+            {
+                Agent_Tournament.Mode = Agent_Tournament.Cup.Solo;
+                Assert.IsTrue(Agent_Tournament.StartNew(new[] { "A", "B", "C", "D", "E", "F", "G", "H", "I" }));
+                Assert.AreEqual(8, Agent_Tournament.Bracket.Size);
+                Assert.AreEqual(8, Agent_Tournament.Bracket.EntrantCount);
+                int played = 0;
+                while (Agent_Tournament.Bracket.TryNextMatch(out int round, out int match))
+                {
+                    var bracket = Agent_Tournament.Bracket;
+                    Assert.IsTrue(bracket.Record(round, match, bracket.Entrant(round, match, 0), "1-0"));
+                    played++;
+                }
+                Assert.AreEqual(7, played);
+                Assert.IsTrue(Agent_Tournament.Bracket.Finished);
+            }
+            finally
+            {
+                Agent_Tournament.ResetForTests();
+            }
         }
 
         [Test]
         public void TeamCup_StartsOnlyWithTwoTeams_AndKeepsItsOwnBracket()
         {
+            using var save = new PreserveTournamentSave("tournament-4v4.json");
             Agent_Tournament.ResetForTests();
             try
             {
@@ -263,13 +310,15 @@ namespace PoSoccer.Tests
                 Assert.IsFalse(Agent_Tournament.StartNew(new[] { "A", "B", "C", "D", "E", "F" }), "six players are one team");
                 Assert.IsNull(Agent_Tournament.Bracket);
 
-                var eight = new[] { "A", "B", "C", "D", "E", "F", "G", "H" };
-                Assert.IsTrue(Agent_Tournament.StartNew(eight));
+                var sixteen = new[] { "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P" };
+                Assert.IsTrue(Agent_Tournament.StartNew(sixteen));
                 Assert.AreEqual(4, Agent_Tournament.Bracket.Size);
                 Assert.AreEqual(2, Agent_Tournament.Bracket.EntrantCount);
                 Assert.IsTrue(Agent_Tournament.BeginNextMatch(out string blue, out string red));
                 Assert.AreEqual(4, Agent_Tournament.MembersOf(blue).Length);
                 Assert.AreEqual(4, Agent_Tournament.MembersOf(red).Length);
+                Agent_Tournament.Report(1, 0);
+                Assert.IsTrue(Agent_Tournament.Bracket.Finished, "the two-team cup has one final");
 
                 Agent_Tournament.Mode = Agent_Tournament.Cup.Solo;
                 Assert.IsNull(Agent_Tournament.Bracket, "the 1v1 cup has its own (empty) bracket");
