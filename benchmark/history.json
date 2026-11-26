@@ -80,6 +80,79 @@
     "mlagents": "1.2.0.dev0"
    },
    "workload_changes": []
+  },
+  {
+   "when": "2026-11-26T12:29:42-05:00",
+   "ok": false,
+   "error": "RuntimeError: headless player build failed: \u001b[36;1m\u001b[31;1m\u001b[31;1m\u001b[36;1m\u001b[31;1m\u001b[36;1m\u001b[31;1m\u001b[36;1m\u001b[31;1m\u001b[0m",
+   "machine": {
+    "hostname": "WIN-C2ANEVBHN6Q",
+    "cpu": "Intel(R) Core(TM) Ultra 9 275HX (24 threads)",
+    "gpu": "NVIDIA GeForce RTX 5070 Ti Laptop GPU",
+    "vram_gb": 11.9,
+    "ram_gb": 31.4,
+    "gpu_driver": "621.24",
+    "os": "Windows 11 (10.0.26300)"
+   },
+   "load_before": {
+    "cpu_pct": 47,
+    "cpu_max_core_pct": 72,
+    "trainer_cpu_cores": 0.0,
+    "trainer_thread_pct": 0,
+    "ram_used_gb": 21.0,
+    "gpu_pct": 99.0,
+    "gpu_mem_pct": 7.0,
+    "vram_used_gb": 4.6,
+    "gpu_temp_c": 88.25,
+    "sm_clock_mhz": 180.0,
+    "sm_clock_max_mhz": 3090.0,
+    "power_w": 30.08,
+    "power_limit_w": 110.0,
+    "pstate": "P2",
+    "clock_reasons": [
+     "thermal (sw)"
+    ],
+    "display_active": true,
+    "pcie": "gen 5 x8",
+    "on_battery": false,
+    "gpu_processes": [
+     "DCv2.exe",
+     "EOSOverlayRenderer-Win64-Shipping.exe",
+     "EpicGamesLauncher.exe",
+     "msedge.exe",
+     "python.exe"
+    ]
+   },
+   "load_during": {},
+   "busy": true,
+   "workload_id": "dd615a",
+   "workload": {
+    "repo": "PoSoccer",
+    "config": "TRAIN_ALAN_p50.yaml"
+   },
+   "result": null,
+   "git_commit": "3b94cb2",
+   "versions": {
+    "python": "3.10.11"
+   },
+   "context": {
+    "power_plan": "Balanced",
+    "power_mode": "balanced",
+    "gpu_scheduling": null
+   },
+   "verdict": [],
+   "workload_changes": [
+    "config: 'Training/TRAIN_ALAN_p50.yaml' -> 'TRAIN_ALAN_p50.yaml'",
+    "config_hash: 'c34a74' -> None",
+    "env: 'POSOCCER_OPPONENT=bot POSOCCER_PROFILE=ALAN POSOCCER_STAMINA_MODEL=shipped POSOCCER_REACTION_MS=0' -> None",
+    "hyperparameters: {'batch_size': 2048, 'buffer_size': 20480, 'learning_rate': 0.0003, 'learning_rate_schedule': 'linear', 'beta': 0.008, 'epsilon': 0.2, 'lambd': 0.95, 'num_epoch': 3} -> None",
+    "net: [256, 256] -> None",
+    "num_envs: 4 -> None",
+    "player_built: '2026-11-18T12:33:00' -> None",
+    "time_horizon: 1024 -> None",
+    "trainer: 'mlagents 1.2.0.dev0 (torch 2.5.1+cu121)' -> None",
+    "unity: '6000.6.9f1' -> None"
+   ]
   }
  ]
 }
